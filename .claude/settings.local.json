@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(sf --version)",
+      "PowerShell(npm install --no-audit --no-fund 2>$null; npx sfdx-lwc-jest --skipApiVersionCheck 2>$null; \"EXIT=$LASTEXITCODE\")",
+      "Bash(npx sfdx-lwc-jest *)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(npx eslint *)",
+      "Bash(curl -s https://api.github.com/repos/mozilla/pdf.js/releases/latest)",
+      "Bash(curl -sL -o pdfjs-legacy.zip \"https://github.com/mozilla/pdf.js/releases/download/v6.1.200/pdfjs-6.1.200-legacy-dist.zip\")",
+      "Bash(unzip -l pdfjs-legacy.zip)",
+      "Bash(grep -E 'build/|^.* web/viewer|cmaps/$|/$')",
+      "Bash(unzip -l pdfjs-legacy.zip 'build/*')",
+      "Bash(unzip -l pdfjs-legacy.zip 'web/wasm/*')",
+      "Bash(unzip -l pdfjs-legacy.zip 'web/standard_fonts/*')",
+      "Bash(unzip -l pdfjs-legacy.zip 'web/cmaps/*')",
+      "Bash(unzip -l pdfjs-legacy.zip 'web/iccs/*')",
+      "Bash(unzip -o -q pdfjs-legacy.zip 'build/pdf.mjs' -d probe)",
+      "Bash(zip -r -q -X /tmp/pdfjs-test.zip pdfjs)",
+      "Read(//tmp/**)",
+      "Bash(awk '{print $5}')",
+      "Bash(rm -f /tmp/pdfjs-test.zip)",
+      "Bash(find C:/Users/smelg/Documents/sfdxprj/claude/JsonLwc/force-app/main/default/staticresources/pdfjs -name *.map)",
+      "Bash(sf config *)",
+      "Bash(sf org *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(o.get\\('alias'\\),o.get\\('username'\\),o.get\\('isDefaultUsername'\\),o.get\\('connectedStatus'\\)\\) for o in d.get\\('result',{}\\).get\\('nonScratchOrgs',[]\\)+d.get\\('result',{}\\).get\\('scratchOrgs',[]\\)]\")",
+      "Bash(sf project *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); r=d.get\\('result',{}\\); print\\('numberComponentErrors:', r.get\\('numberComponentErrors'\\)\\); cf=r.get\\('details',{}\\).get\\('componentFailures',[]\\); cf=cf if isinstance\\(cf,list\\) else [cf]; [print\\('ERR:', f.get\\('fullName'\\),'-',f.get\\('problem'\\)\\) for f in cf]; print\\('tests pass:', r.get\\('numberTestsCompleted'\\), 'fail:', r.get\\('numberTestErrors'\\)\\)\")",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); r=d.get\\('result',{}\\); print\\('overall status field \\(0=success\\):', d.get\\('status'\\)\\); print\\('componentErrors:', r.get\\('numberComponentErrors'\\)\\); cf=r.get\\('details',{}\\).get\\('componentFailures',[]\\); cf=cf if isinstance\\(cf,list\\) else [cf]; [print\\('  ERR:', f.get\\('fullName'\\),'-',f.get\\('problem'\\)\\) for f in cf]; print\\('tests passed:', r.get\\('numberTestsCompleted'\\) or r.get\\('details',{}\\).get\\('runTestResult',{}\\).get\\('numTestsRun'\\), 'failed:', r.get\\('numberTestErrors'\\)\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); r=d.get\\('result',{}\\); print\\('status\\(0=ok\\):', d.get\\('status'\\)\\); print\\('componentErrors:', r.get\\('numberComponentErrors'\\)\\); cf=r.get\\('details',{}\\).get\\('componentFailures',[]\\); cf=cf if isinstance\\(cf,list\\) else [cf]; [print\\('  ERR:', f.get\\('fullName'\\),'-',f.get\\('problem'\\)\\) for f in cf if f]\")",
+      "Bash(npx prettier *)"
+    ]
+  }
+}

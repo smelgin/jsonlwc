@@ -1,0 +1,70 @@
+<template>
+    <div class="json-form">
+        <template lwc:if={hasRows}>
+            <template for:each={rows} for:item="row">
+                <div key={row.id} class="form-row" style={row.indentStyle}>
+                    <template lwc:if={row.isBranch}>
+                        <div class="row-grid branch-row">
+                            <template lwc:if={row.hasFixedLabel}>
+                                <span class="fixed-label slds-truncate"
+                                    >{row.label}</span
+                                >
+                            </template>
+                            <template lwc:else>
+                                <lightning-input
+                                    type="text"
+                                    label="Field label"
+                                    variant="label-hidden"
+                                    value={row.label}
+                                    data-id={row.id}
+                                    onchange={handleLabelChange}
+                                    onblur={handleLabelBlur}
+                                    class="label-input"
+                                ></lightning-input>
+                            </template>
+                            <lightning-badge
+                                label={row.badge}
+                                class="type-badge"
+                            ></lightning-badge>
+                        </div>
+                    </template>
+                    <template lwc:else>
+                        <div class="row-grid">
+                            <template lwc:if={row.hasFixedLabel}>
+                                <span class="fixed-label slds-truncate"
+                                    >{row.label}</span
+                                >
+                            </template>
+                            <template lwc:else>
+                                <lightning-input
+                                    type="text"
+                                    label="Field label"
+                                    variant="label-hidden"
+                                    value={row.label}
+                                    data-id={row.id}
+                                    onchange={handleLabelChange}
+                                    onblur={handleLabelBlur}
+                                    class="label-input"
+                                ></lightning-input>
+                            </template>
+                            <lightning-input
+                                type="text"
+                                label="Field value"
+                                variant="label-hidden"
+                                value={row.value}
+                                data-id={row.id}
+                                onchange={handleValueChange}
+                                class="value-input"
+                            ></lightning-input>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </template>
+        <template lwc:else>
+            <p class="slds-text-body_regular slds-text-color_weak empty-state">
+                No JSON loaded.
+            </p>
+        </template>
+    </div>
+</template>

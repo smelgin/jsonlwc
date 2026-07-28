@@ -1,0 +1,92 @@
+<template>
+    <div class={containerClass} style={containerStyle} lwc:ref="container">
+        <div class="pane left-pane" style={leftPaneStyle}>
+            <template lwc:if={hasNoDocument}>
+                <p class="pane-message slds-text-color_weak">
+                    Set a Content Document Id to preview a file.
+                </p>
+            </template>
+            <template lwc:elseif={isLoading}>
+                <lightning-spinner
+                    alternative-text="Loading file"
+                    size="medium"
+                ></lightning-spinner>
+            </template>
+            <template lwc:elseif={fileError}>
+                <p class="pane-message slds-text-color_error">{fileError}</p>
+            </template>
+            <template lwc:elseif={isImage}>
+                <img
+                    src={previewUrl}
+                    alt={fileInfo.title}
+                    class="preview-image"
+                />
+            </template>
+            <template lwc:elseif={isPdf}>
+                <template lwc:if={pdfFallback}>
+                    <iframe
+                        src={previewUrl}
+                        title={fileInfo.title}
+                        class="preview-frame"
+                    ></iframe>
+                </template>
+                <template lwc:else>
+                    <div class="pdf-wrapper">
+                        <template lwc:if={pdfLoading}>
+                            <div class="pdf-spinner">
+                                <lightning-spinner
+                                    alternative-text="Rendering PDF"
+                                    size="medium"
+                                ></lightning-spinner>
+                            </div>
+                        </template>
+                        <iframe
+                            src={pdfViewerUrl}
+                            title={fileInfo.title}
+                            class="preview-frame"
+                            lwc:ref="pdfFrame"
+                        ></iframe>
+                    </div>
+                </template>
+            </template>
+            <template lwc:else>
+                <p class="pane-message slds-text-color_weak">
+                    Preview not available for “{fileInfo.title}” (type:
+                    {fileInfo.fileExtension}). Supported types: PDF, JPG, PNG,
+                    GIF.
+                </p>
+            </template>
+        </div>
+
+        <div
+            class="divider"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize panes"
+            aria-valuenow={leftPercentRounded}
+            aria-valuemin="20"
+            aria-valuemax="80"
+            tabindex="0"
+            onpointerdown={handleDividerPointerDown}
+            onkeydown={handleDividerKeyDown}
+        ></div>
+
+        <div class="pane right-pane">
+            <div class="right-content">
+                <c-json-form
+                    json-data={jsonInput}
+                    onjsonchange={handleJsonChange}
+                    lwc:ref="jsonForm"
+                ></c-json-form>
+            </div>
+            <div class="right-footer">
+                <lightning-button
+                    label={submitLabel}
+                    variant="brand"
+                    disabled={submitDisabled}
+                    onclick={handleSubmit}
+                ></lightning-button>
+            </div>
+        </div>
+    </div>
+</template>

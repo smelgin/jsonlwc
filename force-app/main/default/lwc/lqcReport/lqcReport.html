@@ -1,0 +1,35 @@
+<template>
+    <div class="slds-card lqc-report">
+        <div class="slds-card__header lqc-report__header">
+            <h2 class="slds-text-heading_small lqc-report__title">{title}</h2>
+            <lightning-button-icon
+                icon-name="utility:refresh"
+                alternative-text="Refresh"
+                title="Refresh"
+                onclick={handleRefresh}
+            ></lightning-button-icon>
+        </div>
+        <div class="slds-card__body lqc-report__body">
+            <table class="lqc-report__table">
+                <tbody>
+                    <template for:each={sections} for:item="section">
+                        <tr key={section.key} class="lqc-report__section-row">
+                            <th scope="row">{section.title}</th>
+                            <td class="lqc-report__amount">Value</td>
+                        </tr>
+                        <template for:each={section.lines} for:item="line">
+                            <tr key={line.key} class="lqc-report__line-row">
+                                <td>{line.label}</td>
+                                <td class="lqc-report__amount">{line.amount}</td>
+                            </tr>
+                        </template>
+                    </template>
+                </tbody>
+            </table>
+            <div class="lqc-report__grand-total-row">
+                <span>Estimated Net Estate Value</span>
+                <span class="lqc-report__grand-total-amount">{grandTotal}</span>
+            </div>
+        </div>
+    </div>
+</template>

@@ -1,0 +1,58 @@
+<template>
+    <lightning-card>
+        <div class="slds-p-horizontal_medium slds-p-bottom_medium">
+            <c-lqc-banner
+                lwc:if={banner}
+                variant={banner.variant}
+                message={banner.message}
+                onclose={handleBannerClose}
+            ></c-lqc-banner>
+
+            <template lwc:if={isLoading}>
+                <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
+            </template>
+
+            <template lwc:if={hasTabs}>
+                <lightning-tabset>
+                    <template for:each={tabs} for:item="tab">
+                        <lightning-tab key={tab.key} label={tab.config.title}>
+                            <template lwc:if={tab.isReport}>
+                                <c-lqc-report
+                                    title={tab.reportTitle}
+                                    tabs={configTabs}
+                                    rows-map={tabRowsMap}
+                                    currency-code={tab.config.currencyCode}
+                                    onrefresh={handleReportRefresh}
+                                ></c-lqc-report>
+                            </template>
+                            <template lwc:else>
+                                <c-lqc-grid
+                                    record-id={recordId}
+                                    config={tab.config}
+                                    initial-rows={tab.initialRows}
+                                    read-only={published}
+                                    onrowschange={handleRowsChange}
+                                ></c-lqc-grid>
+                            </template>
+                        </lightning-tab>
+                    </template>
+                </lightning-tabset>
+
+                <div class="slds-grid slds-grid_align-end slds-m-top_medium">
+                    <lightning-button
+                        label="Save"
+                        disabled={actionsDisabled}
+                        onclick={handleSave}
+                        class="slds-m-right_x-small"
+                    ></lightning-button>
+                    <lightning-button
+                        variant="brand"
+                        label="Publish"
+                        disabled={actionsDisabled}
+                        onclick={handlePublish}
+                    ></lightning-button>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

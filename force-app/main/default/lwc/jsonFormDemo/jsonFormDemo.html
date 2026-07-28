@@ -1,0 +1,44 @@
+<template>
+    <lightning-card title="JSON Form Editor" icon-name="standard:flow">
+        <div class="slds-var-p-horizontal_medium slds-var-p-bottom_medium">
+            <lightning-textarea
+                label="Source JSON"
+                value={sourceJson}
+                onchange={handleSourceChange}
+                class="source-area"
+            ></lightning-textarea>
+            <template lwc:if={parseError}>
+                <p class="slds-text-color_error slds-var-m-top_x-small">
+                    {parseError}
+                </p>
+            </template>
+            <lightning-button
+                label="Load JSON"
+                variant="brand"
+                onclick={handleLoad}
+                class="slds-var-m-top_small"
+            ></lightning-button>
+
+            <template lwc:if={loadedJson}>
+                <h2
+                    class="slds-text-heading_small slds-var-m-top_medium slds-var-m-bottom_x-small"
+                >
+                    Edit fields
+                </h2>
+                <c-json-form
+                    json-data={loadedJson}
+                    onjsonchange={handleJsonChange}
+                ></c-json-form>
+            </template>
+
+            <template lwc:if={hasModifiedJson}>
+                <h2
+                    class="slds-text-heading_small slds-var-m-top_medium slds-var-m-bottom_x-small"
+                >
+                    Modified JSON
+                </h2>
+                <pre class="output">{modifiedJson}</pre>
+            </template>
+        </div>
+    </lightning-card>
+</template>

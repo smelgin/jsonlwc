@@ -1,0 +1,35 @@
+.json-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.form-row {
+    min-width: 0;
+}
+
+.row-grid {
+    display: grid;
+    grid-template-columns: minmax(8rem, 18rem) minmax(8rem, 1fr);
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.branch-row {
+    grid-template-columns: minmax(8rem, 18rem) auto;
+    margin-top: 0.5rem;
+}
+
+.fixed-label {
+    font-weight: 600;
+    color: var(--slds-g-color-neutral-base-30, #444);
+    padding: 0 0.75rem;
+}
+
+.type-badge {
+    justify-self: start;
+}
+
+.empty-state {
+    padding: 0.5rem 0.75rem;
+}

@@ -1,0 +1,21 @@
+<template>
+    <template lwc:if={hasMessage}>
+        <div class={bannerClass} role="alert">
+            <lightning-icon
+                icon-name={iconName}
+                size="x-small"
+                variant="inverse"
+                class="slds-m-right_x-small"
+            ></lightning-icon>
+            <span class="lqc-banner__text">{message}</span>
+            <lightning-button-icon
+                icon-name="utility:close"
+                variant="bare-inverse"
+                size="small"
+                alternative-text="Dismiss"
+                class="lqc-banner__close"
+                onclick={handleClose}
+            ></lightning-button-icon>
+        </div>
+    </template>
+</template>

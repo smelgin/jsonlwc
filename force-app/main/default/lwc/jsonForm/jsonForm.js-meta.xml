@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>JSON Form</masterLabel>
+    <description>Renders arbitrary JSON as a hierarchical form with editable label and value textboxes and returns the modified JSON.</description>
+    <targets>
+        <target>lightning__FlowScreen</target>
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
+        <target>lightning__RecordPage</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig targets="lightning__FlowScreen">
+            <property
+                name="jsonInput"
+                type="String"
+                label="Source JSON"
+                description="The JSON string to render as an editable form."
+                role="inputOnly"
+            />
+            <property
+                name="jsonOutput"
+                type="String"
+                label="Modified JSON"
+                description="The JSON string including the user's edits."
+                role="outputOnly"
+            />
+        </targetConfig>
+        <targetConfig targets="lightning__AppPage,lightning__HomePage,lightning__RecordPage">
+            <property
+                name="jsonInput"
+                type="String"
+                label="Source JSON"
+                description="The JSON string to render as an editable form."
+            />
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

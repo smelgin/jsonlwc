@@ -1,0 +1,13 @@
+.source-area {
+    display: block;
+}
+
+.output {
+    background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+    border: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    border-radius: 0.25rem;
+    padding: 0.75rem;
+    font-size: 0.8125rem;
+    overflow-x: auto;
+    white-space: pre;
+}

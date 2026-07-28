@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>PDF preview</title>
+        <style>
+            html,
+            body {
+                margin: 0;
+                height: 100%;
+                background: #525659;
+            }
+            #pages {
+                box-sizing: border-box;
+                height: 100%;
+                overflow: auto;
+                padding: 0.75rem;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 0.75rem;
+            }
+            #pages canvas {
+                max-width: 100%;
+                height: auto;
+                box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+                background: #fff;
+            }
+            #status {
+                color: #f3f3f3;
+                font: 0.875rem/1.4 system-ui, sans-serif;
+                padding: 1rem;
+                text-align: center;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="status">Loading viewer…</div>
+        <div id="pages" hidden></div>
+
+        <script type="module">
+            // Note: the PDF.js modules are shipped as .js (not .mjs) because
+            // Salesforce serves .mjs as application/octet-stream, which the
+            // browser refuses to execute as a module script.
+            import * as pdfjsLib from './pdf.js';
+
+            // Resolve asset URLs relative to this page so the versioned
+            // static-resource path prefix is handled automatically.
+            const base = new URL('.', import.meta.url).href;
+            pdfjsLib.GlobalWorkerOptions.workerSrc = base + 'pdf.worker.js';
+
+            const statusEl = document.getElementById('status');
+            const pagesEl = document.getElementById('pages');
+            let parentOrigin = '*';
+
+            function post(message) {
+                window.parent.postMessage(message, parentOrigin);
+            }
+
+            function base64ToBytes(base64) {
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                return bytes;
+            }
+
+            async function renderPdf(base64) {
+                statusEl.hidden = false;
+                statusEl.textContent = 'Rendering…';
+                // Reveal (and empty) the container now so it has layout width
+                // to measure — a hidden element reports a width of 0.
+                pagesEl.hidden = false;
+                pagesEl.replaceChildren();
+
+                const doc = await pdfjsLib.getDocument({
+                    data: base64ToBytes(base64),
+                    standardFontDataUrl: base + 'standard_fonts/',
+                    wasmUrl: base + 'wasm/',
+                    iccUrl: base + 'iccs/'
+                }).promise;
+
+                const outputScale = window.devicePixelRatio || 1;
+                const styles = getComputedStyle(pagesEl);
+                const padding =
+                    parseFloat(styles.paddingLeft) +
+                    parseFloat(styles.paddingRight);
+                const containerWidth = Math.max(
+                    pagesEl.clientWidth - padding,
+                    200
+                );
+
+                for (let n = 1; n <= doc.numPages; n++) {
+                    // eslint-disable-next-line no-await-in-loop
+                    const page = await doc.getPage(n);
+                    const unscaled = page.getViewport({ scale: 1 });
+                    const scale = containerWidth / unscaled.width;
+                    const viewport = page.getViewport({ scale });
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.floor(viewport.width * outputScale);
+                    canvas.height = Math.floor(viewport.height * outputScale);
+                    canvas.style.width = Math.floor(viewport.width) + 'px';
+                    pagesEl.appendChild(canvas);
+
+                    // eslint-disable-next-line no-await-in-loop
+                    await page.render({
+                        canvasContext: canvas.getContext('2d'),
+                        viewport,
+                        transform:
+                            outputScale !== 1
+                                ? [outputScale, 0, 0, outputScale, 0, 0]
+                                : undefined
+                    }).promise;
+                }
+
+                statusEl.hidden = true;
+            }
+
+            window.addEventListener('message', async (event) => {
+                if (event.source !== window.parent) {
+                    return;
+                }
+                if (!event.data || event.data.type !== 'pdfjs-render') {
+                    return;
+                }
+                parentOrigin = event.origin || '*';
+                try {
+                    await renderPdf(event.data.data);
+                    post({ type: 'pdfjs-rendered' });
+                } catch (e) {
+                    post({ type: 'pdfjs-error', message: String(e && e.message) });
+                }
+            });
+
+            // Signal the host that the viewer is ready to receive a document.
+            post({ type: 'pdfjs-ready' });
+        </script>
+    </body>
+</html>
