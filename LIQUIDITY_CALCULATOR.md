@@ -84,7 +84,8 @@ The report tab — grey section row per data tab, white summary lines, boxed gra
 | `ILqcPrefill` | `force-app/main/default/classes/ILqcPrefill.cls` | Interface every refresh provider implements. |
 | `ILqcStorage` | `force-app/main/default/classes/ILqcStorage.cls` | Pluggable persistence strategy — decides *where* the payload lives. |
 | `LqcEstateCaseStorage` | `force-app/main/default/classes/LqcEstateCaseStorage.cls` | Default strategy: `Estate_Case__c.LQC_Result__c` on the Estate Case related to the Case. |
-| `Lqc*` providers | `force-app/main/default/classes/Lqc{DebitAccounts,CreditAccounts,InsurancePolicies,FixedProperties,Shares,OtherAssets}.cls` | **Placeholder** prefill implementations returning stub rows. Replace with real queries/callouts. |
+| `Lqc*` providers | `force-app/main/default/classes/Lqc{DebitAccounts,CreditAccounts,InsurancePolicies,FixedProperties,Shares,OtherAssets}.cls` | Prefill implementations. **Debit/Credit/Insurance query Financial Services Cloud** (see §6.1); FixedProperties/Shares/OtherAssets are still stubs. |
+| `LqcFscService` | `force-app/main/default/classes/LqcFscService.cls` | Shared FSC access: resolves the Deceased Account from `Case.Account__c` and queries their Financial Accounts (owned, joint, or role-linked). Carries the FFLIB adoption notes. |
 | `Custom_Configuration__mdt` | `force-app/main/default/objects/Custom_Configuration__mdt/` | Shared CMT holding the JSON in `Value__c` (Long Text Area, 131 072). |
 | `DE_LQC` record | `force-app/main/default/customMetadata/Custom_Configuration.DE_LQC.md-meta.xml` | The configuration record. Label **DE Liquidity Calculator**. |
 
@@ -313,9 +314,51 @@ Register it by setting `"refreshClass": "lqcDebitAccounts"` on the tab. Values w
 `picklist` column should match one of the configured `values`; an unmatched value still displays,
 but the combobox will not preselect it.
 
-> **All six shipped providers return hardcoded stub rows** and are marked with `TODO`. They exist
-> so the component is demonstrable end to end — replace their bodies with real logic. The
-> interface will not change.
+> Three providers (`LqcFixedProperties`, `LqcShares`, `LqcOtherAssets`) still return hardcoded
+> stub rows marked `TODO`. The other three are real — see §6.1. The interface will not change.
+
+### 6.1 The FSC-backed providers (v2.1)
+
+`LqcDebitAccounts`, `LqcCreditAccounts` and `LqcInsurancePolicies` query the **standard (core)
+Financial Services Cloud data model** (API v61.0+ — `FinancialAccount`, `FinancialAccountParty`,
+`FinancialAccountBalance`, not the `FinServ__*` managed-package objects), filtering on the
+Deceased person's Account held in the **standard `Case.AccountId`** lookup (a Case without an
+Account produces a clear red banner on refresh).
+
+| Provider | Source | Inclusion rule |
+| --- | --- | --- |
+| Debit | `FinancialAccount` types `Checking`, `Savings`, `Investment` | Deceased has an **active Owner-role `FinancialAccountParty`** on the account (joint holdings are simply additional Owner parties) |
+| Credit | Same object, types `Credit Card`, `Loan`, `Mortgage`, `Automotive Loan`, `Automotive Lease` | Same rule |
+| Insurance | `InsurancePolicy` where `NameInsuredId` = deceased; beneficiary from `InsurancePolicyParticipant` (`Role = 'Beneficiary'`) | Named-insured only |
+
+Key model facts encoded in `LqcFscService` (all commented in the code):
+
+- **Ownership is a junction, not a lookup**: `FinancialAccountParty` with `Role = 'Owner'`.
+  "Currently held" is filtered on the **`RoleStartDate`/`RoleEndDate` window, not
+  `IsRoleActive`** — that field is read-only in the API and defaults to `false`, so filtering on
+  it returns nothing unless an integration maintains it (and it cannot be seeded in Apex tests).
+  If your org does maintain it, the class comment shows what to add. If parties are modeled
+  against Contacts (`ContactId`), widen the query as noted there too.
+- **Balances are read-only child records**: `FinancialAccountBalance` rows typed `Total Balance`,
+  `Current Posted Balance`, `Available Credit`, etc.; the latest row (`BalanceAsOfDate`) per type
+  wins. Debit tabs prefer `Current Posted Balance`→`Total Balance` for the available amount;
+  credit tabs prefer the account's `TotalOutstandingAmount` field, then `Total Balance`. Because
+  `Amount`/`Type`/`FinancialAccountId` are not createable, Apex tests cannot seed balances — the
+  selection logic is unit-tested directly via `LqcFscService.balanceFor()`, and an org with no
+  integration feeding these rows will show **blank balance columns** until one exists.
+- **Group/household relations are excluded.** Accounts held by other members of the deceased's
+  group (`AccountAccountRelation`) are not estate assets; the comment explains how to widen this.
+- **Type sets are `@TestVisible` constants** — align them with the `FinancialAccount.Type`
+  picklist values configured in your org (the core picklist guarantees only the Automotive
+  values; the banking values come with FSC setup).
+- **DoD balances**: FSC holds only current amounts; `balance` / `balanceAtDod` prefill the latest
+  value until a statement-snapshot integration exists. `interestOnAcct` is left blank.
+- **`coverAmount` maps to `PremiumAmount` as a placeholder** — point it at your real sum-insured
+  source (custom field or `InsurancePolicyCoverage` aggregate) before trusting the subtotal.
+
+Each class carries **FFLIB adoption notes**: extract the SOQL into `fflib_SObjectSelector`
+subclasses resolved via the Application factory (mockable with ApexMocks), keep these classes as
+row-mappers, and route any future DML through `fflib_ISObjectUnitOfWork` in `ILqcStorage`.
 
 ---
 
@@ -388,6 +431,8 @@ references them at compile time. The deployment fails outright if they are missi
 | `Estate_Case__c` | Custom object, one record per Case. |
 | `Estate_Case__c.LQC_Result__c` | Long Text Area, large enough for the payload (131 072 recommended). |
 | A lookup on `Estate_Case__c` → `Case` | Any API name; `Case__c` is preferred if several exist. |
+| **Financial Services Cloud** | An FSC org with the standard objects enabled: `FinancialAccount`, `FinancialAccountParty`, `FinancialAccountBalance` (API v61.0+, Setup → Financial Accounts) and the Insurance objects (`InsurancePolicy`, `InsurancePolicyParticipant`) — the v2.1 providers reference them at compile time. |
+| `Case.AccountId` | Standard field; must be populated with the Deceased person's Account for prefill to work. |
 
 Two things to check before the first save: the storage strategy creates an Estate Case when none
 exists, so **every other field on `Estate_Case__c` must be optional** (a required custom field or
@@ -546,7 +591,7 @@ lock. `LqcControllerTest` covers config lookup, the save round-trip, every stub 
 | Area | Current behavior | Rationale / next step |
 | --- | --- | --- |
 | **Storage** | `Estate_Case__c.LQC_Result__c`, via the `ILqcStorage` strategy | Swap by writing another implementation and naming it in `storageClass` — no LWC or controller change. |
-| **Prefill classes** | Return hardcoded stub rows | Real data sources were not defined yet. Replace the bodies; the interface is stable. |
+| **Prefill classes** | Debit/Credit/Insurance query FSC (v2.1); FixedProperties/Shares/OtherAssets are stubs | See §6.1 for the FSC inclusion rules and the DoD-balance / cover-amount TODOs. |
 | **Publish** | Sets `published: true` and locks the UI | No approval process or audit trail, and no unpublish button by design. |
 | **Grand total** | Simple sum of all tab subtotals | Confirmed requirement — no tab is treated as a liability. If that changes, add a `liability: true` tab flag and subtract it in `lqcReport.grandTotal`. |
 | **Currency display** | `Intl.NumberFormat` with the **viewer's** locale | An `en-ZA` user sees `R10 563 000`; an `en-US` user sees `ZAR 10,563,000`. Hardcode the locale in `lqcReport.formatter` if you need one fixed format. |

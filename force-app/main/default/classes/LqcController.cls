@@ -72,9 +72,23 @@ public with sharing class LqcController {
      * key, falling back to LqcEstateCaseStorage. The class name comes from
      * Custom Metadata (admin-controlled), never from the browser.
      */
+    /**
+     * Injection seam for tests. FFLIB replaces this with
+     * Application.Service/Selector mocking - see ILqcStorage.
+     */
+    @TestVisible
+    private static ILqcStorage storageOverride;
+
     @TestVisible
     private static ILqcStorage storageFor(String configName) {
-        String className = storageClassName(getConfig(configName));
+        return storageOverride != null
+            ? storageOverride
+            : storageInstance(storageClassName(getConfig(configName)));
+    }
+
+    /** Instantiates and validates a storage strategy by class name. */
+    @TestVisible
+    private static ILqcStorage storageInstance(String className) {
         Type storageType = Type.forName(className);
         if (storageType == null) {
             throw new AuraHandledException('Storage class "' + className + '" was not found.');

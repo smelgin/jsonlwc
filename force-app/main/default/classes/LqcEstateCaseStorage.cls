@@ -43,21 +43,28 @@ public with sharing class LqcEstateCaseStorage implements ILqcStorage {
      */
     @TestVisible
     private static String caseLookup() {
-        if (cachedLookup != null) {
-            return cachedLookup;
+        if (cachedLookup == null) {
+            cachedLookup = discoverCaseLookup(PREFERRED_LOOKUP);
         }
+        return cachedLookup;
+    }
+
+    /**
+     * Discovery itself, parameterised by the preferred field name so tests can
+     * exercise the fallback scan without depending on how the org named it.
+     */
+    @TestVisible
+    private static String discoverCaseLookup(String preferredName) {
         Map<String, Schema.SObjectField> fields =
             Estate_Case__c.SObjectType.getDescribe().fields.getMap();
 
-        Schema.SObjectField preferred = fields.get(PREFERRED_LOOKUP);
+        Schema.SObjectField preferred = fields.get(preferredName);
         if (preferred != null && referencesCase(preferred)) {
-            cachedLookup = preferred.getDescribe().getName();
-            return cachedLookup;
+            return preferred.getDescribe().getName();
         }
         for (Schema.SObjectField field : fields.values()) {
             if (referencesCase(field)) {
-                cachedLookup = field.getDescribe().getName();
-                return cachedLookup;
+                return field.getDescribe().getName();
             }
         }
         throw new AuraHandledException(
@@ -66,6 +73,7 @@ public with sharing class LqcEstateCaseStorage implements ILqcStorage {
         );
     }
 
+    @TestVisible
     private static Boolean referencesCase(Schema.SObjectField field) {
         Schema.DescribeFieldResult describe = field.getDescribe();
         if (describe.getType() != Schema.DisplayType.REFERENCE) {

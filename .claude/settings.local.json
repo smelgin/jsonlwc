@@ -29,7 +29,18 @@
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); r=d.get\\('result',{}\\); print\\('overall status field \\(0=success\\):', d.get\\('status'\\)\\); print\\('componentErrors:', r.get\\('numberComponentErrors'\\)\\); cf=r.get\\('details',{}\\).get\\('componentFailures',[]\\); cf=cf if isinstance\\(cf,list\\) else [cf]; [print\\('  ERR:', f.get\\('fullName'\\),'-',f.get\\('problem'\\)\\) for f in cf]; print\\('tests passed:', r.get\\('numberTestsCompleted'\\) or r.get\\('details',{}\\).get\\('runTestResult',{}\\).get\\('numTestsRun'\\), 'failed:', r.get\\('numberTestErrors'\\)\\)\")",
       "Bash(python -c ' *)",
       "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); r=d.get\\('result',{}\\); print\\('status\\(0=ok\\):', d.get\\('status'\\)\\); print\\('componentErrors:', r.get\\('numberComponentErrors'\\)\\); cf=r.get\\('details',{}\\).get\\('componentFailures',[]\\); cf=cf if isinstance\\(cf,list\\) else [cf]; [print\\('  ERR:', f.get\\('fullName'\\),'-',f.get\\('problem'\\)\\) for f in cf if f]\")",
-      "Bash(npx prettier *)"
+      "Bash(npx prettier *)",
+      "PowerShell(New-Item -ItemType Directory -Force \"C:/Users/smelg/Documents/sfdxprj/claude/JsonLwc/docs/images\")",
+      "PowerShell(\"created\")",
+      "WebSearch",
+      "WebFetch(domain:developer.salesforce.com)",
+      "Bash(sf apex *)",
+      "Bash(sf data *)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); [print\\(r['ApexClassOrTrigger']['Name'], '| covered:', r['NumLinesCovered'], 'uncovered:', r['NumLinesUncovered'], '| lines:', r['Coverage']['uncoveredLines']\\) for r in d['result']['records']]\")",
+      "Bash(node create_proposal.js)",
+      "Bash(npm install *)",
+      "Bash(copy \"C:\\\\Users\\\\smelg\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\44a33ef1-4dcc-494c-bd45-dffabcafafb1\\\\4faaed3f-c8ce-415e-95de-3651ea6e29db\\\\skills\\\\docx\\\\JSON_Field_Mapping_Proposal.docx\" \"C:\\\\Users\\\\smelg\\\\Documents\\\\sfdxprj\\\\claude\\\\JsonLwc\\\\JSON_Field_Mapping_Proposal.docx\")",
+      "PowerShell(Copy-Item \"C:\\\\Users\\\\smelg\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\44a33ef1-4dcc-494c-bd45-dffabcafafb1\\\\4faaed3f-c8ce-415e-95de-3651ea6e29db\\\\skills\\\\docx\\\\JSON_Field_Mapping_Proposal.docx\" \"C:\\\\Users\\\\smelg\\\\Documents\\\\sfdxprj\\\\claude\\\\JsonLwc\\\\JSON_Field_Mapping_Proposal.docx\")"
     ]
   }
 }
