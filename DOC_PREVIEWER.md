@@ -64,7 +64,7 @@ Everything lives in `force-app/main/default/`. **All items below must move toget
 | Component | Type | Path | Role |
 | --- | --- | --- | --- |
 | `fileJsonReview` | LWC | `lwc/fileJsonReview` | The split-screen previewer (this document). |
-| `jsonForm` | LWC | `lwc/jsonForm` | Child component: renders/edits the JSON. Reusable on its own. |
+| `jsonForm` | LWC | `lwc/jsonForm` | Child component: renders/edits the JSON. Reusable on its own — see [JSON_FORM.md](JSON_FORM.md). |
 | `FilePreviewController` | Apex class | `classes/FilePreviewController.cls` | Resolves file metadata and returns PDF bytes as base64. |
 | `FilePreviewControllerTest` | Apex test | `classes/FilePreviewControllerTest.cls` | Test coverage (required for production deploys). |
 | `pdfjs` | Static resource | `staticresources/pdfjs` | Mozilla PDF.js v6.1.200 + custom `viewer.html`. |
@@ -319,4 +319,4 @@ Not bundled (add only if needed): `cmaps/` (CJK-encoded PDFs). If scanned/JBIG2/
 
 ---
 
-*Related docs: [README.md](README.md) (documentation index), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component).*
+*Related docs: [README.md](README.md) (documentation index), [JSON_FORM.md](JSON_FORM.md) (the `jsonForm` child component reference), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component).*
