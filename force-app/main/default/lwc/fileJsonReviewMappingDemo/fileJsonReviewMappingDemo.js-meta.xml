@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>66.0</apiVersion>
+    <isExposed>true</isExposed>
+    <masterLabel>File JSON Review + Field Mapping Demo</masterLabel>
+    <description
+  >Example host: reviews a file with fileJsonReview and extracts the JSON into Salesforce records — or checks it for compliance — via JsonMappingService and JSON_Field_Mapping__mdt.</description>
+    <targets>
+        <target>lightning__AppPage</target>
+        <target>lightning__HomePage</target>
+        <target>lightning__RecordPage</target>
+        <target>lightning__Tab</target>
+    </targets>
+    <targetConfigs>
+        <targetConfig
+      targets="lightning__AppPage,lightning__HomePage,lightning__RecordPage"
+    >
+            <property
+        name="contentDocumentId"
+        type="String"
+        label="Content Document Id"
+        description="Id of the file (ContentDocument) to review."
+      />
+            <property
+        name="mappingSetName"
+        type="String"
+        default="Estate_Intake"
+        label="Mapping Set"
+        description="Mapping_Set__c of the JSON_Field_Mapping__mdt rules applied on save."
+      />
+            <property
+        name="mode"
+        type="String"
+        default="Extraction"
+        datasource="Extraction,Compliance"
+        label="Mode"
+        description="Extraction writes the values; Compliance compares them with the data model. A rule's Mode__c overrides this per field."
+      />
+            <property
+        name="mismatchHandler"
+        type="String"
+        default=""
+        label="Mismatch Handler Class"
+        description="Apex class implementing IComplianceMismatchHandler invoked when a Compliance run finds mismatches, e.g. ComplianceTaskHandler."
+      />
+            <property
+        name="height"
+        type="String"
+        default="600px"
+        label="Height"
+        description="CSS height of the review component."
+      />
+        </targetConfig>
+    </targetConfigs>
+</LightningComponentBundle>

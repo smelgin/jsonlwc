@@ -1,0 +1,64 @@
+<template>
+  <lightning-card
+    title="Document Review with Field Mapping"
+    icon-name="standard:document_reference"
+  >
+    <div class="slds-card__body_inner">
+      <c-file-json-review
+        content-document-id={contentDocumentId}
+        json-input={jsonInput}
+        height={height}
+        submit-label={submitLabel}
+        onjsonsubmit={handleJsonSubmit}
+      ></c-file-json-review>
+
+      <template lwc:if={saving}>
+        <div class="slds-is-relative slds-var-m-top_medium spinner-row">
+          <lightning-spinner
+            alternative-text="Applying field mappings"
+            size="small"
+          ></lightning-spinner>
+        </div>
+      </template>
+
+      <template lwc:if={hasResult}>
+        <div class="slds-var-m-top_medium">
+          <template lwc:if={resultSummary}>
+            <p class="slds-text-body_regular">{resultSummary}</p>
+          </template>
+          <template lwc:if={hasMismatches}>
+            <table
+              class="slds-table slds-table_bordered slds-table_cell-buffer slds-var-m-top_small"
+            >
+              <thead>
+                <tr class="slds-line-height_reset">
+                  <th scope="col">Field</th>
+                  <th scope="col">Stored value</th>
+                  <th scope="col">Extracted value</th>
+                  <th scope="col">JSON path</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template for:each={mismatchRows} for:item="row">
+                  <tr key={row.key}>
+                    <td>{row.field}</td>
+                    <td>{row.stored}</td>
+                    <td>{row.extracted}</td>
+                    <td>{row.jsonPath}</td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </template>
+          <template lwc:if={hasErrors}>
+            <ul class="slds-list_dotted slds-text-color_error">
+              <template for:each={lastResult.errors} for:item="error">
+                <li key={error}>{error}</li>
+              </template>
+            </ul>
+          </template>
+        </div>
+      </template>
+    </div>
+  </lightning-card>
+</template>

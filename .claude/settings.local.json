@@ -40,7 +40,9 @@
       "Bash(node create_proposal.js)",
       "Bash(npm install *)",
       "Bash(copy \"C:\\\\Users\\\\smelg\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\44a33ef1-4dcc-494c-bd45-dffabcafafb1\\\\4faaed3f-c8ce-415e-95de-3651ea6e29db\\\\skills\\\\docx\\\\JSON_Field_Mapping_Proposal.docx\" \"C:\\\\Users\\\\smelg\\\\Documents\\\\sfdxprj\\\\claude\\\\JsonLwc\\\\JSON_Field_Mapping_Proposal.docx\")",
-      "PowerShell(Copy-Item \"C:\\\\Users\\\\smelg\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\44a33ef1-4dcc-494c-bd45-dffabcafafb1\\\\4faaed3f-c8ce-415e-95de-3651ea6e29db\\\\skills\\\\docx\\\\JSON_Field_Mapping_Proposal.docx\" \"C:\\\\Users\\\\smelg\\\\Documents\\\\sfdxprj\\\\claude\\\\JsonLwc\\\\JSON_Field_Mapping_Proposal.docx\")"
+      "PowerShell(Copy-Item \"C:\\\\Users\\\\smelg\\\\AppData\\\\Roaming\\\\Claude\\\\local-agent-mode-sessions\\\\skills-plugin\\\\44a33ef1-4dcc-494c-bd45-dffabcafafb1\\\\4faaed3f-c8ce-415e-95de-3651ea6e29db\\\\skills\\\\docx\\\\JSON_Field_Mapping_Proposal.docx\" \"C:\\\\Users\\\\smelg\\\\Documents\\\\sfdxprj\\\\claude\\\\JsonLwc\\\\JSON_Field_Mapping_Proposal.docx\")",
+      "Bash(npm run *)",
+      "Bash(git add *)"
     ]
   }
 }
