@@ -8,5 +8,5 @@
     <unique>false</unique>
     <fieldManageability>DeveloperControlled</fieldManageability>
     <description
-  >Section Name whose record constrains this one: rows must look up to it. Leave blank to discover the constraint from the schema against any resolved record. Reserved for nesting in a later version.</description>
+  >Section Name whose record constrains this one: rows must look up to it, so a key unique only within one parent cannot reach another parent's rows. Leave blank to discover that record from the schema.</description>
 </CustomField>

@@ -47,7 +47,7 @@ action or a parent LWC like the bundled `fileJsonReviewMappingDemo`.
 | `JSON_Mapping_Section__mdt`  | Custom Metadata Type | Declares a fixed or repeating region of the document that rules attach to.                                                   |
 | `JsonFilterBinder`           | Apex                 | Resolves `{json:…}` / `{row:…}` tokens in filters and key templates, binding document values rather than concatenating them. |
 | `JsonMappingService`         | Apex                 | Orchestrator. Entry points: `apply` (`@InvocableMethod`, for Flow) and `applyMappings` (`@AuraEnabled`, for LWCs).           |
-| `JsonMappingSelector`        | Apex                 | Loads the active rules of one mapping set.                                                                                   |
+| `JsonMappingSelector`        | Apex                 | Loads the active rules and sections of one mapping set.                                                                      |
 | `DocumentContextResolver`    | Apex                 | Turns a `contentDocumentId` into a map of reachable records, keyed by object API name.                                       |
 | `JsonPathReader`             | Apex                 | Dot-notation JSON path extraction, including array indexes (`beneficiaries[0].name`).                                        |
 | `FieldValueCoercer`          | Apex                 | Describe-driven type conversion: text, number, boolean, date, datetime, picklist.                                            |
@@ -60,18 +60,18 @@ action or a parent LWC like the bundled `fileJsonReviewMappingDemo`.
 
 Every `JSON_Field_Mapping__mdt` record describes one rule:
 
-| Field                 | Meaning                                                                                                                                   | Example                 |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `Mapping_Set__c`      | Groups rules by use case. One set is applied per call.                                                                                    | `Estate_Intake`         |
-| `Section__c`          | Section this rule belongs to. Blank means a standalone rule against a record reachable from the file — the original behaviour, unchanged. | `Lines`                 |
-| `JSON_Path__c`        | Dot path into the JSON. Use `[n]` to index arrays.                                                                                        | `applicant.dateOfBirth` |
-| `Target_Object__c`    | API name of the object to write to. It has to be reachable from the file (see below).                                                     | `Estate_Case__c`        |
-| `Target_Field__c`     | API name of the field that receives the value.                                                                                            | `Date_of_Birth__c`      |
-| `Overwrite_Policy__c` | `Always` or `Only if blank`. Extraction mode only.                                                                                        | `Only if blank`         |
-| `Transform__c`        | Optional format hint. For Date fields: `yyyy-MM-dd` (the default), `dd/MM/yyyy` or `MM/dd/yyyy`.                                          | `dd/MM/yyyy`            |
-| `Mode__c`             | Optional per-rule override of the run mode, `Extraction` or `Compliance`. Leave blank to inherit the run's.                               | `Compliance`            |
-| `Anchor_Filter__c`    | Optional filter narrowing which record the target object resolves to (see below).                                                         | `Status__c = 'Active'`  |
-| `Active__c`           | Untick to disable a rule without deleting it.                                                                                             | ✓                       |
+| Field                 | Meaning                                                                                                                                                | Example                 |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `Mapping_Set__c`      | Groups rules by use case. One set is applied per call.                                                                                                 | `Estate_Intake`         |
+| `Section__c`          | Section this rule belongs to. Blank means a standalone rule against a record reachable from the file — the original behaviour, unchanged.              | `Lines`                 |
+| `JSON_Path__c`        | Dot path into the JSON. Use `[n]` to index arrays.                                                                                                     | `applicant.dateOfBirth` |
+| `Target_Object__c`    | API name of the object to write to; it has to be reachable from the file (see below). Ignored when `Section__c` is set, since the section supplies it. | `Estate_Case__c`        |
+| `Target_Field__c`     | API name of the field that receives the value.                                                                                                         | `Date_of_Birth__c`      |
+| `Overwrite_Policy__c` | `Always` or `Only if blank`. Extraction mode only.                                                                                                     | `Only if blank`         |
+| `Transform__c`        | Optional format hint. For Date fields: `yyyy-MM-dd` (the default), `dd/MM/yyyy` or `MM/dd/yyyy`.                                                       | `dd/MM/yyyy`            |
+| `Mode__c`             | Optional per-rule override of the run mode, `Extraction` or `Compliance`. Leave blank to inherit the run's.                                            | `Compliance`            |
+| `Anchor_Filter__c`    | Optional filter narrowing which record the target object resolves to (see below).                                                                      | `Status__c = 'Active'`  |
+| `Active__c`           | Untick to disable a rule without deleting it.                                                                                                          | ✓                       |
 
 Four sample records ship with the project under the `Estate_Intake` mapping
 set. They target standard fields only (`Case.SuppliedName`,
@@ -85,18 +85,18 @@ band — invoice lines, statement transactions, payslip earnings, policy
 coverages, estate asset lines. A `JSON_Mapping_Section__mdt` record declares
 one such region, and rules attach to it through `Section__c`:
 
-| Field               | Meaning                                                                                   | Example                           |
-| ------------------- | ----------------------------------------------------------------------------------------- | --------------------------------- |
-| `Mapping_Set__c`    | Must match the mapping set of the rules that reference it.                                | `Invoice_Intake`                  |
-| `Section_Name__c`   | The name rules point at.                                                                  | `Lines`                           |
-| `Section_Type__c`   | `Fixed` (one record) or `Repeating` (one record per row).                                 | `Repeating`                       |
-| `Target_Object__c`  | Object the section writes to. Attached rules inherit it.                                  | `Asset`                           |
-| `Row_Path__c`       | Repeating only: JSON path to the array of rows.                                           | `Details`                         |
-| `Match_Field__c`    | Repeating only: the field identifying a row.                                              | `SerialNumber`                    |
-| `Match_Value__c`    | Repeating only: template producing each row's key.                                        | `INV-{json:Invoice}-{row:number}` |
-| `Record_Filter__c`  | Optional extra WHERE fragment. Supersedes a rule's `Anchor_Filter__c`.                    | `Status != 'Obsolete'`            |
-| `Parent_Section__c` | Section whose record constrains this one. Blank discovers the constraint from the schema. | `Header`                          |
-| `Active__c`         | Disables the section and every rule on it.                                                | ✓                                 |
+| Field               | Meaning                                                                                                         | Example                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| `Mapping_Set__c`    | Must match the mapping set of the rules that reference it.                                                      | `Invoice_Intake`                  |
+| `Section_Name__c`   | The name rules point at.                                                                                        | `Lines`                           |
+| `Section_Type__c`   | `Fixed` (one record) or `Repeating` (one record per row).                                                       | `Repeating`                       |
+| `Target_Object__c`  | Object the section writes to. Attached rules inherit it.                                                        | `Asset`                           |
+| `Row_Path__c`       | Repeating only: JSON path to the array of rows.                                                                 | `Details`                         |
+| `Match_Field__c`    | Repeating only: the field identifying a row.                                                                    | `SerialNumber`                    |
+| `Match_Value__c`    | Repeating only: template producing each row's key.                                                              | `INV-{json:Invoice}-{row:number}` |
+| `Record_Filter__c`  | Optional extra WHERE fragment. Supersedes a rule's `Anchor_Filter__c`.                                          | `Status != 'Obsolete'`            |
+| `Parent_Section__c` | Section whose record constrains this one; rows must look up to it. Blank discovers that record from the schema. | `Header`                          |
+| `Active__c`         | Disables the section and every rule on it.                                                                      | ✓                                 |
 
 A **Fixed** section is the existing single-record behaviour with the object
 and filter declared once instead of repeated on every rule. A **Repeating**
@@ -135,18 +135,19 @@ later gains the ability to create rows.
 Rows are **matched and updated, never created**. A document row whose key
 finds no record is reported in `Result.unmatchedRowKeys`, which is data
 rather than an error, and nothing is inserted or deleted. Record creation
-and reconciliation of stale rows are deliberately left to a later version;
-the schema already carries `Parent_Section__c` so that nesting can arrive
-without a migration.
+and reconciliation of stale rows are deliberately left to a later version,
+as is nesting one repeating section inside another.
 
-Two safeguards are worth knowing about. Rows are constrained to the parent
-record resolved from the file, so a key that is only unique within one
-account cannot reach another account's rows. And if two document rows render
-the same key, the second is skipped and reported rather than silently
-overwriting the first.
+Two safeguards are worth knowing about. Where a lookup from the row object
+to a resolved record can be found, rows are constrained to it, so a key that
+is only unique within one account cannot reach another account's rows. Set
+`Parent_Section__c` to choose that record explicitly instead of letting the
+schema decide. And if two document rows render the same key, the second is
+skipped and reported rather than silently overwriting the first.
 
-Cost is one query and one DML per run regardless of row count: a
-200-line statement costs the same as a 2-line invoice.
+Cost does not grow with the number of rows: one query per repeating section,
+and a single DML covering every row of every section. A 200-line statement
+costs the same as a 2-line invoice.
 
 ### Compliance over rows
 
@@ -323,6 +324,11 @@ Switch the _Mode_ property to `Compliance`, optionally naming
 `ComplianceTaskHandler` as the handler, and the same button becomes
 **Check compliance**: nothing is written, and any differences appear in a
 table underneath the review pane.
+
+The demo reports fields, mismatches and errors, but not yet the row
+counters. If you point it at a mapping set with repeating sections, read
+`rowsMatched`, `rowsUpdated` and `unmatchedRowKeys` off the `Result`
+yourself — a Screen Flow can display them directly.
 
 ## Extending
 
