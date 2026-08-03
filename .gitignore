@@ -39,6 +39,9 @@ ehthumbs.db
 [Dd]esktop.ini
 $RECYCLE.BIN/
 
+# Office lock files (created while a document is open)
+~$*
+
 # Local environment variables
 .env
 
