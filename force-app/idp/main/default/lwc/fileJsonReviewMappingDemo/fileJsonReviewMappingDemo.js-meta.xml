@@ -22,6 +22,12 @@
         description="Id of the file (ContentDocument) to review."
       />
             <property
+        name="jsonInput"
+        type="String"
+        label="Source JSON"
+        description="The reviewed JSON to render, e.g. the contents of an example's sample/extracted.json. Leave blank for the bundled Estate_Intake sample."
+      />
+            <property
         name="mappingSetName"
         type="String"
         default="Estate_Intake"

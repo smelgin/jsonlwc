@@ -1,0 +1,24 @@
+{
+  "documentType": "Business Account Opening Application",
+  "application": {
+    "reference": "AO-2026-118842",
+    "branchCode": "0421",
+    "product": "Business Cheque Account",
+    "signedDate": "2026-07-14",
+    "notes": "Applicant requests an overdraft facility review after six months of account conduct."
+  },
+  "business": {
+    "registeredName": "Blue Harbour Trading",
+    "registrationNumber": "2018/447120/07",
+    "taxReference": "9412887160",
+    "dateIncorporated": "09/03/2018",
+    "entityType": "Private Company",
+    "annualTurnover": "R 8 420 000.00",
+    "phone": "+27 21 555 0142"
+  },
+  "signatory": {
+    "fullName": "Thandi Mokoena",
+    "capacity": "Managing Director",
+    "email": "thandi.mokoena@blueharbour.example.com"
+  }
+}

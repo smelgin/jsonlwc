@@ -1,7 +1,7 @@
 {
   "packageDirectories": [
     {
-      "path": "force-app/idp",
+      "path": "force-app/idp/main",
       "default": true
     },
     {

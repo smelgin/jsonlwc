@@ -1,0 +1,15 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Account",
+        "referenceId": "StatementCustomer"
+      },
+      "Name": "Cape Meridian Logistics",
+      "BillingCity": "Durban",
+      "BillingCountry": "South Africa",
+      "Industry": "Transportation",
+      "Phone": "+27 31 555 0177"
+    }
+  ]
+}

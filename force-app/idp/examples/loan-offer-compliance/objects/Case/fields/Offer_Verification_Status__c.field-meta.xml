@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Offer_Verification_Status__c</fullName>
+    <description
+  >Stamped by LoanOfferMismatchHandler when a compliance run finds differences.</description>
+    <externalId>false</externalId>
+    <label>Offer Verification Status</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Not Checked</fullName>
+                <default>false</default>
+                <label>Not Checked</label>
+            </value>
+            <value>
+                <fullName>Verified</fullName>
+                <default>false</default>
+                <label>Verified</label>
+            </value>
+            <value>
+                <fullName>Mismatched</fullName>
+                <default>false</default>
+                <label>Mismatched</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

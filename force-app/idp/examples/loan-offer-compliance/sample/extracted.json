@@ -1,0 +1,16 @@
+{
+  "documentType": "Business Term Loan Offer Letter",
+  "borrower": {
+    "registeredName": "KALAHARI FREIGHT SERVICES",
+    "creditRiskGrade": "BB",
+    "verifiedAnnualTurnover": "R 14 750 000.00"
+  },
+  "offer": {
+    "reference": "LN-2026-093315",
+    "principalAmount": "R 2 400 000.00",
+    "interestRate": 12.05,
+    "termMonths": 60,
+    "monthlyRepayment": "R 53 480.19",
+    "expiryDate": "31/08/2026"
+  }
+}

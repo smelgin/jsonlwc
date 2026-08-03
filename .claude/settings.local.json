@@ -45,7 +45,13 @@
       "Bash(git add *)",
       "Bash(git checkout *)",
       "Bash(git merge *)",
-      "Bash(sf sobject *)"
+      "Bash(sf sobject *)",
+      "Bash(sf --version)",
+      "Bash(mkdir -p C:/Users/smelg/AppData/Local/Temp/claude/C--Users-smelg-Documents-sfdxprj-claude-JsonLwc/b0c1fb2f-b427-4a8d-9a44-c5d118dac879/scratchpad/fitest/force-app/idp/examples/demo/objects/Account/fields)",
+      "Bash(rm -rf out-ex)",
+      "Bash(node force-app/idp/examples/tools/generate-sample-pdfs.mjs)",
+      "Bash(node -e ' *)",
+      "Bash(node \"C:/Users/smelg/AppData/Local/Temp/claude/C--Users-smelg-Documents-sfdxprj-claude-JsonLwc/b0c1fb2f-b427-4a8d-9a44-c5d118dac879/scratchpad/gen-metadata.mjs\")"
     ]
   }
 }

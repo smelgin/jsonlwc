@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Account",
+        "referenceId": "LoanBorrower"
+      },
+      "Name": "Kalahari Freight Services",
+      "BillingCity": "Upington",
+      "BillingCountry": "South Africa",
+      "Industry": "Transportation",
+      "Phone": "+27 54 555 0119",
+      "Verified_Annual_Turnover__c": 14750000.0
+    }
+  ]
+}

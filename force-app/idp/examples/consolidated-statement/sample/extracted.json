@@ -1,0 +1,50 @@
+{
+  "documentType": "Consolidated Statement",
+  "statement": {
+    "number": "CS-2026-07-0098",
+    "periodEnd": "2026-07-31",
+    "totalRelationshipBalance": 1284730.55
+  },
+  "customer": {
+    "name": "Cape Meridian Logistics",
+    "customerNumber": "CUS-4471203"
+  },
+  "holdings": [
+    {
+      "accountNumber": "62110044721",
+      "productName": "Business Cheque Account",
+      "currentBalance": 184230.55,
+      "availableBalance": 209230.55,
+      "interestRate": 0.25,
+      "openedDate": "09/03/2018",
+      "status": "Active"
+    },
+    {
+      "accountNumber": "90071188420",
+      "productName": "Business Call Deposit",
+      "currentBalance": 950000.0,
+      "availableBalance": 950000.0,
+      "interestRate": 7.15,
+      "openedDate": "22/06/2021",
+      "status": "Active"
+    },
+    {
+      "accountNumber": "45500219873",
+      "productName": "Business Credit Card",
+      "currentBalance": -32500.0,
+      "availableBalance": 67500.0,
+      "interestRate": 18.75,
+      "openedDate": "14/11/2022",
+      "status": "In Arrears"
+    },
+    {
+      "accountNumber": "77012004466",
+      "productName": "Vehicle Asset Finance",
+      "currentBalance": 183000.0,
+      "availableBalance": 0,
+      "interestRate": 11.5,
+      "openedDate": "03/02/2023",
+      "status": "Closed"
+    }
+  ]
+}

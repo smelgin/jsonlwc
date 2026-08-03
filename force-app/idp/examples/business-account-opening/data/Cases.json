@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Case",
+        "referenceId": "AccountOpeningCase"
+      },
+      "Subject": "Business account opening - Blue Harbour Trading",
+      "Status": "New",
+      "Origin": "Web",
+      "Priority": "Medium",
+      "Description": "Branch confirmed the FICA pack is complete and certified. This note predates the scan, so the Only if blank rule must leave it alone.",
+      "AccountId": "@AccountOpeningApplicant"
+    }
+  ]
+}

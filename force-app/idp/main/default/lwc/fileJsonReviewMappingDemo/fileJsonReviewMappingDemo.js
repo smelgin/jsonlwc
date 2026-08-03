@@ -42,12 +42,19 @@ export default class FileJsonReviewMappingDemo extends LightningElement {
   /** CSS height passed through to c-file-json-review. */
   @api height = "600px";
 
-  /** JSON to review; defaults to a sample matching the Estate_Intake set.
-   *  In a real pipeline this comes from the OCR/IDP response. */
-  @api jsonInput = JSON.stringify(SAMPLE_JSON, null, 2);
+  /** JSON to review. In a real pipeline this comes from the OCR/IDP
+   *  response; in App Builder it is typically pasted from an example's
+   *  sample/extracted.json. Blank falls back to the Estate_Intake sample. */
+  @api jsonInput;
 
   saving = false;
   lastResult;
+
+  get reviewJson() {
+    return this.jsonInput && this.jsonInput.trim()
+      ? this.jsonInput
+      : JSON.stringify(SAMPLE_JSON, null, 2);
+  }
 
   get submitLabel() {
     return this.mode === "Compliance"

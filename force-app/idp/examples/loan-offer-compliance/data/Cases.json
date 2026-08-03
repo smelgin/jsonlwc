@@ -1,0 +1,23 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Case",
+        "referenceId": "LoanOfferCase"
+      },
+      "Subject": "Signed loan offer received - Kalahari Freight Services",
+      "Status": "Working",
+      "Origin": "Email",
+      "Priority": "High",
+      "Description": "Signed offer letter returned by the borrower. Verify the printed terms against the approved credit decision before disbursement.",
+      "AccountId": "@LoanBorrower",
+      "Offer_Reference__c": "LN-2026-093315",
+      "Loan_Amount__c": 2400000.0,
+      "Interest_Rate_Offered__c": 11.25,
+      "Loan_Term_Months__c": 60,
+      "Repayment_Amount__c": 51902.44,
+      "Offer_Expiry_Date__c": "2026-08-31",
+      "Offer_Verification_Status__c": "Not Checked"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Account",
+        "referenceId": "AccountOpeningApplicant"
+      },
+      "Name": "Blue Harbour Trading",
+      "BillingCity": "Cape Town",
+      "BillingCountry": "South Africa",
+      "Industry": "Transportation",
+      "Website": "www.blueharbour.example.com"
+    }
+  ]
+}

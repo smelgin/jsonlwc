@@ -1,0 +1,79 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 2312 >>
+stream
+BT /F2 15 Tf 1 0 0 1 56 786 Tm (MERIDIAN COMMERCIAL BANK) Tj ET
+BT /F2 11 Tf 1 0 0 1 56 765 Tm (Consolidated Statement of Accounts) Tj ET
+0.6 w 56 734 m 539 734 l S
+BT /F1 10 Tf 1 0 0 1 56 712 Tm (Statement number) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 712 Tm (CS-2026-07-0098) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 696 Tm (Period ended) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 696 Tm (2026-07-31) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 680 Tm (Customer) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 680 Tm (Cape Meridian Logistics) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 664 Tm (Customer number) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 664 Tm (CUS-4471203) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 648 Tm (Total relationship balance) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 648 Tm (R 1 284 730.55) Tj ET
+BT /F2 9 Tf 1 0 0 1 56 616 Tm (PRODUCTS HELD) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 597 Tm (Account number) Tj ET
+BT /F1 9 Tf 1 0 0 1 176 597 Tm (Product) Tj ET
+BT /F1 9 Tf 1 0 0 1 330 597 Tm (Balance) Tj ET
+BT /F1 9 Tf 1 0 0 1 424 597 Tm (Rate) Tj ET
+BT /F1 9 Tf 1 0 0 1 480 597 Tm (Status) Tj ET
+0.6 w 56 578 m 539 578 l S
+BT /F1 9 Tf 1 0 0 1 56 568 Tm (62110044721) Tj ET
+BT /F1 9 Tf 1 0 0 1 176 568 Tm (Business Cheque Account) Tj ET
+BT /F1 9 Tf 1 0 0 1 330 568 Tm (184 230.55) Tj ET
+BT /F1 9 Tf 1 0 0 1 424 568 Tm (0.25) Tj ET
+BT /F1 9 Tf 1 0 0 1 480 568 Tm (Active) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 553 Tm (90071188420) Tj ET
+BT /F1 9 Tf 1 0 0 1 176 553 Tm (Business Call Deposit) Tj ET
+BT /F1 9 Tf 1 0 0 1 330 553 Tm (950 000.00) Tj ET
+BT /F1 9 Tf 1 0 0 1 424 553 Tm (7.15) Tj ET
+BT /F1 9 Tf 1 0 0 1 480 553 Tm (Active) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 538 Tm (45500219873) Tj ET
+BT /F1 9 Tf 1 0 0 1 176 538 Tm (Business Credit Card) Tj ET
+BT /F1 9 Tf 1 0 0 1 330 538 Tm (-32 500.00) Tj ET
+BT /F1 9 Tf 1 0 0 1 424 538 Tm (18.75) Tj ET
+BT /F1 9 Tf 1 0 0 1 480 538 Tm (In Arrears) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 523 Tm (77012004466) Tj ET
+BT /F1 9 Tf 1 0 0 1 176 523 Tm (Vehicle Asset Finance) Tj ET
+BT /F1 9 Tf 1 0 0 1 330 523 Tm (183 000.00) Tj ET
+BT /F1 9 Tf 1 0 0 1 424 523 Tm (11.50) Tj ET
+BT /F1 9 Tf 1 0 0 1 480 523 Tm (Closed) Tj ET
+0.6 w 56 504 m 539 504 l S
+BT /F1 10 Tf 1 0 0 1 56 480 Tm (Opened dates: 09/03/2018, 22/06/2021, 14/11/2022, 03/02/2023) Tj ET
+0.6 w 56 436 m 539 436 l S
+BT /F1 8 Tf 1 0 0 1 56 414 Tm (Sample document for demonstration purposes only. Not a real institution.) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000002614 00000 n 
+0000002711 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+2813
+%%EOF

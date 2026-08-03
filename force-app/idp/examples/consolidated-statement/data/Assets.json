@@ -1,0 +1,56 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Asset",
+        "referenceId": "HoldingChequeAccount"
+      },
+      "Name": "Business Cheque Account",
+      "AccountId": "@StatementCustomer",
+      "Product_Account_Number__c": "62110044721",
+      "Account_Status__c": "Active",
+      "Current_Balance__c": 152880.1,
+      "Available_Balance__c": 177880.1,
+      "Interest_Rate__c": 0.25
+    },
+    {
+      "attributes": {
+        "type": "Asset",
+        "referenceId": "HoldingCallDeposit"
+      },
+      "Name": "Business Call Deposit",
+      "AccountId": "@StatementCustomer",
+      "Product_Account_Number__c": "90071188420",
+      "Account_Status__c": "Active",
+      "Current_Balance__c": 900000.0,
+      "Available_Balance__c": 900000.0,
+      "Interest_Rate__c": 6.9
+    },
+    {
+      "attributes": {
+        "type": "Asset",
+        "referenceId": "HoldingCreditCard"
+      },
+      "Name": "Business Credit Card",
+      "AccountId": "@StatementCustomer",
+      "Product_Account_Number__c": "45500219873",
+      "Account_Status__c": "Active",
+      "Current_Balance__c": -18400.0,
+      "Available_Balance__c": 81600.0,
+      "Interest_Rate__c": 18.75
+    },
+    {
+      "attributes": {
+        "type": "Asset",
+        "referenceId": "HoldingVehicleFinance"
+      },
+      "Name": "Vehicle Asset Finance",
+      "AccountId": "@StatementCustomer",
+      "Product_Account_Number__c": "77012004466",
+      "Account_Status__c": "Closed",
+      "Current_Balance__c": 205000.0,
+      "Available_Balance__c": 0,
+      "Interest_Rate__c": 11.5
+    }
+  ]
+}

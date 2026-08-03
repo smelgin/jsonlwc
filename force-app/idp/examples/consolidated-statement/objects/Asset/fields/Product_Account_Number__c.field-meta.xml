@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Product_Account_Number__c</fullName>
+    <description
+  >Match Field of the Holdings repeating section: the account number printed on each statement line.</description>
+    <externalId>true</externalId>
+    <label>Product Account Number</label>
+    <length>30</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

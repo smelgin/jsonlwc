@@ -350,6 +350,22 @@ yourself — a Screen Flow can display them directly.
   `Document__c`, for instance) before calling the service, so mappings can
   be re-run later when the rules change.
 
+## Worked examples
+
+Three runnable examples live in
+[`force-app/idp/examples/`](force-app/idp/examples/README.md), each with its
+own mapping set, custom fields, permission set, seed data, sample PDF and
+deployment commands:
+
+| Example                                                                               | Mode       | Adds                                                             |
+| ------------------------------------------------------------------------------------- | ---------- | ---------------------------------------------------------------- |
+| [Business Account Opening](force-app/idp/examples/business-account-opening/README.md) | Extraction | Fixed sections, `Only if blank`, date and currency coercion      |
+| [Consolidated Statement](force-app/idp/examples/consolidated-statement/README.md)     | Extraction | A repeating detail band, `Parent_Section__c`, `Record_Filter__c` |
+| [Loan Offer Compliance](force-app/idp/examples/loan-offer-compliance/README.md)       | Compliance | Per-rule `Mode__c` and a custom `IComplianceMismatchHandler`     |
+
+They sit outside the package directory, so they only reach an org when you
+deploy one by name.
+
 ---
 
 _Related docs: [README.md](README.md) (documentation index),
