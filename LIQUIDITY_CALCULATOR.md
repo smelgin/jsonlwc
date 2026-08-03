@@ -72,24 +72,24 @@ The report tab — grey section row per data tab, white summary lines, boxed gra
 
 ### Component inventory
 
-| Metadata | Path | Purpose |
-| --- | --- | --- |
-| `liquidityCalculator` | `force-app/main/default/lwc/liquidityCalculator/` | **Container.** The only component exposed to App Builder. Loads config + saved state, renders the tab set, owns Save/Publish and the component-level banner. |
-| `lqcGrid` | `force-app/main/default/lwc/lqcGrid/` | **One editable grid.** Header, Add + Refresh, add-row modal, per-tab banner. Fully reusable — hand it a tab config and it renders. |
-| `lqcDatatable` | `force-app/main/default/lwc/lqcDatatable/` | `lightning-datatable` subclass adding the custom **`picklist`** cell type (display template + combobox edit template). |
-| `lqcReport` | `force-app/main/default/lwc/lqcReport/` | **Calculated report tab.** A pure function of the other tabs' rows. Never persisted. |
-| `lqcBanner` | `force-app/main/default/lwc/lqcBanner/` | Success / error / info bar, used at both LQC and tab level. |
-| `lqcUtils` | `force-app/main/default/lwc/lqcUtils/` | Shared service module: `fieldKey`, `parseColumnType`, `picklistOptions`, `widthToPixels`, `reduceError`. |
-| `LqcController` | `force-app/main/default/classes/LqcController.cls` | Apex controller: `getConfig`, `getSavedResult`, `saveResult`, `refreshRows`. |
-| `ILqcPrefill` | `force-app/main/default/classes/ILqcPrefill.cls` | Interface every refresh provider implements. |
-| `ILqcStorage` | `force-app/main/default/classes/ILqcStorage.cls` | Pluggable persistence strategy — decides *where* the payload lives. |
-| `LqcEstateCaseStorage` | `force-app/main/default/classes/LqcEstateCaseStorage.cls` | Default strategy: `Estate_Case__c.LQC_Result__c` on the Estate Case related to the Case. |
-| `Lqc*` providers | `force-app/main/default/classes/Lqc{DebitAccounts,CreditAccounts,InsurancePolicies,FixedProperties,Shares,OtherAssets}.cls` | Prefill implementations. **Debit/Credit/Insurance query Financial Services Cloud** (see §6.1); FixedProperties/Shares/OtherAssets are still stubs. |
-| `LqcFscService` | `force-app/main/default/classes/LqcFscService.cls` | Shared FSC access: resolves the Deceased Account from `Case.Account__c` and queries their Financial Accounts (owned, joint, or role-linked). Carries the FFLIB adoption notes. |
-| `Custom_Configuration__mdt` | `force-app/main/default/objects/Custom_Configuration__mdt/` | Shared CMT holding the JSON in `Value__c` (Long Text Area, 131 072). |
-| `DE_LQC` record | `force-app/main/default/customMetadata/Custom_Configuration.DE_LQC.md-meta.xml` | The configuration record. Label **DE Liquidity Calculator**. |
+| Metadata                    | Path                                                                                                                            | Purpose                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `liquidityCalculator`       | `force-app/lqc/main/default/lwc/liquidityCalculator/`                                                                           | **Container.** The only component exposed to App Builder. Loads config + saved state, renders the tab set, owns Save/Publish and the component-level banner.                   |
+| `lqcGrid`                   | `force-app/lqc/main/default/lwc/lqcGrid/`                                                                                       | **One editable grid.** Header, Add + Refresh, add-row modal, per-tab banner. Fully reusable — hand it a tab config and it renders.                                             |
+| `lqcDatatable`              | `force-app/lqc/main/default/lwc/lqcDatatable/`                                                                                  | `lightning-datatable` subclass adding the custom **`picklist`** cell type (display template + combobox edit template).                                                         |
+| `lqcReport`                 | `force-app/lqc/main/default/lwc/lqcReport/`                                                                                     | **Calculated report tab.** A pure function of the other tabs' rows. Never persisted.                                                                                           |
+| `lqcBanner`                 | `force-app/lqc/main/default/lwc/lqcBanner/`                                                                                     | Success / error / info bar, used at both LQC and tab level.                                                                                                                    |
+| `lqcUtils`                  | `force-app/lqc/main/default/lwc/lqcUtils/`                                                                                      | Shared service module: `fieldKey`, `parseColumnType`, `picklistOptions`, `widthToPixels`, `reduceError`.                                                                       |
+| `LqcController`             | `force-app/lqc/main/default/classes/LqcController.cls`                                                                          | Apex controller: `getConfig`, `getSavedResult`, `saveResult`, `refreshRows`.                                                                                                   |
+| `ILqcPrefill`               | `force-app/lqc/main/default/classes/ILqcPrefill.cls`                                                                            | Interface every refresh provider implements.                                                                                                                                   |
+| `ILqcStorage`               | `force-app/lqc/main/default/classes/ILqcStorage.cls`                                                                            | Pluggable persistence strategy — decides _where_ the payload lives.                                                                                                            |
+| `LqcEstateCaseStorage`      | `force-app/lqc/main/default/classes/LqcEstateCaseStorage.cls`                                                                   | Default strategy: `Estate_Case__c.LQC_Result__c` on the Estate Case related to the Case.                                                                                       |
+| `Lqc*` providers            | `force-app/lqc/main/default/classes/Lqc{DebitAccounts,CreditAccounts,InsurancePolicies,FixedProperties,Shares,OtherAssets}.cls` | Prefill implementations. **Debit/Credit/Insurance query Financial Services Cloud** (see §6.1); FixedProperties/Shares/OtherAssets are still stubs.                             |
+| `LqcFscService`             | `force-app/lqc/main/default/classes/LqcFscService.cls`                                                                          | Shared FSC access: resolves the Deceased Account from `Case.Account__c` and queries their Financial Accounts (owned, joint, or role-linked). Carries the FFLIB adoption notes. |
+| `Custom_Configuration__mdt` | `force-app/lqc/main/default/objects/Custom_Configuration__mdt/`                                                                 | Shared CMT holding the JSON in `Value__c` (Long Text Area, 131 072).                                                                                                           |
+| `DE_LQC` record             | `force-app/lqc/main/default/customMetadata/Custom_Configuration.DE_LQC.md-meta.xml`                                             | The configuration record. Label **DE Liquidity Calculator**.                                                                                                                   |
 
-### Two things the repo does *not* contain
+### Two things the repo does _not_ contain
 
 1. **`Estate_Case__c`, its `LQC_Result__c` field, and its lookup to Case** — the storage
    destination. Assumed to already exist in the target org; see [§8.1](#81-prerequisite-estate_case__c).
@@ -139,18 +139,18 @@ with `DeveloperName = DE_LQC`. Shape:
 {
   "tabs": [
     {
-      "name": "debitAccount",              // required, unique — key in the saved payload
-      "title": "Debit Accounts",           // required — tab label and grid header
-      "refreshClass": "lqcDebitAccounts",  // Apex class implementing ILqcPrefill
-      "canAddRows": true,                  // default true; false disables "+ Add"
-      "columns": [ /* see below */ ]
+      "name": "debitAccount", // required, unique — key in the saved payload
+      "title": "Debit Accounts", // required — tab label and grid header
+      "refreshClass": "lqcDebitAccounts", // Apex class implementing ILqcPrefill
+      "canAddRows": true, // default true; false disables "+ Add"
+      "columns": [/* see below */]
     },
     {
       "name": "estimatedEstateValue",
-      "title": "Estimated Estate Value",   // tab label
-      "type": "report",                    // ← marks the calculated report tab
-      "reportTitle": "Estimated Net Estate Value",  // optional card-header override
-      "currencyCode": "ZAR"                // optional ISO code → "R10 563 000"
+      "title": "Estimated Estate Value", // tab label
+      "type": "report", // ← marks the calculated report tab
+      "reportTitle": "Estimated Net Estate Value", // optional card-header override
+      "currencyCode": "ZAR" // optional ISO code → "R10 563 000"
     }
   ]
 }
@@ -158,38 +158,38 @@ with `DeveloperName = DE_LQC`. Shape:
 
 ### 4.1 Tab keys
 
-| Key | Required | Notes |
-| --- | --- | --- |
-| `name` | ✅ | Unique, stable. Used as the key in `LQC_Result__c` — **renaming it orphans previously saved rows.** |
-| `title` | ✅ | Tab label; also the grid header and the report's section label. |
-| `columns` | data tabs | Omit on the report tab. A non-report tab with no columns renders a placeholder body. |
-| `refreshClass` | optional | Apex class name. If absent, the refresh icon is disabled. Matching is case-insensitive, so `"lqcShares"` resolves to `LqcShares`. |
-| `canAddRows` | optional | Defaults to `true`. Set `false` to disable **+ Add**. |
-| `type` | optional | Only meaningful value: `"report"`. |
-| `reportTitle` | report only | Card header when it must differ from the tab label. Falls back to `title`. |
-| `currencyCode` | report only | ISO 4217 code passed to `Intl.NumberFormat`. Omit for plain numbers. |
+| Key            | Required    | Notes                                                                                                                             |
+| -------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `name`         | ✅          | Unique, stable. Used as the key in `LQC_Result__c` — **renaming it orphans previously saved rows.**                               |
+| `title`        | ✅          | Tab label; also the grid header and the report's section label.                                                                   |
+| `columns`      | data tabs   | Omit on the report tab. A non-report tab with no columns renders a placeholder body.                                              |
+| `refreshClass` | optional    | Apex class name. If absent, the refresh icon is disabled. Matching is case-insensitive, so `"lqcShares"` resolves to `LqcShares`. |
+| `canAddRows`   | optional    | Defaults to `true`. Set `false` to disable **+ Add**.                                                                             |
+| `type`         | optional    | Only meaningful value: `"report"`.                                                                                                |
+| `reportTitle`  | report only | Card header when it must differ from the tab label. Falls back to `title`.                                                        |
+| `currencyCode` | report only | ISO 4217 code passed to `Intl.NumberFormat`. Omit for plain numbers.                                                              |
 
 ### 4.2 Column keys
 
-| Key | Required | Notes |
-| --- | --- | --- |
-| `name` | ✅ | Column header **and** the source of the row key — see [§5](#5-the-fieldkey-convention). |
-| `type` | ✅ | See the type table below. |
-| `width` | optional | Percentage string, e.g. `"20%"`. Converted to an initial pixel width against a 1200 px baseline; users can still drag to resize. |
-| `values` | picklist only | Pipe-separated: `"Open\|Closed\|Deferred"`. (The singular key `value` is also accepted, for backward compatibility.) |
-| `subtotal` | optional | `true` marks the column the report sums for this tab. Only **one** per tab is used, and it must be a number type. |
-| `groupBy` | optional | `true` makes the report group this tab's subtotal by this column's value instead of showing a single "Total" line. |
+| Key        | Required      | Notes                                                                                                                            |
+| ---------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `name`     | ✅            | Column header **and** the source of the row key — see [§5](#5-the-fieldkey-convention).                                          |
+| `type`     | ✅            | See the type table below.                                                                                                        |
+| `width`    | optional      | Percentage string, e.g. `"20%"`. Converted to an initial pixel width against a 1200 px baseline; users can still drag to resize. |
+| `values`   | picklist only | Pipe-separated: `"Open\|Closed\|Deferred"`. (The singular key `value` is also accepted, for backward compatibility.)             |
+| `subtotal` | optional      | `true` marks the column the report sums for this tab. Only **one** per tab is used, and it must be a number type.                |
+| `groupBy`  | optional      | `true` makes the report group this tab's subtotal by this column's value instead of showing a single "Total" line.               |
 
 ### 4.3 Column types
 
-| `type` | Renders as | Editable | Notes |
-| --- | --- | --- | --- |
-| `text` | Plain text | ✅ | Default when `type` is missing or unrecognized. |
-| `textLink` | Hyperlink opening a new Salesforce tab | ❌ **never** | Link target comes from a `<key>RecordId` value supplied by the prefill class. Manually added rows leave it blank. |
-| `number` | Right-aligned number, up to 2 decimals | ✅ | |
-| `number(p,s)` | Right-aligned number, `s` decimals | ✅ | `p` = max integer digits, `s` = decimals. `number(6,2)` → step `0.01`, max `999999.99` enforced in the add-row modal. |
-| `date` | Locale date (`date-local`) | ✅ | Supply as `YYYY-MM-DD`. |
-| `picklist` | Text; combobox when editing | ✅ | Options from `values`. |
+| `type`        | Renders as                             | Editable     | Notes                                                                                                                 |
+| ------------- | -------------------------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `text`        | Plain text                             | ✅           | Default when `type` is missing or unrecognized.                                                                       |
+| `textLink`    | Hyperlink opening a new Salesforce tab | ❌ **never** | Link target comes from a `<key>RecordId` value supplied by the prefill class. Manually added rows leave it blank.     |
+| `number`      | Right-aligned number, up to 2 decimals | ✅           |                                                                                                                       |
+| `number(p,s)` | Right-aligned number, `s` decimals     | ✅           | `p` = max integer digits, `s` = decimals. `number(6,2)` → step `0.01`, max `999999.99` enforced in the add-row modal. |
+| `date`        | Locale date (`date-local`)             | ✅           | Supply as `YYYY-MM-DD`.                                                                                               |
+| `picklist`    | Text; combobox when editing            | ✅           | Options from `values`.                                                                                                |
 
 Editability is **per row, not per column**: prefilled rows are always locked; only manually added
 rows are editable and deletable. `textLink` is never editable in either case.
@@ -200,8 +200,8 @@ Persistence is a **pluggable strategy**, resolved by name exactly like `refreshC
 
 ```jsonc
 {
-  "storageClass": "lqcEstateCaseStorage",   // optional; this is the default
-  "tabs": [ /* … */ ]
+  "storageClass": "lqcEstateCaseStorage", // optional; this is the default
+  "tabs": [/* … */]
 }
 ```
 
@@ -241,12 +241,12 @@ The grand total is a **simple sum** of every tab subtotal — no tab subtracts. 
 **This is the contract between the JSON config, the Apex prefill classes, and the LWC.** Row data
 is keyed by the camelCase form of the column's `name`:
 
-| Column `name` | Row key |
-| --- | --- |
-| `Account Number` | `accountNumber` |
-| `Balance at DoD` | `balanceAtDod` |
+| Column `name`        | Row key            |
+| -------------------- | ------------------ |
+| `Account Number`     | `accountNumber`    |
+| `Balance at DoD`     | `balanceAtDod`     |
 | `Share Name/Holding` | `shareNameHolding` |
-| `Title Deed Nbr` | `titleDeedNbr` |
+| `Title Deed Nbr`     | `titleDeedNbr`     |
 
 Algorithm: split on any run of non-alphanumeric characters, lowercase every word, capitalize all
 but the first, join. It is implemented **twice** — `fieldKey()` in `lqcUtils.js` and
@@ -271,7 +271,7 @@ no controller change.
 
 ```apex
 public interface ILqcPrefill {
-    List<Map<String, Object>> refresh(Id recordId);
+  List<Map<String, Object>> refresh(Id recordId);
 }
 ```
 
@@ -289,24 +289,26 @@ Example against a real object:
 
 ```apex
 public with sharing class LqcDebitAccounts implements ILqcPrefill {
-    public List<Map<String, Object>> refresh(Id recordId) {
-        List<Map<String, Object>> rows = new List<Map<String, Object>>();
-        for (Financial_Account__c fa : [
-            SELECT Id, Name, Account_Number__c, Balance__c, Status__c
-            FROM Financial_Account__c
-            WHERE Case__c = :recordId
-            WITH USER_MODE
-        ]) {
-            rows.add(new Map<String, Object>{
-                'accountNumber'         => fa.Account_Number__c,
-                'accountNumberRecordId' => fa.Id,     // makes the textLink clickable
-                'accountName'           => fa.Name,
-                'balance'               => fa.Balance__c,
-                'accountStatus'         => fa.Status__c
-            });
+  public List<Map<String, Object>> refresh(Id recordId) {
+    List<Map<String, Object>> rows = new List<Map<String, Object>>();
+    for (Financial_Account__c fa : [
+      SELECT Id, Name, Account_Number__c, Balance__c, Status__c
+      FROM Financial_Account__c
+      WHERE Case__c = :recordId
+      WITH USER_MODE
+    ]) {
+      rows.add(
+        new Map<String, Object>{
+          'accountNumber' => fa.Account_Number__c,
+          'accountNumberRecordId' => fa.Id, // makes the textLink clickable
+          'accountName' => fa.Name,
+          'balance' => fa.Balance__c,
+          'accountStatus' => fa.Status__c
         }
-        return rows;
+      );
     }
+    return rows;
+  }
 }
 ```
 
@@ -325,11 +327,11 @@ Financial Services Cloud data model** (API v61.0+ — `FinancialAccount`, `Finan
 Deceased person's Account held in the **standard `Case.AccountId`** lookup (a Case without an
 Account produces a clear red banner on refresh).
 
-| Provider | Source | Inclusion rule |
-| --- | --- | --- |
-| Debit | `FinancialAccount` types `Checking`, `Savings`, `Investment` | Deceased has an **active Owner-role `FinancialAccountParty`** on the account (joint holdings are simply additional Owner parties) |
-| Credit | Same object, types `Credit Card`, `Loan`, `Mortgage`, `Automotive Loan`, `Automotive Lease` | Same rule |
-| Insurance | `InsurancePolicy` where `NameInsuredId` = deceased; beneficiary from `InsurancePolicyParticipant` (`Role = 'Beneficiary'`) | Named-insured only |
+| Provider  | Source                                                                                                                     | Inclusion rule                                                                                                                    |
+| --------- | -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Debit     | `FinancialAccount` types `Checking`, `Savings`, `Investment`                                                               | Deceased has an **active Owner-role `FinancialAccountParty`** on the account (joint holdings are simply additional Owner parties) |
+| Credit    | Same object, types `Credit Card`, `Loan`, `Mortgage`, `Automotive Loan`, `Automotive Lease`                                | Same rule                                                                                                                         |
+| Insurance | `InsurancePolicy` where `NameInsuredId` = deceased; beneficiary from `InsurancePolicyParticipant` (`Role = 'Beneficiary'`) | Named-insured only                                                                                                                |
 
 Key model facts encoded in `LqcFscService` (all commented in the code):
 
@@ -368,15 +370,15 @@ row-mappers, and route any future DML through `fflib_ISObjectUnitOfWork` in `ILq
 
 ```jsonc
 {
-  "version": 1,                        // payload schema version (unchanged since LQC v1)
-  "published": false,                  // true after Publish → grids load read-only
+  "version": 1, // payload schema version (unchanged since LQC v1)
+  "published": false, // true after Publish → grids load read-only
   "savedAt": "2026-07-27T10:15:00.000Z",
   "tabs": {
     "debitAccount": [
       {
         "id": "debitAccount-prefill-0", // synthetic, unique within the tab
-        "isManual": false,              // false = came from refresh; true = user-added
-        "editable": false,              // drives cell-level editability
+        "isManual": false, // false = came from refresh; true = user-added
+        "editable": false, // drives cell-level editability
         "accountNumber": "0000006453…",
         "accountNumberRecordId": "500…",
         "balance": 3000
@@ -403,8 +405,8 @@ Notes for anyone touching this:
 
 ```apex
 public interface ILqcStorage {
-    String load(Id recordId);              // null when nothing saved yet - do not throw
-    void save(Id recordId, String payload);
+  String load(Id recordId); // null when nothing saved yet - do not throw
+  void save(Id recordId, String payload);
 }
 ```
 
@@ -426,13 +428,13 @@ change to the LWC or the controller.
 **Not in this repo — these must already exist in the target org**, because `LqcEstateCaseStorage`
 references them at compile time. The deployment fails outright if they are missing:
 
-| Metadata | Requirement |
-| --- | --- |
-| `Estate_Case__c` | Custom object, one record per Case. |
-| `Estate_Case__c.LQC_Result__c` | Long Text Area, large enough for the payload (131 072 recommended). |
-| A lookup on `Estate_Case__c` → `Case` | Any API name; `Case__c` is preferred if several exist. |
-| **Financial Services Cloud** | An FSC org with the standard objects enabled: `FinancialAccount`, `FinancialAccountParty`, `FinancialAccountBalance` (API v61.0+, Setup → Financial Accounts) and the Insurance objects (`InsurancePolicy`, `InsurancePolicyParticipant`) — the v2.1 providers reference them at compile time. |
-| `Case.AccountId` | Standard field; must be populated with the Deceased person's Account for prefill to work. |
+| Metadata                              | Requirement                                                                                                                                                                                                                                                                                    |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Estate_Case__c`                      | Custom object, one record per Case.                                                                                                                                                                                                                                                            |
+| `Estate_Case__c.LQC_Result__c`        | Long Text Area, large enough for the payload (131 072 recommended).                                                                                                                                                                                                                            |
+| A lookup on `Estate_Case__c` → `Case` | Any API name; `Case__c` is preferred if several exist.                                                                                                                                                                                                                                         |
+| **Financial Services Cloud**          | An FSC org with the standard objects enabled: `FinancialAccount`, `FinancialAccountParty`, `FinancialAccountBalance` (API v61.0+, Setup → Financial Accounts) and the Insurance objects (`InsurancePolicy`, `InsurancePolicyParticipant`) — the v2.1 providers reference them at compile time. |
+| `Case.AccountId`                      | Standard field; must be populated with the Deceased person's Account for prefill to work.                                                                                                                                                                                                      |
 
 Two things to check before the first save: the storage strategy creates an Estate Case when none
 exists, so **every other field on `Estate_Case__c` must be optional** (a required custom field or
@@ -443,15 +445,15 @@ running user needs **Edit** access to it (see [§8.4](#84-permissions)).
 
 ### 8.2 What to deploy
 
-Everything under `force-app/main/default`:
+Everything under `force-app/lqc/main/default`:
 
-| Type | Items |
-| --- | --- |
-| LWC | `liquidityCalculator`, `lqcGrid`, `lqcDatatable`, `lqcReport`, `lqcBanner`, `lqcUtils` |
-| Apex | `LqcController`, `ILqcPrefill`, `ILqcStorage`, `LqcEstateCaseStorage`, `LqcDebitAccounts`, `LqcCreditAccounts`, `LqcInsurancePolicies`, `LqcFixedProperties`, `LqcShares`, `LqcOtherAssets`, `LqcControllerTest` |
-| CMT | `Custom_Configuration__mdt` + field `Value__c` |
-| CMT record | `Custom_Configuration.DE_LQC` |
-| Pre-existing | `Estate_Case__c` + `LQC_Result__c` + its Case lookup (see §8.1) |
+| Type         | Items                                                                                                                                                                                                            |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LWC          | `liquidityCalculator`, `lqcGrid`, `lqcDatatable`, `lqcReport`, `lqcBanner`, `lqcUtils`                                                                                                                           |
+| Apex         | `LqcController`, `ILqcPrefill`, `ILqcStorage`, `LqcEstateCaseStorage`, `LqcDebitAccounts`, `LqcCreditAccounts`, `LqcInsurancePolicies`, `LqcFixedProperties`, `LqcShares`, `LqcOtherAssets`, `LqcControllerTest` |
+| CMT          | `Custom_Configuration__mdt` + field `Value__c`                                                                                                                                                                   |
+| CMT record   | `Custom_Configuration.DE_LQC`                                                                                                                                                                                    |
+| Pre-existing | `Estate_Case__c` + `LQC_Result__c` + its Case lookup (see §8.1)                                                                                                                                                  |
 
 `Custom_Configuration__mdt` is a **shared** metadata type — other features may already use it in
 the target org. If it exists there, deploying the object/field again is a no-op as long as the
@@ -461,13 +463,13 @@ truncated. Only the `DE_LQC` record belongs to this feature.
 ### 8.3 Deploy
 
 ```bash
-sf project deploy start --source-dir force-app --target-org <alias>
+sf project deploy start --source-dir force-app/lqc --target-org <alias>
 ```
 
 For a validation deploy to production, run the Apex tests:
 
 ```bash
-sf project deploy start --source-dir force-app --target-org <alias> --test-level RunSpecifiedTests --tests LqcControllerTest
+sf project deploy start --source-dir force-app/lqc --target-org <alias> --test-level RunSpecifiedTests --tests LqcControllerTest
 ```
 
 ### 8.4 Permissions
@@ -508,7 +510,7 @@ there and you want it gone, run a destructive deploy:
 `destructiveChanges.xml`
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
         <members>LQC_Config__mdt</members>
@@ -588,16 +590,16 @@ lock. `LqcControllerTest` covers config lookup, the save round-trip, every stub 
 
 ## 11. Known limitations and design decisions
 
-| Area | Current behavior | Rationale / next step |
-| --- | --- | --- |
-| **Storage** | `Estate_Case__c.LQC_Result__c`, via the `ILqcStorage` strategy | Swap by writing another implementation and naming it in `storageClass` — no LWC or controller change. |
-| **Prefill classes** | Debit/Credit/Insurance query FSC (v2.1); FixedProperties/Shares/OtherAssets are stubs | See §6.1 for the FSC inclusion rules and the DoD-balance / cover-amount TODOs. |
-| **Publish** | Sets `published: true` and locks the UI | No approval process or audit trail, and no unpublish button by design. |
-| **Grand total** | Simple sum of all tab subtotals | Confirmed requirement — no tab is treated as a liability. If that changes, add a `liability: true` tab flag and subtract it in `lqcReport.grandTotal`. |
-| **Currency display** | `Intl.NumberFormat` with the **viewer's** locale | An `en-ZA` user sees `R10 563 000`; an `en-US` user sees `ZAR 10,563,000`. Hardcode the locale in `lqcReport.formatter` if you need one fixed format. |
-| **Column widths** | `%` converted against a fixed 1200 px baseline | `lightning-datatable` accepts pixels only. Widths are initial values; users can drag to resize. |
-| **`initialRows`** | Applied once, on first assignment | A guard in `lqcGrid` stops a container re-render from clobbering in-progress user edits. |
-| **Concurrency** | Last write wins | Two users on the same Case overwrite each other. Add a version check in `saveResult` if that matters. |
-| **Payload `version`** | Still `1` | The stored shape did not change between LQC v1 and v2. Bump it if you change the shape, and branch on it in `liquidityCalculator.load()`. |
-| **Sorting / volume** | Client-side, over all loaded rows | There is no pagination; every row for a Case is held in memory. |
-| **Inline picklist editing** | Uses datatable custom-type `editTemplate` | Requires API 59.0+ (this project is on 66.0). Jest cannot exercise real inline editing — verify by clicking in the org. |
+| Area                        | Current behavior                                                                      | Rationale / next step                                                                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Storage**                 | `Estate_Case__c.LQC_Result__c`, via the `ILqcStorage` strategy                        | Swap by writing another implementation and naming it in `storageClass` — no LWC or controller change.                                                  |
+| **Prefill classes**         | Debit/Credit/Insurance query FSC (v2.1); FixedProperties/Shares/OtherAssets are stubs | See §6.1 for the FSC inclusion rules and the DoD-balance / cover-amount TODOs.                                                                         |
+| **Publish**                 | Sets `published: true` and locks the UI                                               | No approval process or audit trail, and no unpublish button by design.                                                                                 |
+| **Grand total**             | Simple sum of all tab subtotals                                                       | Confirmed requirement — no tab is treated as a liability. If that changes, add a `liability: true` tab flag and subtract it in `lqcReport.grandTotal`. |
+| **Currency display**        | `Intl.NumberFormat` with the **viewer's** locale                                      | An `en-ZA` user sees `R10 563 000`; an `en-US` user sees `ZAR 10,563,000`. Hardcode the locale in `lqcReport.formatter` if you need one fixed format.  |
+| **Column widths**           | `%` converted against a fixed 1200 px baseline                                        | `lightning-datatable` accepts pixels only. Widths are initial values; users can drag to resize.                                                        |
+| **`initialRows`**           | Applied once, on first assignment                                                     | A guard in `lqcGrid` stops a container re-render from clobbering in-progress user edits.                                                               |
+| **Concurrency**             | Last write wins                                                                       | Two users on the same Case overwrite each other. Add a version check in `saveResult` if that matters.                                                  |
+| **Payload `version`**       | Still `1`                                                                             | The stored shape did not change between LQC v1 and v2. Bump it if you change the shape, and branch on it in `liquidityCalculator.load()`.              |
+| **Sorting / volume**        | Client-side, over all loaded rows                                                     | There is no pagination; every row for a Case is held in memory.                                                                                        |
+| **Inline picklist editing** | Uses datatable custom-type `editTemplate`                                             | Requires API 59.0+ (this project is on 66.0). Jest cannot exercise real inline editing — verify by clicking in the org.                                |

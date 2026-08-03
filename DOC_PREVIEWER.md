@@ -35,7 +35,7 @@ sequenceDiagram
 > **Note:** the MuleSoft callout itself is **out of scope** for this component — it neither calls MuleSoft nor writes to `Document__c`. It is a pure presentation/curation component: JSON in, curated JSON out. This keeps it reusable for any file + JSON pairing.
 
 ![Screenshot placeholder: fileJsonReview on an App Page — PDF on the left, editable JSON form and Save button on the right](docs/images/file-json-review-overview.png)
-*Figure 1 — Component overview (placeholder: replace with a real screenshot).*
+_Figure 1 — Component overview (placeholder: replace with a real screenshot)._
 
 ---
 
@@ -53,21 +53,21 @@ sequenceDiagram
   - a **Save** button (configurable label) that returns the curated JSON.
 
 ![Screenshot placeholder: close-up of the right pane with a renamed key and corrected value](docs/images/file-json-review-form-detail.png)
-*Figure 2 — Editing the OCR result (placeholder).*
+_Figure 2 — Editing the OCR result (placeholder)._
 
 ---
 
 ## 3. Component inventory and dependencies
 
-Everything lives in `force-app/main/default/`. **All items below must move together** when deploying to another org.
+Everything lives in `force-app/idp/main/default/`. **All items below must move together** when deploying to another org.
 
-| Component | Type | Path | Role |
-| --- | --- | --- | --- |
-| `fileJsonReview` | LWC | `lwc/fileJsonReview` | The split-screen previewer (this document). |
-| `jsonForm` | LWC | `lwc/jsonForm` | Child component: renders/edits the JSON. Reusable on its own — see [JSON_FORM.md](JSON_FORM.md). |
-| `FilePreviewController` | Apex class | `classes/FilePreviewController.cls` | Resolves file metadata and returns PDF bytes as base64. |
-| `FilePreviewControllerTest` | Apex test | `classes/FilePreviewControllerTest.cls` | Test coverage (required for production deploys). |
-| `pdfjs` | Static resource | `staticresources/pdfjs` | Mozilla PDF.js v6.1.200 + custom `viewer.html`. |
+| Component                   | Type            | Path                                    | Role                                                                                             |
+| --------------------------- | --------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `fileJsonReview`            | LWC             | `lwc/fileJsonReview`                    | The split-screen previewer (this document).                                                      |
+| `jsonForm`                  | LWC             | `lwc/jsonForm`                          | Child component: renders/edits the JSON. Reusable on its own — see [JSON_FORM.md](JSON_FORM.md). |
+| `FilePreviewController`     | Apex class      | `classes/FilePreviewController.cls`     | Resolves file metadata and returns PDF bytes as base64.                                          |
+| `FilePreviewControllerTest` | Apex test       | `classes/FilePreviewControllerTest.cls` | Test coverage (required for production deploys).                                                 |
+| `pdfjs`                     | Static resource | `staticresources/pdfjs`                 | Mozilla PDF.js v6.1.200 + custom `viewer.html`.                                                  |
 
 ```mermaid
 graph TD
@@ -97,17 +97,17 @@ graph TD
 
 ## 4. Public API — `c-file-json-review`
 
-| API | Kind | Description |
-| --- | --- | --- |
-| `content-document-id` | `@api` (String) | Id (`069…`) of the ContentDocument to preview. |
-| `json-input` | `@api` (String) | The OCR JSON string to render in the right pane. Setting it resets any prior edits. |
-| `json-output` | `@api` (String, read-only) | The JSON string including the user's edits. Also a Flow **output** attribute, kept live via `FlowAttributeChangeEvent`. |
-| `height` | `@api` (String) | CSS height, default `600px` (e.g. `70vh`). |
-| `submit-label` | `@api` (String) | Save button label, default `Save`. |
-| `onjsonchange` | event | Fired on **every edit**. `detail.value` (object), `detail.jsonString` (string). |
-| `onjsonsubmit` | event | Fired on **Save click**. Same detail shape — this is the "user is done curating" signal. |
+| API                   | Kind                       | Description                                                                                                             |
+| --------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `content-document-id` | `@api` (String)            | Id (`069…`) of the ContentDocument to preview.                                                                          |
+| `json-input`          | `@api` (String)            | The OCR JSON string to render in the right pane. Setting it resets any prior edits.                                     |
+| `json-output`         | `@api` (String, read-only) | The JSON string including the user's edits. Also a Flow **output** attribute, kept live via `FlowAttributeChangeEvent`. |
+| `height`              | `@api` (String)            | CSS height, default `600px` (e.g. `70vh`).                                                                              |
+| `submit-label`        | `@api` (String)            | Save button label, default `Save`.                                                                                      |
+| `onjsonchange`        | event                      | Fired on **every edit**. `detail.value` (object), `detail.jsonString` (string).                                         |
+| `onjsonsubmit`        | event                      | Fired on **Save click**. Same detail shape — this is the "user is done curating" signal.                                |
 
-Design intent: `jsonchange`/`jsonOutput` give you the *live* value (useful when the user can leave the screen any way they like); `jsonsubmit` gives you an *explicit confirmation* moment (useful to trigger the `Document__c` update).
+Design intent: `jsonchange`/`jsonOutput` give you the _live_ value (useful when the user can leave the screen any way they like); `jsonsubmit` gives you an _explicit confirmation_ moment (useful to trigger the `Document__c` update).
 
 ---
 
@@ -124,7 +124,7 @@ The component is exposed to `lightning__FlowScreen` as **File and JSON Review**.
    - optionally **Height** / **Save Button Label**.
 3. After the screen: read **Modified JSON** (`jsonOutput`) into a variable and use an **Update Records** element to write it to your JSON field on `Document__c` (e.g., `Curated_Json__c`, a Long Text Area sized for your payloads).
 
-> `jsonOutput` is updated on every keystroke *and* on Save, so it is current regardless of how the user exits the screen (Next, Finish, custom footer).
+> `jsonOutput` is updated on every keystroke _and_ on Save, so it is current regardless of how the user exits the screen (Next, Finish, custom footer).
 
 ```mermaid
 flowchart LR
@@ -134,16 +134,16 @@ flowchart LR
 ```
 
 ![Screenshot placeholder: Flow Builder canvas with the four elements above](docs/images/file-json-review-flow.png)
-*Figure 3 — Screen Flow wiring (placeholder).*
+_Figure 3 — Screen Flow wiring (placeholder)._
 
 ### 5.2 Parent LWC
 
 ```html
 <c-file-json-review
-    content-document-id={documentId}
-    json-input={ocrJson}
-    submit-label="Confirm extraction"
-    onjsonsubmit={handleJsonSubmit}
+  content-document-id="{documentId}"
+  json-input="{ocrJson}"
+  submit-label="Confirm extraction"
+  onjsonsubmit="{handleJsonSubmit}"
 ></c-file-json-review>
 ```
 
@@ -163,8 +163,8 @@ handleJsonSubmit(event) {
 
 ### 5.3 OmniStudio
 
-- **OmniScript**: add a *Custom Lightning Web Component* element with `fileJsonReview` as the component name; map `contentDocumentId` and `jsonInput` in Custom LWC Properties (e.g., `%ContentDocumentId%`). To push `jsonOutput` back into the OmniScript data JSON automatically, create a thin wrapper in the OmniStudio org extending `OmniscriptBaseMixin(FileJsonReview)` that calls `this.omniUpdateDataJson(...)` from the `jsonchange`/`jsonsubmit` handlers. The mixin is deliberately **not** imported in this project so it deploys to orgs without OmniStudio.
-- **FlexCard**: embed via the *Custom LWC* element, binding attributes to card data (e.g., `{record.ContentDocumentId}`).
+- **OmniScript**: add a _Custom Lightning Web Component_ element with `fileJsonReview` as the component name; map `contentDocumentId` and `jsonInput` in Custom LWC Properties (e.g., `%ContentDocumentId%`). To push `jsonOutput` back into the OmniScript data JSON automatically, create a thin wrapper in the OmniStudio org extending `OmniscriptBaseMixin(FileJsonReview)` that calls `this.omniUpdateDataJson(...)` from the `jsonchange`/`jsonsubmit` handlers. The mixin is deliberately **not** imported in this project so it deploys to orgs without OmniStudio.
+- **FlexCard**: embed via the _Custom LWC_ element, binding attributes to card data (e.g., `{record.ContentDocumentId}`).
 
 ---
 
@@ -225,16 +225,16 @@ The five components from §3. With this repo:
 ```sh
 sf org login web -a targetOrg
 sf project deploy start -o targetOrg \
-  --source-dir force-app/main/default/lwc/fileJsonReview \
-  --source-dir force-app/main/default/lwc/jsonForm \
-  --source-dir force-app/main/default/classes \
-  --source-dir force-app/main/default/staticresources
+  --source-dir force-app/idp/main/default/lwc/fileJsonReview \
+  --source-dir force-app/idp/main/default/lwc/jsonForm \
+  --source-dir force-app/idp/main/default/classes \
+  --source-dir force-app/idp/main/default/staticresources
 ```
 
 Or with a `package.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
         <members>fileJsonReview</members>
@@ -262,18 +262,18 @@ sf project deploy start -o targetOrg --test-level RunLocalTests
 
 ### 7.2 Post-deploy checklist
 
-| # | Step | Why |
-| --- | --- | --- |
-| 1 | Grant **Apex class access** to `FilePreviewController` (permission set or profile). | Users without class access get an error instead of a preview. |
-| 2 | Confirm users have **read access to the files** (ContentDocument sharing / library membership). | The controller runs `WITH USER_MODE`; no access → "File not found or not accessible". |
-| 3 | Host it: add **File and JSON Review** to a Lightning page, or wire the Screen Flow (§5.1) and activate it. | The component does nothing until something passes it a `contentDocumentId` + `jsonInput`. |
-| 4 | Recreate host-side plumbing in the target org: the MuleSoft action (External Service / invocable), `Document__c` field for the curated JSON, and the Flow. | Deliberately not part of this component. |
-| 5 | Smoke test with a **PDF < 3 MB**, a **PDF > 3 MB** (expect native fallback), and a **PNG/JPG**. | Exercises all three preview paths. |
-| 6 | After redeploys, **hard-refresh** (Ctrl+Shift+R) or test in a private window. | Lightning caches components and static resources aggressively. |
+| #   | Step                                                                                                                                                       | Why                                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| 1   | Grant **Apex class access** to `FilePreviewController` (permission set or profile).                                                                        | Users without class access get an error instead of a preview.                             |
+| 2   | Confirm users have **read access to the files** (ContentDocument sharing / library membership).                                                            | The controller runs `WITH USER_MODE`; no access → "File not found or not accessible".     |
+| 3   | Host it: add **File and JSON Review** to a Lightning page, or wire the Screen Flow (§5.1) and activate it.                                                 | The component does nothing until something passes it a `contentDocumentId` + `jsonInput`. |
+| 4   | Recreate host-side plumbing in the target org: the MuleSoft action (External Service / invocable), `Document__c` field for the curated JSON, and the Flow. | Deliberately not part of this component.                                                  |
+| 5   | Smoke test with a **PDF < 3 MB**, a **PDF > 3 MB** (expect native fallback), and a **PNG/JPG**.                                                            | Exercises all three preview paths.                                                        |
+| 6   | After redeploys, **hard-refresh** (Ctrl+Shift+R) or test in a private window.                                                                              | Lightning caches components and static resources aggressively.                            |
 
 > **Version-control note:** deploy from the repo (source of truth), not by "Retrieve" from a working org — the `pdfjs` static resource contains the patched, renamed build files, and a retrieve from an org where someone re-uploaded vanilla PDF.js would silently regress §6.4.
 
-### 7.3 What you do *not* need
+### 7.3 What you do _not_ need
 
 - No Custom Metadata, Custom Labels, or Custom Settings.
 - No Named Credentials / Remote Site Settings (the component makes no callouts).
@@ -298,14 +298,14 @@ Not bundled (add only if needed): `cmaps/` (CJK-encoded PDFs). If scanned/JBIG2/
 
 ## 9. Troubleshooting
 
-| Symptom | Likely cause | Fix |
-| --- | --- | --- |
-| PDF always falls back to native viewer after ~10 s; console shows `Failed to load module script … MIME type of "application/octet-stream"` | `.mjs` files re-introduced in the static resource | Re-apply the rename (§6.4 / §8). |
-| `NetworkError when attempting to fetch resource` | Someone added a client-side `fetch()` of the shepherd URL | Don't — see §6.2. Bytes must come through Apex. |
-| "File not found or not accessible" | User lacks access to the ContentDocument, or wrong Id (must be `069…`) | Check file sharing; pass the ContentDocument Id, not ContentVersion (`068…`) or record Id. |
-| Large PDF renders in native viewer instead of PDF.js | File > 3 MB cap | Expected. Raise `MAX_PREVIEW_BYTES` (Apex) **and** `MAX_PDFJS_BYTES` (LWC) cautiously — base64 inflates ~33 % and both the blob and the string count against the 6 MB synchronous heap. |
-| UI changes not visible after deploy | Lightning component/static-resource caching | Hard refresh (Ctrl+Shift+R) or private window; check the deploy actually succeeded. |
-| Save button missing | Old component version cached, or the page hosts `jsonFormDemo` instead of **File and JSON Review** | Same as above; verify the page uses the right component. |
+| Symptom                                                                                                                                    | Likely cause                                                                                       | Fix                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PDF always falls back to native viewer after ~10 s; console shows `Failed to load module script … MIME type of "application/octet-stream"` | `.mjs` files re-introduced in the static resource                                                  | Re-apply the rename (§6.4 / §8).                                                                                                                                                        |
+| `NetworkError when attempting to fetch resource`                                                                                           | Someone added a client-side `fetch()` of the shepherd URL                                          | Don't — see §6.2. Bytes must come through Apex.                                                                                                                                         |
+| "File not found or not accessible"                                                                                                         | User lacks access to the ContentDocument, or wrong Id (must be `069…`)                             | Check file sharing; pass the ContentDocument Id, not ContentVersion (`068…`) or record Id.                                                                                              |
+| Large PDF renders in native viewer instead of PDF.js                                                                                       | File > 3 MB cap                                                                                    | Expected. Raise `MAX_PREVIEW_BYTES` (Apex) **and** `MAX_PDFJS_BYTES` (LWC) cautiously — base64 inflates ~33 % and both the blob and the string count against the 6 MB synchronous heap. |
+| UI changes not visible after deploy                                                                                                        | Lightning component/static-resource caching                                                        | Hard refresh (Ctrl+Shift+R) or private window; check the deploy actually succeeded.                                                                                                     |
+| Save button missing                                                                                                                        | Old component version cached, or the page hosts `jsonFormDemo` instead of **File and JSON Review** | Same as above; verify the page uses the right component.                                                                                                                                |
 
 ---
 
@@ -319,4 +319,4 @@ Not bundled (add only if needed): `cmaps/` (CJK-encoded PDFs). If scanned/JBIG2/
 
 ---
 
-*Related docs: [README.md](README.md) (documentation index), [JSON_FORM.md](JSON_FORM.md) (the `jsonForm` child component reference), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component).*
+_Related docs: [README.md](README.md) (documentation index), [JSON_FORM.md](JSON_FORM.md) (the `jsonForm` child component reference), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component)._

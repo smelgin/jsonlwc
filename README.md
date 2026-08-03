@@ -6,6 +6,24 @@ This project contains mainly 3 components that can be reused for 2 different sce
 
 **LQC**: Liquidity Calculator Component. Details below in the related link.
 
+## Repository layout
+
+The two scenarios are kept in separate package directories with no code in
+common, so each can be deployed — and eventually packaged — on its own:
+
+```
+force-app/idp/    IDP: fileJsonReview, jsonForm, jsonFormDemo,
+                  fileJsonReviewMappingDemo, the JSON mapping Apex classes,
+                  JSON_Field_Mapping__mdt and the pdfjs static resource
+force-app/lqc/    LQC: liquidityCalculator, lqcGrid, lqcDatatable, lqcReport,
+                  lqcBanner, lqcUtils, the Lqc* Apex classes and
+                  Custom_Configuration__mdt
+```
+
+Deploy one side with `sf project deploy start --source-dir force-app/idp`
+(or `force-app/lqc`). Documentation stays at the repository root because the
+guides cross-reference each other.
+
 ## Index
 
 - **[DOC_PREVIEWER.md](DOC_PREVIEWER.md)** — The `fileJsonReview` document previewer: a split-screen LWC that shows a Salesforce file (PDF/JPG/PNG/GIF) next to an OCR-extracted JSON rendered as an editable form, so users can curate the result and store it back on `Document__c`. Covers business context (MuleSoft OCR pipeline), all dependencies (`jsonForm` child LWC, `FilePreviewController` Apex, `pdfjs` static resource), the public API, hosting from Screen Flows / parent LWCs / OmniStudio, PDF-rendering internals, org-to-org deployment steps, PDF.js maintenance, and troubleshooting.

@@ -1,8 +1,12 @@
 {
   "packageDirectories": [
     {
-      "path": "force-app",
+      "path": "force-app/idp",
       "default": true
+    },
+    {
+      "path": "force-app/lqc",
+      "default": false
     }
   ],
   "name": "JsonLwc",

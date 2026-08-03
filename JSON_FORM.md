@@ -11,16 +11,16 @@ It is also the right-hand pane of the document previewer; see **[DOC_PREVIEWER.m
 
 ## 1. `c-json-form`
 
-`force-app/main/default/lwc/jsonForm`
+`force-app/idp/main/default/lwc/jsonForm`
 
-| API | Kind | Description |
-| --- | --- | --- |
-| `json-data` | `@api` property | The JSON to edit. Accepts an object/array **or** a JSON string. Intended for parent components. |
-| `json-input` | `@api` property (String) | String-only variant of `json-data`. This is the property exposed in App Builder and Flow, so the JSON source stays open/configurable. |
-| `json-output` | `@api` property (String, read-only) | The modified JSON string. Exposed as a Flow output attribute and kept in sync via `FlowAttributeChangeEvent`. |
-| `onjsonchange` | event | Fired on every edit. `event.detail.value` is the modified JSON object, `event.detail.jsonString` is the pretty-printed string. |
-| `getJson()` | `@api` method | Returns the current (modified) JSON object on demand. |
-| `getJsonString(indent)` | `@api` method | Returns the current JSON as a formatted string. |
+| API                     | Kind                                | Description                                                                                                                           |
+| ----------------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `json-data`             | `@api` property                     | The JSON to edit. Accepts an object/array **or** a JSON string. Intended for parent components.                                       |
+| `json-input`            | `@api` property (String)            | String-only variant of `json-data`. This is the property exposed in App Builder and Flow, so the JSON source stays open/configurable. |
+| `json-output`           | `@api` property (String, read-only) | The modified JSON string. Exposed as a Flow output attribute and kept in sync via `FlowAttributeChangeEvent`.                         |
+| `onjsonchange`          | event                               | Fired on every edit. `event.detail.value` is the modified JSON object, `event.detail.jsonString` is the pretty-printed string.        |
+| `getJson()`             | `@api` method                       | Returns the current (modified) JSON object on demand.                                                                                 |
+| `getJsonString(indent)` | `@api` method                       | Returns the current JSON as a formatted string.                                                                                       |
 
 ### Behavior
 
@@ -34,7 +34,10 @@ It is also the right-hand pane of the document previewer; see **[DOC_PREVIEWER.m
 ### Using it in a parent component
 
 ```html
-<c-json-form json-data={myJson} onjsonchange={handleJsonChange}></c-json-form>
+<c-json-form
+  json-data="{myJson}"
+  onjsonchange="{handleJsonChange}"
+></c-json-form>
 ```
 
 ```js
@@ -59,7 +62,7 @@ The component is exposed to `lightning__FlowScreen` as **JSON Form**:
 
 ## 2. `c-json-form-demo`
 
-`force-app/main/default/lwc/jsonFormDemo`
+`force-app/idp/main/default/lwc/jsonFormDemo`
 
 A demo host exposed to App, Home, Record pages and Tabs. Paste any JSON into the textarea, click **Load JSON**, edit the generated form, and watch the modified JSON output update live. Useful for smoke-testing a deployment or demonstrating the component without building a Flow.
 
@@ -92,4 +95,4 @@ The `.vscode` folder recommends the Salesforce Extension Pack; open the folder i
 
 ---
 
-*Related docs: [README.md](README.md) (documentation index), [DOC_PREVIEWER.md](DOC_PREVIEWER.md) (document previewer that embeds this component), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component).*
+_Related docs: [README.md](README.md) (documentation index), [DOC_PREVIEWER.md](DOC_PREVIEWER.md) (document previewer that embeds this component), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component)._
