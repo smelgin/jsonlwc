@@ -44,7 +44,8 @@
       "Bash(npm run *)",
       "Bash(git add *)",
       "Bash(git checkout *)",
-      "Bash(git merge *)"
+      "Bash(git merge *)",
+      "Bash(sf sobject *)"
     ]
   }
 }

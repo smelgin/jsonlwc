@@ -12,7 +12,9 @@ into Salesforce. That is what this engine does, in one of two modes:
 
 Which JSON path maps to which field is configuration rather than code:
 each mapping is a `JSON_Field_Mapping__mdt` record, so adding or changing
-one is an admin task.
+one is an admin task. Documents that pair fixed header and footer regions
+with a repeating detail band are handled by declaring
+[sections](#sections-fixed-and-repeating-regions).
 
 ```
   the file                        records found by walking the schema
@@ -39,39 +41,119 @@ action or a parent LWC like the bundled `fileJsonReviewMappingDemo`.
 
 ## Components
 
-| Component                    | Type                 | Role                                                                                                               |
-| ---------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `JSON_Field_Mapping__mdt`    | Custom Metadata Type | Declares the mapping rules.                                                                                        |
-| `JsonMappingService`         | Apex                 | Orchestrator. Entry points: `apply` (`@InvocableMethod`, for Flow) and `applyMappings` (`@AuraEnabled`, for LWCs). |
-| `JsonMappingSelector`        | Apex                 | Loads the active rules of one mapping set.                                                                         |
-| `DocumentContextResolver`    | Apex                 | Turns a `contentDocumentId` into a map of reachable records, keyed by object API name.                             |
-| `JsonPathReader`             | Apex                 | Dot-notation JSON path extraction, including array indexes (`beneficiaries[0].name`).                              |
-| `FieldValueCoercer`          | Apex                 | Describe-driven type conversion: text, number, boolean, date, datetime, picklist.                                  |
-| `IComplianceMismatchHandler` | Apex interface       | Contract for custom mismatch actions in Compliance mode.                                                           |
-| `ComplianceTaskHandler`      | Apex                 | Sample handler that creates a review Task listing the mismatches.                                                  |
-| `JsonMappingServiceTest`     | Apex test            | Coverage for all of the above.                                                                                     |
-| `fileJsonReviewMappingDemo`  | LWC                  | Example host wiring `fileJsonReview` to the engine.                                                                |
+| Component                    | Type                 | Role                                                                                                                         |
+| ---------------------------- | -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `JSON_Field_Mapping__mdt`    | Custom Metadata Type | Declares the mapping rules.                                                                                                  |
+| `JSON_Mapping_Section__mdt`  | Custom Metadata Type | Declares a fixed or repeating region of the document that rules attach to.                                                   |
+| `JsonFilterBinder`           | Apex                 | Resolves `{json:…}` / `{row:…}` tokens in filters and key templates, binding document values rather than concatenating them. |
+| `JsonMappingService`         | Apex                 | Orchestrator. Entry points: `apply` (`@InvocableMethod`, for Flow) and `applyMappings` (`@AuraEnabled`, for LWCs).           |
+| `JsonMappingSelector`        | Apex                 | Loads the active rules of one mapping set.                                                                                   |
+| `DocumentContextResolver`    | Apex                 | Turns a `contentDocumentId` into a map of reachable records, keyed by object API name.                                       |
+| `JsonPathReader`             | Apex                 | Dot-notation JSON path extraction, including array indexes (`beneficiaries[0].name`).                                        |
+| `FieldValueCoercer`          | Apex                 | Describe-driven type conversion: text, number, boolean, date, datetime, picklist.                                            |
+| `IComplianceMismatchHandler` | Apex interface       | Contract for custom mismatch actions in Compliance mode.                                                                     |
+| `ComplianceTaskHandler`      | Apex                 | Sample handler that creates a review Task listing the mismatches.                                                            |
+| `JsonMappingServiceTest`     | Apex test            | Coverage for all of the above.                                                                                               |
+| `fileJsonReviewMappingDemo`  | LWC                  | Example host wiring `fileJsonReview` to the engine.                                                                          |
 
 ## Configuring mappings
 
 Every `JSON_Field_Mapping__mdt` record describes one rule:
 
-| Field                 | Meaning                                                                                                     | Example                 |
-| --------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `Mapping_Set__c`      | Groups rules by use case. One set is applied per call.                                                      | `Estate_Intake`         |
-| `JSON_Path__c`        | Dot path into the JSON. Use `[n]` to index arrays.                                                          | `applicant.dateOfBirth` |
-| `Target_Object__c`    | API name of the object to write to. It has to be reachable from the file (see below).                       | `Estate_Case__c`        |
-| `Target_Field__c`     | API name of the field that receives the value.                                                              | `Date_of_Birth__c`      |
-| `Overwrite_Policy__c` | `Always` or `Only if blank`. Extraction mode only.                                                          | `Only if blank`         |
-| `Transform__c`        | Optional format hint. For Date fields: `yyyy-MM-dd` (the default), `dd/MM/yyyy` or `MM/dd/yyyy`.            | `dd/MM/yyyy`            |
-| `Mode__c`             | Optional per-rule override of the run mode, `Extraction` or `Compliance`. Leave blank to inherit the run's. | `Compliance`            |
-| `Anchor_Filter__c`    | Optional filter narrowing which record the target object resolves to (see below).                           | `Status__c = 'Active'`  |
-| `Active__c`           | Untick to disable a rule without deleting it.                                                               | ✓                       |
+| Field                 | Meaning                                                                                                                                   | Example                 |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| `Mapping_Set__c`      | Groups rules by use case. One set is applied per call.                                                                                    | `Estate_Intake`         |
+| `Section__c`          | Section this rule belongs to. Blank means a standalone rule against a record reachable from the file — the original behaviour, unchanged. | `Lines`                 |
+| `JSON_Path__c`        | Dot path into the JSON. Use `[n]` to index arrays.                                                                                        | `applicant.dateOfBirth` |
+| `Target_Object__c`    | API name of the object to write to. It has to be reachable from the file (see below).                                                     | `Estate_Case__c`        |
+| `Target_Field__c`     | API name of the field that receives the value.                                                                                            | `Date_of_Birth__c`      |
+| `Overwrite_Policy__c` | `Always` or `Only if blank`. Extraction mode only.                                                                                        | `Only if blank`         |
+| `Transform__c`        | Optional format hint. For Date fields: `yyyy-MM-dd` (the default), `dd/MM/yyyy` or `MM/dd/yyyy`.                                          | `dd/MM/yyyy`            |
+| `Mode__c`             | Optional per-rule override of the run mode, `Extraction` or `Compliance`. Leave blank to inherit the run's.                               | `Compliance`            |
+| `Anchor_Filter__c`    | Optional filter narrowing which record the target object resolves to (see below).                                                         | `Status__c = 'Active'`  |
+| `Active__c`           | Untick to disable a rule without deleting it.                                                                                             | ✓                       |
 
 Four sample records ship with the project under the `Estate_Intake` mapping
 set. They target standard fields only (`Case.SuppliedName`,
 `Case.SuppliedEmail`, `Case.Description` and `Account.Phone`) so the demo
 works in any org.
+
+## Sections: fixed and repeating regions
+
+Most business documents are a header and footer wrapped around a repeating
+band — invoice lines, statement transactions, payslip earnings, policy
+coverages, estate asset lines. A `JSON_Mapping_Section__mdt` record declares
+one such region, and rules attach to it through `Section__c`:
+
+| Field               | Meaning                                                                                   | Example                           |
+| ------------------- | ----------------------------------------------------------------------------------------- | --------------------------------- |
+| `Mapping_Set__c`    | Must match the mapping set of the rules that reference it.                                | `Invoice_Intake`                  |
+| `Section_Name__c`   | The name rules point at.                                                                  | `Lines`                           |
+| `Section_Type__c`   | `Fixed` (one record) or `Repeating` (one record per row).                                 | `Repeating`                       |
+| `Target_Object__c`  | Object the section writes to. Attached rules inherit it.                                  | `Asset`                           |
+| `Row_Path__c`       | Repeating only: JSON path to the array of rows.                                           | `Details`                         |
+| `Match_Field__c`    | Repeating only: the field identifying a row.                                              | `SerialNumber`                    |
+| `Match_Value__c`    | Repeating only: template producing each row's key.                                        | `INV-{json:Invoice}-{row:number}` |
+| `Record_Filter__c`  | Optional extra WHERE fragment. Supersedes a rule's `Anchor_Filter__c`.                    | `Status != 'Obsolete'`            |
+| `Parent_Section__c` | Section whose record constrains this one. Blank discovers the constraint from the schema. | `Header`                          |
+| `Active__c`         | Disables the section and every rule on it.                                                | ✓                                 |
+
+A **Fixed** section is the existing single-record behaviour with the object
+and filter declared once instead of repeated on every rule. A **Repeating**
+section iterates `Row_Path__c` and reads each rule's `JSON_Path__c` relative
+to the current row, so the rule count stays constant no matter how many rows
+the document has.
+
+The invoice in `Invoice_Intake` ships as a working sample against standard
+`Asset` fields, so it runs in any org:
+
+```
+Section  Lines: Repeating, Asset, Row_Path=Details,
+                Match_Field=SerialNumber,
+                Match_Value=INV-{json:Invoice}-{row:number}
+
+Rule     Section=Lines, JSON_Path=Quantity     → Quantity
+Rule     Section=Lines, JSON_Path=Description  → Name
+Rule     Section=Lines, JSON_Path=Subtotal     → Price
+```
+
+### Match values
+
+`Match_Value__c` builds the key each row is looked up by. Four token forms
+are available: `{json:path}` reads from the document root, `{row:path}` from
+the current row, `{row:index}` is the 0-based position and `{row:number}` the
+1-based one. Whole numbers render without a decimal point, so line 2 is
+`2` rather than `2.0`.
+
+`Match_Field__c` does **not** have to be an External Id. Rows are matched with
+a SOQL query, so any queryable field works — a serial number, a reference
+code, a line number. A true External Id only becomes necessary if the engine
+later gains the ability to create rows.
+
+### What this version does and does not do
+
+Rows are **matched and updated, never created**. A document row whose key
+finds no record is reported in `Result.unmatchedRowKeys`, which is data
+rather than an error, and nothing is inserted or deleted. Record creation
+and reconciliation of stale rows are deliberately left to a later version;
+the schema already carries `Parent_Section__c` so that nesting can arrive
+without a migration.
+
+Two safeguards are worth knowing about. Rows are constrained to the parent
+record resolved from the file, so a key that is only unique within one
+account cannot reach another account's rows. And if two document rows render
+the same key, the second is skipped and reported rather than silently
+overwriting the first.
+
+Cost is one query and one DML per run regardless of row count: a
+200-line statement costs the same as a 2-line invoice.
+
+### Compliance over rows
+
+Compliance works the same way on a repeating section, comparing without
+writing. Each mismatch additionally carries `sectionName`, `rowIndex` and
+`rowKey`, so the report identifies which line of the document disagrees
+rather than just which field.
 
 ## Reachable objects
 
@@ -196,8 +278,8 @@ queried in `USER_MODE`, and updates pass through
 `Security.stripInaccessible(AccessType.UPDATABLE, …)` before they are saved.
 
 `Result` carries `success` (no errors at all), `compliant` (no mismatches),
-`fieldsApplied`, `fieldsCompared`, `updatedRecordIds`, `mismatches` and
-`errors`.
+`fieldsApplied`, `fieldsCompared`, `rowsMatched`, `rowsUpdated`,
+`unmatchedRowKeys`, `updatedRecordIds`, `mismatches` and `errors`.
 
 ## Usage from a Screen Flow
 
@@ -246,6 +328,9 @@ table underneath the review pane.
 
 - **A new use case** needs no code. Create rules under a new
   `Mapping_Set__c` value and pass that name.
+- **A document with detail lines** needs no code either: add a Repeating
+  section and attach rules to it. The same three rules serve two lines or
+  two hundred.
 - **A new target object** also needs no code, as long as it is reachable
   from the file through a lookup the resolver can discover. Point
   `Target_Object__c` at it. Only a genuinely new traversal pattern, rather

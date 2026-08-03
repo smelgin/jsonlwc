@@ -4,23 +4,27 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
 >
-    <label>Estate Intake: Applicant Name</label>
+    <label>Invoice Intake: Line Description</label>
     <protected>false</protected>
     <values>
         <field>Mapping_Set__c</field>
-        <value xsi:type="xsd:string">Estate_Intake</value>
+        <value xsi:type="xsd:string">Invoice_Intake</value>
+    </values>
+    <values>
+        <field>Section__c</field>
+        <value xsi:type="xsd:string">Lines</value>
     </values>
     <values>
         <field>JSON_Path__c</field>
-        <value xsi:type="xsd:string">applicant.name</value>
+        <value xsi:type="xsd:string">Description</value>
     </values>
     <values>
         <field>Target_Object__c</field>
-        <value xsi:type="xsd:string">Case</value>
+        <value xsi:type="xsd:string">Asset</value>
     </values>
     <values>
         <field>Target_Field__c</field>
-        <value xsi:type="xsd:string">SuppliedName</value>
+        <value xsi:type="xsd:string">Name</value>
     </values>
     <values>
         <field>Overwrite_Policy__c</field>
@@ -28,6 +32,14 @@
     </values>
     <values>
         <field>Transform__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Mode__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Anchor_Filter__c</field>
         <value xsi:nil="true" />
     </values>
     <values>

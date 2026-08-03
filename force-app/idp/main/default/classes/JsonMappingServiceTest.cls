@@ -547,6 +547,415 @@ private class JsonMappingServiceTest {
     Assert.isTrue(results[0].success, 'Errors: ' + results[0].errors);
   }
 
+  // ---------------------------------------------------------------------
+  // Repeating sections
+  // ---------------------------------------------------------------------
+
+  private static final String INVOICE_JSON =
+    '{"Invoice":123456,"Date":"2026-06-06","Provider":"Sample Company Inc.",' +
+    '"Details":[' +
+    '{"Quantity":1,"Description":"Hammer type 123","Subtotal":1233.0},' +
+    '{"Quantity":2,"Description":"Nails type 123","Subtotal":33.0}],' +
+    '"Total":1266.0}';
+
+  private static JSON_Mapping_Section__mdt makeSection(
+    String name,
+    String type,
+    String targetObject,
+    String rowPath,
+    String matchField,
+    String matchValue
+  ) {
+    return new JSON_Mapping_Section__mdt(
+      Section_Name__c = name,
+      Section_Type__c = type,
+      Target_Object__c = targetObject,
+      Row_Path__c = rowPath,
+      Match_Field__c = matchField,
+      Match_Value__c = matchValue
+    );
+  }
+
+  private static JSON_Field_Mapping__mdt makeRowRule(
+    String section,
+    String path,
+    String targetField
+  ) {
+    JSON_Field_Mapping__mdt rule = makeRule(
+      path,
+      'Asset',
+      targetField,
+      'Always',
+      null
+    );
+    rule.Section__c = section;
+    return rule;
+  }
+
+  /** Account with two invoice-line Assets, and a file linked to the Account. */
+  private static Id setupAccountWithAssets() {
+    Account account = new Account(Name = 'Invoice Customer');
+    insert account;
+    insert new List<Asset>{
+      new Asset(
+        Name = 'Line 1 placeholder',
+        SerialNumber = 'INV-123456-1',
+        AccountId = account.Id
+      ),
+      new Asset(
+        Name = 'Line 2 placeholder',
+        SerialNumber = 'INV-123456-2',
+        AccountId = account.Id
+      )
+    };
+    ContentVersion cv = new ContentVersion(
+      Title = 'Invoice',
+      PathOnClient = 'invoice.pdf',
+      VersionData = Blob.valueOf('pdf bytes')
+    );
+    insert cv;
+    Id contentDocumentId = [
+      SELECT ContentDocumentId
+      FROM ContentVersion
+      WHERE Id = :cv.Id
+    ]
+    .ContentDocumentId;
+    insert new ContentDocumentLink(
+      ContentDocumentId = contentDocumentId,
+      LinkedEntityId = account.Id,
+      ShareType = 'V'
+    );
+    return contentDocumentId;
+  }
+
+  @IsTest
+  static void repeatingSectionUpdatesEachRow() {
+    Id contentDocumentId = setupAccountWithAssets();
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>{
+      makeSection(
+        'Lines',
+        'Repeating',
+        'Asset',
+        'Details',
+        'SerialNumber',
+        'INV-{json:Invoice}-{row:number}'
+      )
+    };
+    JsonMappingSelector.testRules = new List<JSON_Field_Mapping__mdt>{
+      makeRowRule('Lines', 'Quantity', 'Quantity'),
+      makeRowRule('Lines', 'Description', 'Name'),
+      makeRowRule('Lines', 'Subtotal', 'Price')
+    };
+
+    Test.startTest();
+    JsonMappingService.Result result = JsonMappingService.applyMappings(
+      contentDocumentId,
+      INVOICE_JSON,
+      'Invoice_Intake',
+      null,
+      null
+    );
+    Test.stopTest();
+
+    Assert.isTrue(result.success, 'Errors: ' + result.errors);
+    Assert.areEqual(2, result.rowsMatched, 'Both lines should match an Asset');
+    Assert.areEqual(2, result.rowsUpdated);
+    Assert.areEqual(
+      6,
+      result.fieldsApplied,
+      'Three fields on each of two rows'
+    );
+    Assert.areEqual(0, result.unmatchedRowKeys.size());
+
+    Map<String, Asset> bySerial = new Map<String, Asset>();
+    for (Asset a : [SELECT SerialNumber, Name, Quantity, Price FROM Asset]) {
+      bySerial.put(a.SerialNumber, a);
+    }
+    Assert.areEqual('Hammer type 123', bySerial.get('INV-123456-1').Name);
+    Assert.areEqual(1, bySerial.get('INV-123456-1').Quantity);
+    Assert.areEqual(1233, bySerial.get('INV-123456-1').Price);
+    Assert.areEqual('Nails type 123', bySerial.get('INV-123456-2').Name);
+    Assert.areEqual(2, bySerial.get('INV-123456-2').Quantity);
+    Assert.areEqual(33, bySerial.get('INV-123456-2').Price);
+  }
+
+  @IsTest
+  static void unmatchedRowsAreReportedAndNeverCreated() {
+    Id contentDocumentId = setupAccountWithAssets();
+    delete [SELECT Id FROM Asset WHERE SerialNumber = 'INV-123456-2'];
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>{
+      makeSection(
+        'Lines',
+        'Repeating',
+        'Asset',
+        'Details',
+        'SerialNumber',
+        'INV-{json:Invoice}-{row:number}'
+      )
+    };
+    JsonMappingSelector.testRules = new List<JSON_Field_Mapping__mdt>{
+      makeRowRule('Lines', 'Quantity', 'Quantity')
+    };
+
+    JsonMappingService.Result result = JsonMappingService.applyMappings(
+      contentDocumentId,
+      INVOICE_JSON,
+      'Invoice_Intake',
+      null,
+      null
+    );
+
+    Assert.isTrue(result.success, 'Unmatched rows are data, not errors');
+    Assert.areEqual(1, result.rowsMatched);
+    Assert.areEqual(1, result.unmatchedRowKeys.size());
+    Assert.areEqual('INV-123456-2', result.unmatchedRowKeys[0]);
+    Assert.areEqual(
+      1,
+      [SELECT COUNT() FROM Asset],
+      'This version must never create a row'
+    );
+  }
+
+  @IsTest
+  static void rowsAreConstrainedToTheParentRecord() {
+    Id contentDocumentId = setupAccountWithAssets();
+    // Same serial numbers on a different Account: the document must not
+    // reach them, even though the keys collide.
+    Account other = new Account(Name = 'Someone Else');
+    insert other;
+    insert new List<Asset>{
+      new Asset(
+        Name = 'Untouched 1',
+        SerialNumber = 'INV-123456-1',
+        AccountId = other.Id
+      ),
+      new Asset(
+        Name = 'Untouched 2',
+        SerialNumber = 'INV-123456-2',
+        AccountId = other.Id
+      )
+    };
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>{
+      makeSection(
+        'Lines',
+        'Repeating',
+        'Asset',
+        'Details',
+        'SerialNumber',
+        'INV-{json:Invoice}-{row:number}'
+      )
+    };
+    JsonMappingSelector.testRules = new List<JSON_Field_Mapping__mdt>{
+      makeRowRule('Lines', 'Description', 'Name')
+    };
+
+    JsonMappingService.Result result = JsonMappingService.applyMappings(
+      contentDocumentId,
+      INVOICE_JSON,
+      'Invoice_Intake',
+      null,
+      null
+    );
+
+    Assert.isTrue(result.success, 'Errors: ' + result.errors);
+    Assert.areEqual(2, result.rowsMatched, 'Only the linked account matched');
+    Assert.areEqual(
+      2,
+      [SELECT COUNT() FROM Asset WHERE Name LIKE 'Untouched%'],
+      'The other account\'s assets must be untouched'
+    );
+  }
+
+  @IsTest
+  static void complianceOnRowsIdentifiesTheDifferingLine() {
+    Id contentDocumentId = setupAccountWithAssets();
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>{
+      makeSection(
+        'Lines',
+        'Repeating',
+        'Asset',
+        'Details',
+        'SerialNumber',
+        'INV-{json:Invoice}-{row:number}'
+      )
+    };
+    JsonMappingSelector.testRules = new List<JSON_Field_Mapping__mdt>{
+      makeRowRule('Lines', 'Description', 'Name')
+    };
+    // Line 1 agrees with the document, line 2 does not.
+    Asset first = [SELECT Id FROM Asset WHERE SerialNumber = 'INV-123456-1'];
+    first.Name = 'Hammer type 123';
+    update first;
+
+    Test.startTest();
+    JsonMappingService.Result result = JsonMappingService.applyMappings(
+      contentDocumentId,
+      INVOICE_JSON,
+      'Invoice_Intake',
+      'Compliance',
+      null
+    );
+    Test.stopTest();
+
+    Assert.isTrue(result.success, 'Errors: ' + result.errors);
+    Assert.isFalse(result.compliant);
+    Assert.areEqual(0, result.fieldsApplied, 'Compliance writes nothing');
+    Assert.areEqual(1, result.mismatches.size());
+    JsonMappingService.Mismatch mismatch = result.mismatches[0];
+    Assert.areEqual('Lines', mismatch.sectionName);
+    Assert.areEqual(1, mismatch.rowIndex, 'Second row is index 1');
+    Assert.areEqual('INV-123456-2', mismatch.rowKey);
+    Assert.areEqual('Nails type 123', mismatch.extractedValue);
+    Assert.areEqual('Line 2 placeholder', mismatch.actualValue);
+  }
+
+  @IsTest
+  static void duplicateAndMisconfiguredSectionsAreReported() {
+    Id contentDocumentId = setupAccountWithAssets();
+
+    // Every row renders the same key.
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>{
+      makeSection(
+        'Lines',
+        'Repeating',
+        'Asset',
+        'Details',
+        'SerialNumber',
+        'INV-{json:Invoice}'
+      )
+    };
+    JsonMappingSelector.testRules = new List<JSON_Field_Mapping__mdt>{
+      makeRowRule('Lines', 'Quantity', 'Quantity')
+    };
+    JsonMappingService.Result duplicate = JsonMappingService.applyMappings(
+      contentDocumentId,
+      INVOICE_JSON,
+      'Invoice_Intake',
+      null,
+      null
+    );
+    Assert.isFalse(duplicate.success);
+    Assert.isTrue(
+      duplicate.errors[0].contains('same Match Value'),
+      'Got: ' + duplicate.errors
+    );
+
+    // Row Path points at a scalar rather than a list.
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>{
+      makeSection(
+        'Lines',
+        'Repeating',
+        'Asset',
+        'Total',
+        'SerialNumber',
+        'INV-{row:number}'
+      )
+    };
+    JsonMappingService.Result notAList = JsonMappingService.applyMappings(
+      contentDocumentId,
+      INVOICE_JSON,
+      'Invoice_Intake',
+      null,
+      null
+    );
+    Assert.isFalse(notAList.success);
+    Assert.isTrue(
+      notAList.errors[0].contains('is not a list'),
+      'Got: ' + notAList.errors
+    );
+
+    // A rule naming a section that does not exist.
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>();
+    JsonMappingSelector.testRules = new List<JSON_Field_Mapping__mdt>{
+      makeRowRule('Ghost', 'Quantity', 'Quantity')
+    };
+    JsonMappingService.Result ghost = JsonMappingService.applyMappings(
+      contentDocumentId,
+      INVOICE_JSON,
+      'Invoice_Intake',
+      null,
+      null
+    );
+    Assert.isFalse(ghost.success);
+    Assert.isTrue(
+      ghost.errors[0].contains('unknown or inactive section'),
+      'Got: ' + ghost.errors
+    );
+  }
+
+  @IsTest
+  static void fixedSectionSuppliesObjectToItsRules() {
+    Id contentDocumentId = setupCaseWithFile();
+    JsonMappingSelector.testSections = new List<JSON_Mapping_Section__mdt>{
+      makeSection('Header', 'Fixed', 'Case', null, null, null)
+    };
+    JSON_Field_Mapping__mdt rule = makeRule(
+      'applicant.name',
+      null, // object comes from the section
+      'SuppliedName',
+      'Always',
+      null
+    );
+    rule.Section__c = 'Header';
+    JsonMappingSelector.testRules = new List<JSON_Field_Mapping__mdt>{ rule };
+
+    JsonMappingService.Result result = JsonMappingService.applyMappings(
+      contentDocumentId,
+      '{"applicant":{"name":"Jane Doe"}}',
+      'Estate_Intake',
+      null,
+      null
+    );
+
+    Assert.isTrue(result.success, 'Errors: ' + result.errors);
+    Assert.areEqual(
+      'Jane Doe',
+      [SELECT SuppliedName FROM Case LIMIT 1].SuppliedName,
+      'A Fixed section behaves like a standalone rule'
+    );
+  }
+
+  @IsTest
+  static void binderRendersTemplatesAndBindsFilters() {
+    Object root = JSON.deserializeUntyped(INVOICE_JSON);
+    Object row = ((List<Object>) JsonPathReader.read(root, 'Details'))[1];
+
+    Assert.areEqual(
+      'INV-123456-2',
+      JsonFilterBinder.renderTemplate(
+        'INV-{json:Invoice}-{row:number}',
+        root,
+        row,
+        1
+      ),
+      'Whole numbers must not gain a decimal point'
+    );
+    Assert.areEqual(
+      '1',
+      JsonFilterBinder.renderTemplate('{row:index}', root, row, 1)
+    );
+    Assert.areEqual(
+      'Nails type 123',
+      JsonFilterBinder.renderTemplate('{row:Description}', root, row, 1)
+    );
+    Assert.isNull(
+      JsonFilterBinder.renderTemplate('{json:Missing}', root, row, 1),
+      'An unresolvable token yields no key at all'
+    );
+    Assert.isNull(JsonFilterBinder.renderTemplate(null, root, row, 1));
+
+    Map<String, Object> binds = new Map<String, Object>();
+    String fragment = JsonFilterBinder.bindFilter(
+      'Name = {json:Provider}',
+      root,
+      null,
+      null,
+      binds
+    );
+    Assert.areEqual('Name = :boundValue0', fragment, 'Values must be bound');
+    Assert.areEqual('Sample Company Inc.', binds.get('boundValue0'));
+  }
+
   @IsTest
   static void pathReaderNavigatesObjectsAndArrays() {
     Object root = JSON.deserializeUntyped(

@@ -286,7 +286,7 @@ public inherited sharing class DocumentContextResolver {
    * AccountId), otherwise the only reference field to that object. Null
    * when absent or ambiguous without the conventional name.
    */
-  private static String findLookupTo(String fromObject, String targetObject) {
+  public static String findLookupTo(String fromObject, String targetObject) {
     Map<String, Schema.SObjectField> fields = fieldsOf(fromObject);
     Schema.SObjectType targetType = typeOf(targetObject);
     if (fields == null || targetType == null) {
@@ -345,7 +345,10 @@ public inherited sharing class DocumentContextResolver {
     Map<String, Object> binds = new Map<String, Object>{ 'value' => value };
     String whereClause = whereField + ' = :value';
     if (String.isNotBlank(filter)) {
-      whereClause += ' AND (' + bindJsonTokens(filter, jsonRoot, binds) + ')';
+      whereClause +=
+        ' AND (' +
+        JsonFilterBinder.bindFilter(filter, jsonRoot, null, null, binds) +
+        ')';
     }
     Set<String> selected = new Set<String>{ 'Id' };
     selected.addAll(fields);
@@ -368,33 +371,6 @@ public inherited sharing class DocumentContextResolver {
     } catch (Exception e) {
       return null;
     }
-  }
-
-  /**
-   * Replaces {json:path} tokens in an Anchor Filter with bind variables
-   * whose values come from the reviewed JSON — document values are bound,
-   * never concatenated into the query. The fragment itself is
-   * deployer-controlled metadata.
-   */
-  private static String bindJsonTokens(
-    String filter,
-    Object jsonRoot,
-    Map<String, Object> binds
-  ) {
-    String processed = filter;
-    Matcher matcher = Pattern.compile('\\{json:([^}]+)\\}').matcher(filter);
-    Integer index = 0;
-    while (matcher.find()) {
-      String token = matcher.group(0);
-      if (!processed.contains(token)) {
-        continue; // duplicate token, already replaced
-      }
-      String bindName = 'jsonBind' + index;
-      binds.put(bindName, JsonPathReader.read(jsonRoot, matcher.group(1)));
-      processed = processed.replace(token, ':' + bindName);
-      index++;
-    }
-    return processed;
   }
 
   private static Id idValue(SObject record, String fieldName) {
