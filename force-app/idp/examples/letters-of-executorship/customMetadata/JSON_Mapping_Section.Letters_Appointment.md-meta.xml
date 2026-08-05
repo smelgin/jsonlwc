@@ -4,42 +4,42 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
 >
-    <label>Cons. Statement: Total Rel. Balance</label>
+    <label>Letters: Appointment</label>
     <protected>false</protected>
     <values>
         <field>Mapping_Set__c</field>
-        <value xsi:type="xsd:string">Consolidated_Statement</value>
+        <value xsi:type="xsd:string">Letters_Of_Executorship</value>
     </values>
     <values>
-        <field>Section__c</field>
-        <value xsi:type="xsd:string">Statement</value>
+        <field>Section_Name__c</field>
+        <value xsi:type="xsd:string">Appointment</value>
     </values>
     <values>
-        <field>JSON_Path__c</field>
-        <value xsi:type="xsd:string">statement.totalRelationshipBalance</value>
+        <field>Section_Type__c</field>
+        <value xsi:type="xsd:string">Fixed</value>
     </values>
     <values>
         <field>Target_Object__c</field>
-        <value xsi:type="xsd:string">Account</value>
+        <value xsi:type="xsd:string">Estate_Case__c</value>
     </values>
     <values>
-        <field>Target_Field__c</field>
-        <value xsi:type="xsd:string">Total_Relationship_Balance__c</value>
-    </values>
-    <values>
-        <field>Overwrite_Policy__c</field>
-        <value xsi:type="xsd:string">Always</value>
-    </values>
-    <values>
-        <field>Transform__c</field>
+        <field>Row_Path__c</field>
         <value xsi:nil="true" />
     </values>
     <values>
-        <field>Mode__c</field>
+        <field>Match_Field__c</field>
         <value xsi:nil="true" />
     </values>
     <values>
-        <field>Anchor_Filter__c</field>
+        <field>Match_Value__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Record_Filter__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Parent_Section__c</field>
         <value xsi:nil="true" />
     </values>
     <values>

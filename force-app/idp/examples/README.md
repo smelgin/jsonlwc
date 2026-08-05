@@ -1,39 +1,44 @@
 # IDP Examples
 
-Three self-contained demonstrations of [`fileJsonReview`](../../../DOC_PREVIEWER.md)
-driving the [JSON field mapping engine](../../../JSON_FIELD_MAPPING.md), set in
-a generic retail/commercial bank.
+Four self-contained demonstrations of [`fileJsonReview`](../../../DOC_PREVIEWER.md)
+driving the [JSON field mapping engine](../../../JSON_FIELD_MAPPING.md) — three
+set in a generic retail/commercial bank, one in a bank's deceased estates
+department.
 
 Each one ships everything it needs: its own mapping set, its own custom
 fields, its own seed data, its own sample document and a README you can follow
-end to end. Nothing is shared between them, so you can install one, all three,
+end to end. Nothing is shared between them, so you can install one, all four,
 or none.
 
 ## Index
 
-| #   | Example                                                            | Mode       | Sections              | The idea                                                                                                      |
-| --- | ------------------------------------------------------------------ | ---------- | --------------------- | ------------------------------------------------------------------------------------------------------------- |
-| 1   | **[Business Account Opening](business-account-opening/README.md)** | Extraction | 2 × Fixed             | A scanned account opening form fills in the customer's KYC details and the application Case.                  |
-| 2   | **[Consolidated Statement](consolidated-statement/README.md)**     | Extraction | 1 Fixed + 1 Repeating | A month-end statement refreshes every product the customer holds — a detail band of any length, six rules.    |
-| 3   | **[Loan Offer Compliance](loan-offer-compliance/README.md)**       | Compliance | 2 × Fixed             | A signed offer letter is checked against the approved terms; the differences go to a custom mismatch handler. |
+| #   | Example                                                            | Mode       | Sections              | The idea                                                                                                           |
+| --- | ------------------------------------------------------------------ | ---------- | --------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| 1   | **[Business Account Opening](business-account-opening/README.md)** | Extraction | 2 × Fixed             | A scanned account opening form fills in the customer's KYC details and the application Case.                       |
+| 2   | **[Consolidated Statement](consolidated-statement/README.md)**     | Extraction | 1 Fixed + 1 Repeating | A month-end statement refreshes every product the customer holds — a detail band of any length, six rules.         |
+| 3   | **[Loan Offer Compliance](loan-offer-compliance/README.md)**       | Compliance | 2 × Fixed             | A signed offer letter is checked against the approved terms; the differences go to a custom mismatch handler.      |
+| 4   | **[Letters of Executorship](letters-of-executorship/README.md)**   | Extraction | 2 × Fixed             | A Master's appointment letter fills in the Estate Case — a **custom object reached by a child hop** from the Case. |
 
 ### What each one adds
 
-| Engine feature                                       | 1   | 2   | 3   |
-| ---------------------------------------------------- | --- | --- | --- |
-| Fixed sections                                       | ✅  | ✅  | ✅  |
-| Repeating sections (`Row_Path__c`, `Match_Value__c`) |     | ✅  |     |
-| `Parent_Section__c` row scoping                      |     | ✅  |     |
-| `Record_Filter__c` / `unmatchedRowKeys`              |     | ✅  |     |
-| `Overwrite_Policy__c = Only if blank`                | ✅  |     |     |
-| Date `Transform__c`                                  | ✅  | ✅  | ✅  |
-| Restricted picklist coercion                         | ✅  | ✅  |     |
-| Compliance comparison rules                          |     |     | ✅  |
-| Per-rule `Mode__c` override                          |     |     | ✅  |
-| `IComplianceMismatchHandler`                         |     |     | ✅  |
+| Engine feature                                       | 1   | 2   | 3   | 4   |
+| ---------------------------------------------------- | --- | --- | --- | --- |
+| Fixed sections                                       | ✅  | ✅  | ✅  | ✅  |
+| Repeating sections (`Row_Path__c`, `Match_Value__c`) |     | ✅  |     |     |
+| `Parent_Section__c` row scoping                      |     | ✅  |     |     |
+| `Record_Filter__c` / `unmatchedRowKeys`              |     | ✅  |     |     |
+| `Overwrite_Policy__c = Only if blank`                | ✅  |     |     |     |
+| Date `Transform__c`                                  | ✅  | ✅  | ✅  | ✅  |
+| Restricted picklist coercion                         | ✅  | ✅  |     | ✅  |
+| Compliance comparison rules                          |     |     | ✅  |     |
+| Per-rule `Mode__c` override                          |     |     | ✅  |     |
+| `IComplianceMismatchHandler`                         |     |     | ✅  |     |
+| Child-hop resolution to a custom object              |     |     |     | ✅  |
+| Two sections sharing one target object               |     |     |     | ✅  |
 
 If you are reading these in order, example 1 is the one to start with — it is
-the whole engine minus the two features the others add.
+the whole engine minus the features the others add. Example 4 is the one to
+read if your data does not live on the object the file is filed against.
 
 ## How an example is laid out
 
@@ -41,7 +46,7 @@ the whole engine minus the two features the others add.
 <example>/
   README.md          what it is, what it demonstrates, how to deploy and run it
   customMetadata/    the JSON_Field_Mapping__mdt and JSON_Mapping_Section__mdt records
-  objects/           the custom fields it adds to standard objects
+  objects/           the custom fields it adds
   permissionsets/    field (and class) access, so the engine can actually write
   classes/           Apex, where the example needs it (example 3 only)
   data/              sf data tree plan and records
@@ -49,6 +54,20 @@ the whole engine minus the two features the others add.
   sample/            the JSON the OCR/IDP service would have returned for it
   scripts/           setup.apex — links the file and prints the ContentDocumentId
 ```
+
+Alongside the examples there is one shared folder:
+
+```
+bootstrap/           metadata an example expects the org to already have,
+  estate-case/       for orgs that do not — deployed only on purpose
+```
+
+`bootstrap/` sits **outside** every example directory on purpose. `sf project
+deploy start --source-dir` deploys a directory and everything beneath it, so a
+prerequisite kept inside an example would ride along with that example's own
+deploy. Example 4 uses `bootstrap/estate-case` for `Estate_Case__c` — an object
+a real deceased-estates org already owns, and which deploying blindly would
+overwrite.
 
 Every example follows the same five steps, spelled out with full commands in
 its own README:
@@ -81,8 +100,8 @@ sf project deploy start --source-dir force-app/idp/examples/consolidated-stateme
 > trap.
 
 Best installed in a **scratch org or sandbox**. Each example adds custom fields
-to standard objects (Account, Case, Asset) and inserts records; neither is
-something to do casually in production.
+(to Account, Case, Asset, and for example 4 `Estate_Case__c`) and inserts
+records; neither is something to do casually in production.
 
 ## Regenerating the sample documents
 

@@ -1,0 +1,12 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Estate_Case__c",
+        "referenceId": "EstateCase"
+      },
+      "Name": "Estate Late J P van der Merwe",
+      "Case__c": "@EstateIntakeCase"
+    }
+  ]
+}

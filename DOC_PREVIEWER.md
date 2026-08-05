@@ -35,7 +35,7 @@ sequenceDiagram
 > **Note:** the MuleSoft callout itself is **out of scope** for this component — it neither calls MuleSoft nor writes to `Document__c`. It is a pure presentation/curation component: JSON in, curated JSON out. This keeps it reusable for any file + JSON pairing.
 
 ![Screenshot placeholder: fileJsonReview on an App Page — PDF on the left, editable JSON form and Save button on the right](docs/images/file-json-review-overview.png)
-_Figure 1 — Component overview (placeholder: replace with a real screenshot)._
+_Figure 1 — Component overview._
 
 ---
 

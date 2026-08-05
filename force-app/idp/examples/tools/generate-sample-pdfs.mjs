@@ -26,7 +26,15 @@ const PAGE_HEIGHT = 842;
 const MARGIN_X = 56;
 const TOP_Y = 786;
 
-/** A line of the document: `text`, or `[label, value]` laid out in two columns. */
+/**
+ * A line of the document. One of:
+ *   { text }     a run of text; `center: true` centres it, `x` places it
+ *   { pair }     [label, value] laid out in two columns
+ *   { columns }  cells at the fixed column stops
+ *   { rule }     a horizontal rule
+ *   { gap }      vertical space, in points
+ * `size` and `bold` apply to text, pair and column lines.
+ */
 const documents = [
   {
     path: "business-account-opening/documents/business-account-opening-application.pdf",
@@ -178,6 +186,103 @@ const documents = [
         size: 8
       }
     ]
+  },
+  {
+    // A stand-in for the J238 Letters of Executorship issued by the Master of
+    // the High Court. Deliberately marked SPECIMEN top and bottom, with
+    // fictitious names and identity numbers: it is a fixture for the mapping
+    // example, and must never be mistakable for an issued legal instrument.
+    path: "letters-of-executorship/documents/letters-of-executorship.pdf",
+    lines: [
+      { columns: ["G.P.-S 003-0317", "", "", "", "J238"] },
+      { gap: 6 },
+      {
+        text: "SPECIMEN - SAMPLE DOCUMENT FOR SYSTEM DEMONSTRATION ONLY",
+        size: 8,
+        bold: true,
+        center: true
+      },
+      {
+        text: "Not issued by any court or government body. All names and numbers are fictitious.",
+        size: 8,
+        center: true
+      },
+      { gap: 10 },
+      { rule: true },
+      { gap: 12 },
+      {
+        text: "REPUBLIC OF SOUTH AFRICA",
+        size: 11,
+        bold: true,
+        center: true
+      },
+      { gap: 16 },
+      { text: "LETTERS OF EXECUTORSHIP", size: 16, bold: true, center: true },
+      { gap: 6 },
+      {
+        text: "(Section 13 and 14 of the Administration of Estates Act, No 66 of 1965)",
+        size: 9,
+        center: true
+      },
+      { gap: 26 },
+      { pair: ["Estate No:", "004521/2026"] },
+      { gap: 18 },
+      { text: "THIS IS TO CERTIFY that", size: 11, bold: true, center: true },
+      { gap: 16 },
+      {
+        text: "NOMSA PATIENCE DLAMINI",
+        size: 13,
+        bold: true,
+        center: true
+      },
+      { gap: 10 },
+      { text: "Identity no: 8203155009087", size: 10, center: true },
+      { gap: 20 },
+      { text: "has/have been duly appointed", size: 10, center: true },
+      { gap: 14 },
+      { text: "EXECUTRIX", size: 12, bold: true, center: true },
+      { gap: 18 },
+      {
+        text: "and is/are hereby authorised as such to liquidate and distribute the Estate of the late",
+        size: 9,
+        center: true
+      },
+      { gap: 20 },
+      {
+        text: "JOHANNES PETRUS VAN DER MERWE",
+        size: 13,
+        bold: true,
+        center: true
+      },
+      { gap: 18 },
+      { pair: ["Identity No:", "5107085042083"] },
+      { pair: ["who died on:", "14/02/2026"] },
+      { gap: 24 },
+      { rule: true },
+      { gap: 12 },
+      { text: "Asst. Master of the High Court", size: 10, bold: true },
+      { gap: 4 },
+      { pair: ["Master's Office:", "Cape Town"] },
+      { pair: ["Date stamp:", "08/04/2026"] },
+      { gap: 12 },
+      {
+        text: "Attention is directed to the provisions of section 102.",
+        size: 9
+      },
+      { gap: 20 },
+      { rule: true },
+      { gap: 10 },
+      {
+        text: "DEPARTMENT OF JUSTICE AND CONSTITUTIONAL DEVELOPMENT",
+        size: 8
+      },
+      { gap: 8 },
+      {
+        text: "SPECIMEN - not a valid legal document. Generated for the Salesforce IDP examples.",
+        size: 8,
+        bold: true
+      }
+    ]
   }
 ];
 
@@ -188,6 +293,19 @@ function escapeText(value) {
 
 function show(text, { size = 10, bold = false, x = MARGIN_X, y }) {
   return `BT /${bold ? "F2" : "F1"} ${size} Tf 1 0 0 1 ${x} ${y} Tm (${escapeText(text)}) Tj ET\n`;
+}
+
+/**
+ * Average Helvetica advance width as a fraction of the font size. Only used
+ * to centre a line, where being a few points out is invisible — the sample
+ * documents have no justified text that would need real glyph metrics.
+ */
+const AVG_CHAR_WIDTH = { regular: 0.5, bold: 0.55 };
+
+function centeredX(text, size, bold) {
+  const width =
+    text.length * size * (bold ? AVG_CHAR_WIDTH.bold : AVG_CHAR_WIDTH.regular);
+  return Math.max(MARGIN_X, Math.round((PAGE_WIDTH - width) / 2));
 }
 
 /** Lays the line descriptors out top-down into a content stream. */
@@ -220,7 +338,10 @@ function contentStream(lines) {
       continue;
     }
     const size = line.size ?? 10;
-    stream += show(line.text, { size, bold: line.bold, y });
+    const x = line.center
+      ? centeredX(line.text, size, line.bold)
+      : (line.x ?? MARGIN_X);
+    stream += show(line.text, { size, bold: line.bold, x, y });
     y -= size + 6;
   }
   return stream;

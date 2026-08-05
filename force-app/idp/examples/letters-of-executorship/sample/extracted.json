@@ -1,0 +1,19 @@
+{
+  "letters": {
+    "formNumber": "J238",
+    "estateNumber": "004521/2026",
+    "issuedDate": "08/04/2026",
+    "mastersOffice": "Cape Town",
+    "actReference": "Section 13 and 14 of the Administration of Estates Act, No 66 of 1965"
+  },
+  "executor": {
+    "fullName": "Nomsa Patience Dlamini",
+    "identityNumber": "8203155009087",
+    "capacity": "Executrix"
+  },
+  "deceased": {
+    "fullName": "Johannes Petrus van der Merwe",
+    "identityNumber": "5107085042083",
+    "dateOfDeath": "14/02/2026"
+  }
+}

@@ -4,27 +4,27 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
 >
-    <label>Cons. Statement: Total Rel. Balance</label>
+    <label>Letters: Deceased ID Number</label>
     <protected>false</protected>
     <values>
         <field>Mapping_Set__c</field>
-        <value xsi:type="xsd:string">Consolidated_Statement</value>
+        <value xsi:type="xsd:string">Letters_Of_Executorship</value>
     </values>
     <values>
         <field>Section__c</field>
-        <value xsi:type="xsd:string">Statement</value>
+        <value xsi:type="xsd:string">Deceased</value>
     </values>
     <values>
         <field>JSON_Path__c</field>
-        <value xsi:type="xsd:string">statement.totalRelationshipBalance</value>
+        <value xsi:type="xsd:string">deceased.identityNumber</value>
     </values>
     <values>
         <field>Target_Object__c</field>
-        <value xsi:type="xsd:string">Account</value>
+        <value xsi:type="xsd:string">Estate_Case__c</value>
     </values>
     <values>
         <field>Target_Field__c</field>
-        <value xsi:type="xsd:string">Total_Relationship_Balance__c</value>
+        <value xsi:type="xsd:string">Deceased_ID_Number__c</value>
     </values>
     <values>
         <field>Overwrite_Policy__c</field>

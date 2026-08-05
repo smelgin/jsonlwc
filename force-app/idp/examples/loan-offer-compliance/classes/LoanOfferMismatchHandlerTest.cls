@@ -18,6 +18,49 @@ private class LoanOfferMismatchHandlerTest {
     );
   }
 
+  /**
+   * The handler updates the Case in USER_MODE, so the caller needs the
+   * editable FLS the example ships in its permission set — freshly deployed
+   * custom fields grant none by default, not even to an admin. A permission
+   * set assigned to the *current* user does not refresh that user's FLS
+   * mid-transaction (permissions are cached at the start of the request), so
+   * the fix is to run the handler as a fresh user who carries the permission
+   * set. That user reuses the running user's profile, so it keeps whatever
+   * record access (e.g. Modify All) the deploying admin has and only the FLS
+   * has to come from the permission set. Creating the user and assigning the
+   * set inside System.runAs isolates this setup-object DML from the handler's
+   * later record DML, sidestepping MIXED_DML_OPERATION.
+   */
+  private static User userWithExampleAccess() {
+    PermissionSet ps = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name = 'IDP_Example_Loan_Offer_Compliance'
+      LIMIT 1
+    ];
+    User runner = new User(
+      ProfileId = UserInfo.getProfileId(),
+      LastName = 'Loan Offer Example',
+      Alias = 'idploe',
+      Email = 'idp.loanoffer.example@example.com.invalid',
+      Username = 'idp.loanoffer.' +
+        DateTime.now().getTime() +
+        '@example.com.invalid',
+      TimeZoneSidKey = 'GMT',
+      LocaleSidKey = 'en_US',
+      EmailEncodingKey = 'UTF-8',
+      LanguageLocaleKey = 'en_US'
+    );
+    System.runAs(new User(Id = UserInfo.getUserId())) {
+      insert runner;
+      insert new PermissionSetAssignment(
+        AssigneeId = runner.Id,
+        PermissionSetId = ps.Id
+      );
+    }
+    return runner;
+  }
+
   private static JsonMappingService.Mismatch mismatch(
     String objectName,
     Id recordId,
@@ -47,6 +90,7 @@ private class LoanOfferMismatchHandlerTest {
 
   @IsTest
   static void stampsTheCaseAndRaisesOneTask() {
+    User runner = userWithExampleAccess();
     Case offer = [SELECT Id, AccountId FROM Case LIMIT 1];
     JsonMappingService.ComplianceReport report = reportOf(
       new List<JsonMappingService.Mismatch>{
@@ -70,7 +114,9 @@ private class LoanOfferMismatchHandlerTest {
     );
 
     Test.startTest();
-    new LoanOfferMismatchHandler().handle(report);
+    System.runAs(runner) {
+      new LoanOfferMismatchHandler().handle(report);
+    }
     Test.stopTest();
 
     Case updated = [

@@ -1,0 +1,15 @@
+# The sample PDFs under force-app/idp/examples are generated as plain
+# latin1 text with no NUL bytes, so Git's binary auto-detection classifies
+# them as text and (with core.autocrlf=true, the Windows default) rewrites
+# their LFs to CRLFs on checkout. That shifts every byte offset in the PDF
+# xref table and the file stops being a valid PDF. Mark the binary formats
+# explicitly so no EOL conversion is ever applied to them.
+*.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.zip binary
+*.docx binary
+*.xlsx binary

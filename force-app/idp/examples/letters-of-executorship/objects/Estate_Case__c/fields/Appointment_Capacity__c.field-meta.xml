@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Appointment_Capacity__c</fullName>
+    <externalId>false</externalId>
+    <label>Appointment Capacity</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Executor</fullName>
+                <default>false</default>
+                <label>Executor</label>
+            </value>
+            <value>
+                <fullName>Executrix</fullName>
+                <default>false</default>
+                <label>Executrix</label>
+            </value>
+            <value>
+                <fullName>Master's Representative</fullName>
+                <default>false</default>
+                <label>Master's Representative</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

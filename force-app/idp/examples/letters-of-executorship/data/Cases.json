@@ -1,0 +1,16 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Case",
+        "referenceId": "EstateIntakeCase"
+      },
+      "Subject": "Letters of Executorship received - Estate Late J P van der Merwe",
+      "Status": "New",
+      "Origin": "Email",
+      "Priority": "High",
+      "Description": "The appointed executor has lodged the Letters of Executorship issued by the Master of the High Court. Capture the appointment details on the Estate Case before any account is unfrozen.",
+      "AccountId": "@DeceasedEstateAccount"
+    }
+  ]
+}

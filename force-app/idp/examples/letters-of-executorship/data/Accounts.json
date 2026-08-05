@@ -1,0 +1,15 @@
+{
+  "records": [
+    {
+      "attributes": {
+        "type": "Account",
+        "referenceId": "DeceasedEstateAccount"
+      },
+      "Name": "Estate Late J P van der Merwe",
+      "BillingCity": "Cape Town",
+      "BillingState": "Western Cape",
+      "BillingCountry": "South Africa",
+      "Description": "Deceased estate relationship. All correspondence to be directed to the appointed executor, not to the deceased's address."
+    }
+  ]
+}

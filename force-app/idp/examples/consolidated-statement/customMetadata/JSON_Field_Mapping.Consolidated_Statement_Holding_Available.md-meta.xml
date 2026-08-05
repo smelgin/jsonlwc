@@ -4,7 +4,7 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
 >
-    <label>Consolidated Statement: Available Balance</label>
+    <label>Cons. Statement: Available Balance</label>
     <protected>false</protected>
     <values>
         <field>Mapping_Set__c</field>
