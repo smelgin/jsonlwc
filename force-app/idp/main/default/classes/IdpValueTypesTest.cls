@@ -1,7 +1,9 @@
 /**
- * Pure unit tests for the built-in value types — no DML, no queries.
- * The Number matrix includes the exact inputs v1's regex stripper
- * silently corrupted ("ZAR 100,00" → 10000).
+ * Unit tests for the built-in value types — no DML, and no queries beyond
+ * the limit-free custom metadata IdpLocaleData reads for dial codes,
+ * decimal separators and month names. The Number matrix includes the
+ * exact inputs v1's regex stripper silently corrupted ("ZAR 100,00" →
+ * 10000).
  */
 @IsTest
 private class IdpValueTypesTest {
@@ -345,6 +347,106 @@ private class IdpValueTypesTest {
   }
 
   @IsTest
+  static void readsMonthNamesInTheDocumentsLanguage() {
+    IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_DATE);
+    de.formats = new List<String>{ 'd. MMMM yyyy', 'dd MMM yyyy' };
+    de.locale = 'de-DE';
+    Assert.areEqual(
+      Date.newInstance(2024, 3, 15),
+      parse(IdpValueTypes.KIND_DATE, '15. März 2024', de).value,
+      'the language comes from the value type, never from the running user'
+    );
+    Assert.areEqual(
+      Date.newInstance(2024, 12, 1),
+      parse(IdpValueTypes.KIND_DATE, '01 Dez 2024', de).value
+    );
+
+    IdpValueTypes.Config pt = cfg(IdpValueTypes.KIND_DATE);
+    pt.formats = new List<String>{ 'dd MMMM yyyy' };
+    pt.locale = 'pt-BR';
+    Assert.areEqual(
+      Date.newInstance(2024, 3, 15),
+      parse(IdpValueTypes.KIND_DATE, '15 março 2024', pt).value
+    );
+    Assert.areEqual(
+      Date.newInstance(2024, 5, 15),
+      parse(IdpValueTypes.KIND_DATE, '15 maio 2024', pt).value,
+      'março and maio are the pair a two-letter prefix would have confused'
+    );
+
+    IdpValueTypes.Config es = cfg(IdpValueTypes.KIND_DATE);
+    es.formats = new List<String>{ 'd \'de\' MMMM \'de\' yyyy' };
+    es.locale = 'es-ES';
+    Assert.areEqual(
+      Date.newInstance(2024, 3, 15),
+      parse(IdpValueTypes.KIND_DATE, '15 de marzo de 2024', es).value,
+      'quoted literals keep the "de" of a Romance long date out of the tokens'
+    );
+
+    IdpValueTypes.Config af = cfg(IdpValueTypes.KIND_DATE);
+    af.formats = new List<String>{ 'dd MMMM yyyy' };
+    af.locale = 'af-ZA';
+    Assert.areEqual(
+      Date.newInstance(2024, 3, 15),
+      parse(IdpValueTypes.KIND_DATE, '15 Maart 2024', af).value
+    );
+  }
+
+  @IsTest
+  static void failsRatherThanGuessAMonthTheLanguageCannotDecide() {
+    IdpValueTypes.Config fr = cfg(IdpValueTypes.KIND_DATE);
+    fr.formats = new List<String>{ 'dd MMM yyyy' };
+    fr.locale = 'fr-FR';
+    Assert.areEqual(
+      IdpResult.Grade.FAILED,
+      parse(IdpValueTypes.KIND_DATE, '15 jui 2024', fr).grade,
+      'juin and juillet both start jui — a wrong month is worse than no month'
+    );
+    Assert.areEqual(
+      Date.newInstance(2024, 6, 15),
+      parse(IdpValueTypes.KIND_DATE, '15 juin 2024', fr).value
+    );
+
+    IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_DATE);
+    de.formats = new List<String>{ 'dd MMMM yyyy' };
+    de.locale = 'de';
+    Assert.areEqual(
+      IdpResult.Grade.FAILED,
+      parse(IdpValueTypes.KIND_DATE, '15 March 2024', de).grade,
+      'a German value type does not quietly accept English months'
+    );
+  }
+
+  @IsTest
+  static void rendersMonthNamesInEnglishWhateverTheLocale() {
+    IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_DATE);
+    IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_DATE);
+    de.locale = 'de-DE';
+    de.outputFormat = 'dd MMMM yyyy';
+    Assert.areEqual(
+      '15 March 2024',
+      type.render(Date.newInstance(2024, 3, 15), de),
+      'reading is localised, writing is not — Output Format is org-side text'
+    );
+    de.outputFormat = 'd \'de\' MMMM \'de\' yyyy';
+    Assert.areEqual(
+      '15 de March de 2024',
+      type.render(Date.newInstance(2024, 3, 15), de),
+      'quoted literals render literally too'
+    );
+  }
+
+  @IsTest
+  static void rejectsAnUnterminatedQuoteInsteadOfMisreadingIt() {
+    IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_DATE);
+    config.formats = new List<String>{ 'd \'de MMMM yyyy' };
+    Assert.areEqual(
+      IdpResult.Grade.FAILED,
+      parse(IdpValueTypes.KIND_DATE, '15 de March 2024', config).grade
+    );
+  }
+
+  @IsTest
   static void comparesDatesWithDayTolerance() {
     IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_DATE);
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_DATE);
@@ -434,6 +536,58 @@ private class IdpValueTypesTest {
     );
     Assert.areEqual('0821234567', noRegion.value);
     Assert.areEqual(IdpResult.Grade.INFERRED, noRegion.grade);
+  }
+
+  @IsTest
+  static void canonicalizesPhonesForAnyRegionInMetadata() {
+    IdpValueTypes.Config se = cfg(IdpValueTypes.KIND_PHONE);
+    se.region = 'SE';
+    Assert.areEqual(
+      '+46701234567',
+      parse(IdpValueTypes.KIND_PHONE, '070 123 45 67', se).value,
+      'Sweden was never in the hardcoded dial-code set; the record is enough'
+    );
+
+    IdpValueTypes.Config unseeded = cfg(IdpValueTypes.KIND_PHONE);
+    unseeded.region = 'XX';
+    IdpValueTypes.ParseResult unknown = parse(
+      IdpValueTypes.KIND_PHONE,
+      '070 123 45 67',
+      unseeded
+    );
+    Assert.areEqual('0701234567', unknown.value);
+    Assert.areEqual(
+      IdpResult.Grade.INFERRED,
+      unknown.grade,
+      'an unseeded region degrades to digits, exactly like no region at all'
+    );
+  }
+
+  @IsTest
+  static void readsDecimalSeparatorsForAnyLocaleInMetadata() {
+    IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_NUMBER);
+    de.locale = 'de-DE';
+    IdpValueTypes.ParseResult german = parse(
+      IdpValueTypes.KIND_NUMBER,
+      '1.234',
+      de
+    );
+    Assert.areEqual(1234, german.value, 'German dot groups thousands');
+    Assert.areEqual(IdpResult.Grade.EXACT, german.grade);
+
+    IdpValueTypes.Config ch = cfg(IdpValueTypes.KIND_NUMBER);
+    ch.locale = 'de-CH';
+    IdpValueTypes.ParseResult swiss = parse(
+      IdpValueTypes.KIND_NUMBER,
+      '1.234',
+      ch
+    );
+    Assert.areEqual(
+      1.234,
+      swiss.value,
+      'same language, other country: Switzerland reads the dot as decimal'
+    );
+    Assert.areEqual(IdpResult.Grade.EXACT, swiss.grade);
   }
 
   @IsTest

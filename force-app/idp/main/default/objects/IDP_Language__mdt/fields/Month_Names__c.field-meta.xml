@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Month_Names__c</fullName>
+    <label>Month Names</label>
+    <type>LongTextArea</type>
+    <length>4096</length>
+    <visibleLines>12</visibleLines>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Twelve pipe-separated months in order, January first. A month may list comma-separated spellings, the first being canonical: Marz,Maerz,Mrz. Matching is case- and accent-insensitive, on the whole name or on any prefix of three letters or more that only one month answers to — so a prefix two months share (Portuguese ma for marco and maio) is reported, never guessed. Blank means the language cannot read MMM/MMMM.</description>
+</CustomField>

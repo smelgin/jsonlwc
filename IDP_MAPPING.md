@@ -47,6 +47,8 @@ user at all.
 | `IDP_Mapping_Rule__mdt`     | CMDT           | One JSON path → one field, through an optional value type, with per-rule gates.                            |
 | `IDP_Value_Type__mdt`       | CMDT           | How one semantic kind of value (money, phone, date, …) is parsed, compared and rendered.                   |
 | `IDP_Value_Map_Entry__mdt`  | CMDT           | One document-text → stored-value pair of a ValueMap-kind value type.                                       |
+| `IDP_Country__mdt`          | CMDT           | One ISO country: dial code and decimal separator. DeveloperName is the country code.                       |
+| `IDP_Language__mdt`         | CMDT           | One ISO language: month names and decimal separator. DeveloperName is the language code.                   |
 | `IdpMappingEngine`          | Apex           | Orchestrator. `run(List<DocumentWork>, setName, mode, handler)` → `List<IdpResult.Result>`.                |
 | `IdpConfigLoader`           | Apex           | Loads and validates one set's config into DTOs; config problems degrade to findings, never throw.          |
 | `IdpContextResolver`        | Apex           | Bulk anchor resolution: one `ContentDocumentLink` query per run, grouped queries per object.               |
@@ -56,6 +58,7 @@ user at all.
 | `IdpFilterBinder`           | Apex           | Binds `{json:…}` / `{row:…}` tokens in filters and key templates — values are bound, never concatenated.   |
 | `IdpSchemaCache`            | Apex           | All describe access, cached; lookup discovery between objects. No `Schema.getGlobalDescribe()`.            |
 | `IValueType` / `IdpValueTypes` / `IdpTypeRegistry` | Apex | The value type contract, the eight built-ins, and resolution (built-in by Kind, custom by class name). |
+| `IdpLocaleData`             | Apex           | Dial codes, decimal separators and month names, read from the two tables above and cached per transaction. |
 | `IdpMappingInvocable`       | Apex           | `Apply IDP Mapping Set` action for Flows — genuinely bulk: 50 interviews share one engine run.             |
 | `IdpMappingController`      | Apex           | `apply` / `preview` / `previewValue` for LWCs.                                                             |
 | `IdpBatchProcessor`         | Apex           | Batchable over records holding stored JSON (`JSON_Source_Field__c`).                                       |
@@ -149,7 +152,7 @@ genuinely cannot be decided, it says so instead of picking.
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
 | `Text`     | Trimmed; compares whitespace-collapsed and case-insensitively.                                                                                                                                                     | —               |
 | `Number`   | Money and plain numbers: both separator conventions, `(…)`, trailing `-` and `CR`/`DR` negatives, "in thousands" scaling. Both separators present → last one is the decimal (Exact). A single separator is Exact with a `Locale__c`, graded heuristic without. **Currency is captured, not stripped**: an ISO code or unambiguous symbol next to the amount becomes the parse's `currencyCode`; a stated currency that disagrees with `Currency__c` fails the parse; ambiguous symbols (`$`, `¥`, `kr`) are never guessed — declare `Currency__c` instead. In a multi-currency org a value denominated differently from the record's `CurrencyIsoCode` is refused (`CURRENCY_MISMATCH`) rather than written or "confirmed". | `Locale__c`, `Currency__c`, `Scale_Factor__c`, `Compare_Tolerance__c` |
-| `Date`     | Ordered `Formats__c` pattern list (`dd/MM/yyyy\|d MMMM yyyy\|yyyy-MM-dd`); month names match on their first three letters; components are range-checked (31/02 fails); two patterns reading differently → Ambiguous. | `Formats__c`, `Pivot_Year__c`, `Output_Format__c`, `Compare_Tolerance__c` (days) |
+| `Date`     | Ordered `Formats__c` pattern list (`dd/MM/yyyy\|d MMMM yyyy\|yyyy-MM-dd`); month names are read in `Locale__c`'s language (below); text in `'single quotes'` is literal, so `d 'de' MMMM 'de' yyyy` reads a Romance long date; components are range-checked (31/02 fails); two patterns reading differently → Ambiguous. | `Formats__c`, `Locale__c`, `Pivot_Year__c`, `Output_Format__c`, `Compare_Tolerance__c` (days) |
 | `Datetime` | ISO 8601. An explicit offset is Exact; a naive timestamp is read in `Timezone__c` (Exact) or as GMT (Inferred, flagged).                                                                                            | `Timezone__c`, `Compare_Tolerance__c` (minutes) |
 | `Boolean`  | true/yes/y/1, false/no/n/0.                                                                                                                                                                                        | —               |
 | `Phone`    | Canonical E.164: `+27 82 123 4567`, `0027…` and — with `Region__c = ZA` — `082 123 4567` all become `+27821234567`. Renders `e164` (default), `national` or `digits`.                                              | `Region__c`, `Output_Format__c` |
@@ -159,6 +162,119 @@ genuinely cannot be decided, it says so instead of picking.
 
 Declare the document's formatting **once** on a value type record and point
 rules at it — not per rule, and not in code.
+
+### Locale reference data — `IDP_Country__mdt` and `IDP_Language__mdt`
+
+Two org-wide reference tables, not per-mapping-set config — which is why they
+are documented here, beside the `Region__c` and `Locale__c` fields that reach
+them, rather than under *Configuring a mapping set*. Onboarding a market is a
+record, not a release.
+
+**Symptoms that send you here:** amounts parsing `Inferred` with a note asking
+for a Locale; long-form dates failing in a non-English document; phone numbers
+staying as digits instead of becoming `+…`; a config issue reading *"has
+unknown Region"* or *"has unrecognized Locale"*.
+
+#### `IDP_Country__mdt` — one country
+
+DeveloperName **is** the ISO 3166-1 alpha-2 code, uppercase: `ZA`, `DE`, `PL`.
+Nothing else looks it up, so a typo here is a country that silently does not
+exist.
+
+| Field                  | Meaning                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `MasterLabel`          | The country's name, for humans. Never read by the engine.                                                                                 |
+| `Dial_Code__c`         | E.164 calling code, digits only, **no `+`** — `27`, `49`, `48`. Reached by a Phone value type's `Region__c`. Blank leaves national numbers as digits. |
+| `Decimal_Separator__c` | `,` or `.` — what this country prints between units and cents. Beats the language (below). Blank falls through to the language.            |
+
+#### `IDP_Language__mdt` — one language
+
+DeveloperName **is** the ISO 639-1 code, lowercase: `en`, `pt`, `pl`.
+
+| Field                  | Meaning                                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `MasterLabel`          | The language's name, for humans. Never read by the engine.                                                                     |
+| `Decimal_Separator__c` | `,` or `.` — used when `Locale__c` names no country, or names one with no separator of its own.                                 |
+| `Month_Names__c`       | Twelve `\|`-separated months, **January first**. Each may list `,`-separated spellings, the first canonical. Blank means this language cannot read `MMM`/`MMMM`, and it falls back to English. |
+
+#### How a value type reaches them
+
+| Value type field | Resolves to                                                                                     |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| `Region__c`      | `IDP_Country__mdt.Dial_Code__c`. One country code, e.g. `ZA`.                                    |
+| `Locale__c`      | A `language[-COUNTRY]` tag, e.g. `pl`, `pl-PL`, `de-CH`. Supplies the decimal separator and the month-name language. |
+
+**The country subtag wins** for the separator: `de-CH` reads Swiss dot decimals
+while `de-DE` reads German comma decimals, and `en-ZA` reads South Africa's
+comma over English's dot. Month names always come from the **language** subtag.
+Nothing seeded → the graded heuristic, unchanged.
+
+#### Writing `Month_Names__c`
+
+Matching is **case- and accent-blind**, on the whole name or on a prefix of
+three letters or more that **only one month answers to**.
+
+```
+Januar|Februar|März,Maerz,Mrz|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember
+```
+
+- Accents fold, so `März` already matches `MARZ` and `marz` — **no `Marz` alias
+  needed**. `Maerz` *is* needed: it is a different spelling, not an accent.
+- Three-letter abbreviations that are prefixes come free: `Mar`, `Dez`, `Jun`.
+  Only list an abbreviation that is **not** a prefix of the name — German `Mrz`.
+- List inflected forms that are not prefixes either — Polish genitive
+  `styczeń,stycznia`, Czech `leden,ledna`. Documents print those, not the
+  nominative.
+- A prefix two months share is **reported, not guessed**: Portuguese `mar` is
+  março (maio is `mai`), but French `jui` matches juin and juillet, so it yields
+  no reading and the Date type fails the parse.
+- Exactly twelve entries, or the whole row is ignored and the loader says so.
+
+#### Onboarding a new market — worked example, Poland
+
+1. **Add the country.** Setup → Custom Metadata Types → IDP Country → Manage
+   Records → New. Label `Poland`, Name `PL`, `Dial_Code__c` = `48`,
+   `Decimal_Separator__c` = `,`.
+2. **Add the language**, if it is not already seeded. IDP Language → New. Label
+   `Polish`, Name `pl`, `Decimal_Separator__c` = `,`, and `Month_Names__c`:
+   ```
+   styczeń,stycznia|luty,lutego|marzec,marca|kwiecień,kwietnia|maj,maja|czerwiec,czerwca|lipiec,lipca|sierpień,sierpnia|wrzesień,września|październik,października|listopad,listopada|grudzień,grudnia
+   ```
+3. **Point a value type at it.** On your Date value type set `Locale__c` = `pl`
+   and add a pattern such as `d MMMM yyyy`; on your Number value type set
+   `Locale__c` = `pl-PL`; on your Phone value type set `Region__c` = `PL`.
+4. **Test it without deploying anything** — `previewValue` (next section) on
+   `15 września 2024` should return `2024-09-15`, grade `Exact`.
+
+To keep the change in source control instead, add the line to the table in
+[`seed-locale-metadata.mjs`](force-app/idp/scripts/seed-locale-metadata.mjs) and
+regenerate — the records are generated output, so hand-editing them is lost on
+the next run:
+
+```bash
+node force-app/idp/scripts/seed-locale-metadata.mjs
+```
+
+⚠️ The two paths are not independent. A record you create in Setup is
+**overwritten by the next deploy** of `force-app/idp/main` if the script's table
+also carries that code — and all 91 seeded countries do. Use Setup to try a
+change, the script to keep one.
+
+#### Two deliberate limits
+
+Deliberately **not** Java locale data: `Datetime.parse` resolves against the
+running user's locale, so the same document would read differently depending on
+who ran the job. A value type names the locale of the *document*, and that is
+the only locale consulted.
+
+Rendering is **not** localised — `Output_Format__c` produces English month names
+in every locale, because it writes into org-side fields, not back into the
+document. A German value type reads `März` and writes `March`.
+
+Seeded with 91 countries and 22 languages. The loader reports an unseeded
+`Region__c` or `Locale__c`, and a Date type reading month names in a language
+that declares none, as config issues at load time rather than letting them
+surface as a quietly degraded parse.
 
 ### Testing a value type without deploying anything
 

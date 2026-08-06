@@ -242,6 +242,85 @@ private class IdpConfigLoaderTest {
   }
 
   @IsTest
+  static void reportsLocalesTheOrgHasNotSeeded() {
+    IdpValueTypes.Config unseeded = new IdpValueTypes.Config();
+    unseeded.name = 'Bad_Locale';
+    unseeded.kind = IdpValueTypes.KIND_NUMBER;
+    unseeded.locale = 'zz-ZZ';
+
+    IdpConfigLoader.RawRule rule = rawRule(
+      'Locale_Rule',
+      'Header',
+      'a',
+      'Case',
+      'Subject'
+    );
+    rule.valueTypeName = 'Bad_Locale';
+
+    IdpConfigLoader.SetConfig config = assemble(
+      rawSet(),
+      new List<IdpConfigLoader.RawSection>{
+        rawSection('Header', 'Fixed', 'Case')
+      },
+      new List<IdpConfigLoader.RawRule>{ rule },
+      new Map<String, IdpValueTypes.Config>{ 'Bad_Locale' => unseeded }
+    );
+    Assert.areEqual(1, config.issues.size());
+    Assert.isTrue(
+      config.issues[0].message.contains('zz-ZZ'),
+      'the admin is told which locale, at load time, not per document'
+    );
+    Assert.areEqual(
+      1,
+      config.sections[0].rules.size(),
+      'an unseeded locale degrades the parse, it does not stop the rule'
+    );
+  }
+
+  @IsTest
+  static void reportsMonthNamesALanguageCannotRead() {
+    IdpValueTypes.Config vietnamese = new IdpValueTypes.Config();
+    vietnamese.name = 'VN_Long_Date';
+    vietnamese.kind = IdpValueTypes.KIND_DATE;
+    vietnamese.locale = 'vi-VN';
+    vietnamese.formats = new List<String>{ 'dd MMMM yyyy' };
+
+    IdpConfigLoader.RawRule rule = rawRule(
+      'Date_Rule',
+      'Header',
+      'a',
+      'Case',
+      'Subject'
+    );
+    rule.valueTypeName = 'VN_Long_Date';
+
+    IdpConfigLoader.SetConfig config = assemble(
+      rawSet(),
+      new List<IdpConfigLoader.RawSection>{
+        rawSection('Header', 'Fixed', 'Case')
+      },
+      new List<IdpConfigLoader.RawRule>{ rule },
+      new Map<String, IdpValueTypes.Config>{ 'VN_Long_Date' => vietnamese }
+    );
+    Assert.areEqual(1, config.issues.size());
+    Assert.isTrue(config.issues[0].message.contains('Month Names'));
+
+    // A language that does declare them says nothing.
+    vietnamese.name = 'DE_Long_Date';
+    vietnamese.locale = 'de-DE';
+    rule.valueTypeName = 'DE_Long_Date';
+    IdpConfigLoader.SetConfig german = assemble(
+      rawSet(),
+      new List<IdpConfigLoader.RawSection>{
+        rawSection('Header', 'Fixed', 'Case')
+      },
+      new List<IdpConfigLoader.RawRule>{ rule },
+      new Map<String, IdpValueTypes.Config>{ 'DE_Long_Date' => vietnamese }
+    );
+    Assert.areEqual(0, german.issues.size());
+  }
+
+  @IsTest
   static void parsesGradeModeAndPolicyFields() {
     IdpConfigLoader.RawRule strict = rawRule(
       'Strict_Rule',

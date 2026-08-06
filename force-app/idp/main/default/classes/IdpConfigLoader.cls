@@ -332,8 +332,8 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /** Load-time checks that make config typos visible before a document
-   *  ever runs: regex patterns must compile, regions and timezones must
-   *  be known. */
+   *  ever runs: regex patterns must compile, currencies, regions, locales
+   *  and timezones must be known. */
   private static void validateTypeConfig(
     IdpValueTypes.Config typeConfig,
     SetConfig config
@@ -395,9 +395,10 @@ public inherited sharing class IdpConfigLoader {
           typeConfig.name +
           ' has unknown Region "' +
           typeConfig.region +
-          '"; phone numbers will parse as digits only.'
+          '"; no IDP Country record carries a dial code for it, so phone numbers will parse as digits only.'
       );
     }
+    validateLocale(typeConfig, config);
     if (
       String.isNotBlank(typeConfig.timezone) &&
       typeConfig.timezone != 'GMT' &&
@@ -413,6 +414,60 @@ public inherited sharing class IdpConfigLoader {
           '"; timestamps will be read as GMT.'
       );
     }
+  }
+
+  /**
+   * A Locale is only worth configuring if the org has seeded the country
+   * or language it names, so an unseeded one is reported at load time
+   * rather than discovered as a silently-degraded parse. A Date type
+   * reading month names is checked harder: a language with no month names
+   * is the difference between a working German mapping set and one that
+   * fails every long-form date.
+   */
+  private static void validateLocale(
+    IdpValueTypes.Config typeConfig,
+    SetConfig config
+  ) {
+    if (String.isBlank(typeConfig.locale)) {
+      return;
+    }
+    if (!IdpLocaleData.isKnownLocale(typeConfig.locale)) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Value type ' +
+          typeConfig.name +
+          ' has unrecognized Locale "' +
+          typeConfig.locale +
+          '"; no IDP Language or IDP Country record matches, so number separators fall back to the graded heuristic and month names to English.'
+      );
+      return;
+    }
+    if (
+      typeConfig.kind == IdpValueTypes.KIND_DATE &&
+      readsMonthNames(typeConfig) &&
+      !IdpLocaleData.readsMonthNames(typeConfig.locale)
+    ) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Value type ' +
+          typeConfig.name +
+          ' reads month names in Locale "' +
+          typeConfig.locale +
+          '", but that language has no Month Names; they will be read as English.'
+      );
+    }
+  }
+
+  /** True when any of the type's date patterns contains MMM or MMMM. */
+  private static Boolean readsMonthNames(IdpValueTypes.Config typeConfig) {
+    for (String format : typeConfig.formats) {
+      if (format.contains('MMM')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void issue(

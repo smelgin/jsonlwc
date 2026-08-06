@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>IDP Language</label>
+    <pluralLabel>IDP Languages</pluralLabel>
+    <visibility>Public</visibility>
+    <description>One ISO 639-1 language: the month names a Date value type reads for MMM/MMMM, and the decimal separator the language uses when no country narrows it. The DeveloperName is the language code (en, de, pt). Deliberately not Java locale data — that resolves against the running user, not the document.</description>
+</CustomObject>

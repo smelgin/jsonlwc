@@ -494,7 +494,9 @@ public inherited sharing class IdpValueTypes {
       return reading;
     }
 
-    String localeSep = decimalSeparatorFor(cfg.locale);
+    // "." or "," per IDP_Country__mdt / IDP_Language__mdt, null when the
+    // locale is blank or unseeded — a new market is a record, not a release.
+    String localeSep = IdpLocaleData.decimalSeparatorFor(cfg.locale);
     if (localeSep != null) {
       if (sep == localeSep) {
         reading.normalized = digits.replace(sep, '.');
@@ -526,25 +528,6 @@ public inherited sharing class IdpValueTypes {
       reading.normalized = digits.replace(sep, '.');
     }
     return reading;
-  }
-
-  /** "." or "," for a known locale, null when unknown or blank. */
-  private static String decimalSeparatorFor(String locale) {
-    if (String.isBlank(locale)) {
-      return null;
-    }
-    String normalized = locale.trim().toLowerCase().replace('_', '-');
-    if (normalized == 'en-za') {
-      return ','; // South Africa's official decimal comma
-    }
-    String language = normalized.substringBefore('-');
-    if (COMMA_DECIMAL_LANGUAGES.contains(language)) {
-      return ',';
-    }
-    if (DOT_DECIMAL_LANGUAGES.contains(language)) {
-      return '.';
-    }
-    return null;
   }
 
   /**
@@ -619,14 +602,6 @@ public inherited sharing class IdpValueTypes {
     return code != null && ISO_CURRENCIES.contains(code.trim().toUpperCase());
   }
 
-  private static final Set<String> COMMA_DECIMAL_LANGUAGES = new Set<String>{
-    'af', 'da', 'de', 'es', 'fi', 'fr', 'id', 'it', 'nl', 'no',
-    'pl', 'pt', 'ru', 'sv', 'tr', 'vi'
-  };
-  private static final Set<String> DOT_DECIMAL_LANGUAGES = new Set<String>{
-    'en', 'hi', 'ja', 'ko', 'th', 'zh'
-  };
-
   // ──────────────────────────── Date ──────────────────────────────
 
   /**
@@ -634,8 +609,11 @@ public inherited sharing class IdpValueTypes {
    * pattern is tried; one distinct reading is EXACT, several distinct
    * readings are AMBIGUOUS — 03/04/2024 under "dd/MM/yyyy|MM/dd/yyyy" is
    * reported, never guessed. Components are range-checked, so 31/02/2024
-   * fails cleanly. Month names (MMM/MMMM) match on their first three
-   * letters, case-insensitively.
+   * fails cleanly. Month names (MMM/MMMM) are read in the language of the
+   * value type's Locale — see IdpLocaleData — case- and accent-blind,
+   * whole-name or by a prefix only one month answers to. Rendering stays
+   * English regardless. Text between single quotes is literal, so
+   * "d 'de' MMMM 'de' yyyy" reads a Spanish or Portuguese long date.
    */
   public class DateType implements IValueType {
     public ParseResult parse(Object raw, Config cfg) {
@@ -738,10 +716,8 @@ public inherited sharing class IdpValueTypes {
     }
   }
 
-  private static final Map<String, Integer> MONTHS = new Map<String, Integer>{
-    'jan' => 1, 'feb' => 2, 'mar' => 3, 'apr' => 4, 'may' => 5, 'jun' => 6,
-    'jul' => 7, 'aug' => 8, 'sep' => 9, 'oct' => 10, 'nov' => 11, 'dec' => 12
-  };
+  /** Rendering stays English: MMM/MMMM output is the same in every
+   *  locale, only reading is localised. */
   private static final List<String> MONTH_SHORT = new List<String>{
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
@@ -777,7 +753,7 @@ public inherited sharing class IdpValueTypes {
       } else if (token == 'M' || token == 'MM') {
         month = Integer.valueOf(value);
       } else if (token == 'MMM' || token == 'MMMM') {
-        month = MONTHS.get(value.toLowerCase().left(3));
+        month = IdpLocaleData.monthNumberFor(value, cfg.locale);
         if (month == null) {
           return null;
         }
@@ -835,15 +811,31 @@ public inherited sharing class IdpValueTypes {
           regex += '(\\d{2})';
         } else if (token == 'yyyy') {
           regex += '(\\d{4})';
-        } else if (token == 'MMM') {
-          regex += '([A-Za-z]{3})';
-        } else if (token == 'MMMM') {
-          regex += '([A-Za-z]{3,})';
+        } else if (token == 'MMM' || token == 'MMMM') {
+          // \p{L}, not [A-Za-z]: "Mär" and "Ιαν" are month names too.
+          // The optional dot lets "Mrz." through; folding drops it.
+          // MMM and MMMM both take three letters or more — abbreviations
+          // are not three letters in every language (French "juil",
+          // Finnish "tammikuuta"), so the language table decides what
+          // counts as a month, not the token's length.
+          regex += '(\\p{L}{3,}\\.?)';
         } else {
           compiledDatePatterns.put(patternText, null); // unsupported token run
           return null;
         }
         i = runEnd;
+      } else if (c == '\'') {
+        // Quoted literal, so Romance long dates — d 'de' MMMM 'de' yyyy —
+        // can say "de" without its d being read as a day. '' is a literal
+        // apostrophe.
+        Integer close = patternText.indexOf('\'', i + 1);
+        if (close < 0) {
+          compiledDatePatterns.put(patternText, null); // unterminated quote
+          return null;
+        }
+        String literal = patternText.substring(i + 1, close);
+        regex += literal == '' ? '\'' : escapeRegex(literal);
+        i = close + 1;
       } else if (c == ' ') {
         regex += '\\s+';
         i++;
@@ -897,6 +889,16 @@ public inherited sharing class IdpValueTypes {
           output += String.valueOf(value.year()).leftPad(4, '0');
         }
         i = runEnd;
+      } else if (c == '\'') {
+        Integer close = pattern.indexOf('\'', i + 1);
+        if (close < 0) {
+          output += c;
+          i++;
+        } else {
+          String literal = pattern.substring(i + 1, close);
+          output += literal == '' ? '\'' : literal;
+          i = close + 1;
+        }
       } else {
         output += c;
         i++;
@@ -1013,8 +1015,9 @@ public inherited sharing class IdpValueTypes {
   /**
    * Canonical form is E.164. "+27 82 123 4567", "0027821234567" and — with
    * Region = ZA — "082 123 4567" all canonicalize to +27821234567, so
-   * Compliance stops reporting formatting as a mismatch. Without a region,
-   * national numbers stay digit strings and parse as INFERRED.
+   * Compliance stops reporting formatting as a mismatch. Without a region
+   * (or with one no IDP_Country__mdt record covers), national numbers stay
+   * digit strings and parse as INFERRED.
    */
   public class PhoneType implements IValueType {
     public ParseResult parse(Object raw, Config cfg) {
@@ -1114,20 +1117,8 @@ public inherited sharing class IdpValueTypes {
     }
   }
 
-  private static final Map<String, String> DIAL_CODES = new Map<String, String>{
-    'ZA' => '27', 'US' => '1', 'CA' => '1', 'GB' => '44', 'IE' => '353',
-    'AU' => '61', 'NZ' => '64', 'IN' => '91', 'DE' => '49', 'FR' => '33',
-    'NL' => '31', 'BE' => '32', 'ES' => '34', 'PT' => '351', 'IT' => '39',
-    'CH' => '41', 'AT' => '43', 'BR' => '55', 'MX' => '52', 'JP' => '81',
-    'CN' => '86', 'SG' => '65', 'HK' => '852', 'AE' => '971', 'SA' => '966',
-    'KE' => '254', 'NG' => '234', 'GH' => '233', 'BW' => '267', 'NA' => '264',
-    'ZW' => '263', 'MZ' => '258', 'LS' => '266', 'SZ' => '268'
-  };
-
   public static String dialCodeFor(String region) {
-    return String.isBlank(region)
-      ? null
-      : DIAL_CODES.get(region.trim().toUpperCase());
+    return IdpLocaleData.dialCodeFor(region);
   }
 
   // ────────────────────────── ValueMap ────────────────────────────
