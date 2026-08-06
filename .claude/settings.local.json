@@ -59,7 +59,8 @@
       "Bash(node \"C:/Users/smelg/AppData/Local/Temp/claude/C--Users-smelg-Documents-sfdxprj-claude-JsonLwc/b0c1fb2f-b427-4a8d-9a44-c5d118dac879/scratchpad/validate-loe.mjs\")",
       "Bash(node -e \"console.log\\(JSON.stringify\\(require\\('./package.json'\\).scripts,null,2\\)\\)\")",
       "Bash(node \"C:/Users/smelg/AppData/Local/Temp/claude/C--Users-smelg-Documents-sfdxprj-claude-JsonLwc/b0c1fb2f-b427-4a8d-9a44-c5d118dac879/scratchpad/check-links.mjs\")",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git remote *)"
     ]
   }
 }
