@@ -1,6 +1,7 @@
 import { LightningElement, api } from "lwc";
 import { ShowToastEvent } from "lightning/platformShowToastEvent";
-import applyMappings from "@salesforce/apex/JsonMappingService.applyMappings";
+import apply from "@salesforce/apex/IdpMappingController.apply";
+import preview from "@salesforce/apex/IdpMappingController.preview";
 
 const SAMPLE_JSON = {
   applicant: {
@@ -13,31 +14,35 @@ const SAMPLE_JSON = {
   }
 };
 
+const ERROR = "Error";
+
 /**
- * Example host wiring c-file-json-review to the JSON field mapping engine.
+ * Example host wiring c-file-json-review to the IDP mapping engine.
  *
  * The review component stays storage-agnostic: it only raises `jsonsubmit`
- * with the reviewed JSON. This host owns persistence — it hands the JSON to
- * JsonMappingService.applyMappings, which resolves the records reachable
- * from the ContentDocument and, per the JSON_Field_Mapping__mdt rules of
- * the configured mapping set, either writes the values (Extraction mode)
- * or verifies them against the data model (Compliance mode), optionally
- * firing a mismatch handler class.
+ * with the reviewed JSON. This host owns persistence through
+ * IdpMappingController. In Extraction mode it first calls preview() and
+ * shows the planned old → new changes, so the user confirms what will
+ * actually land before apply() writes it; Compliance mode calls apply()
+ * directly and renders the mismatch findings.
  */
 export default class FileJsonReviewMappingDemo extends LightningElement {
   /** Id of the reviewed ContentDocument. */
   @api contentDocumentId;
 
-  /** Mapping_Set__c of the rules to apply on save. */
+  /** DeveloperName of the IDP_Mapping_Set__mdt applied on save. */
   @api mappingSetName = "Estate_Intake";
 
   /** Run mode: Extraction (write values) or Compliance (verify values).
-   *  A rule's Mode__c overrides this per field. */
+   *  A rule's Mode overrides this per field. */
   @api mode = "Extraction";
 
-  /** Apex class implementing IComplianceMismatchHandler, invoked when a
-   *  Compliance run finds mismatches (e.g. ComplianceTaskHandler). */
-  @api mismatchHandler = "";
+  /** Apex class implementing IIdpFindingHandler, invoked when a run finds
+   *  mismatches (e.g. IdpComplianceTaskHandler). */
+  @api findingHandler = "";
+
+  /** Skip the preview step and save immediately on submit. */
+  @api skipPreview = false;
 
   /** CSS height passed through to c-file-json-review. */
   @api height = "600px";
@@ -47,8 +52,9 @@ export default class FileJsonReviewMappingDemo extends LightningElement {
    *  sample/extracted.json. Blank falls back to the Estate_Intake sample. */
   @api jsonInput;
 
-  saving = false;
+  busy = false;
   lastResult;
+  pendingJson;
 
   get reviewJson() {
     return this.jsonInput && this.jsonInput.trim()
@@ -56,51 +62,96 @@ export default class FileJsonReviewMappingDemo extends LightningElement {
       : JSON.stringify(SAMPLE_JSON, null, 2);
   }
 
+  get isCompliance() {
+    return this.mode === "Compliance";
+  }
+
   get submitLabel() {
-    return this.mode === "Compliance"
-      ? "Check compliance"
-      : "Save to Salesforce";
+    if (this.isCompliance) {
+      return "Check compliance";
+    }
+    return this.skipPreview ? "Save to Salesforce" : "Preview changes";
   }
 
   handleJsonSubmit(event) {
-    this.saving = true;
+    const jsonString = event.detail.jsonString;
+    this.pendingJson = undefined;
+    if (!this.isCompliance && !this.skipPreview) {
+      this.run(
+        preview({
+          contentDocumentId: this.contentDocumentId,
+          jsonString,
+          mappingSetName: this.mappingSetName
+        }),
+        (result) => {
+          this.pendingJson = jsonString;
+          return {
+            title: "Preview ready",
+            message: `${result.plannedChanges.length} change(s) planned — nothing written yet.`,
+            variant: result.success ? "info" : "warning"
+          };
+        }
+      );
+      return;
+    }
+    this.save(jsonString);
+  }
+
+  handleConfirmSave() {
+    const jsonString = this.pendingJson;
+    this.pendingJson = undefined;
+    this.save(jsonString);
+  }
+
+  handleDiscardPreview() {
+    this.pendingJson = undefined;
     this.lastResult = undefined;
-    applyMappings({
-      contentDocumentId: this.contentDocumentId,
-      jsonString: event.detail.jsonString,
-      mappingSetName: this.mappingSetName,
-      mode: this.mode,
-      mismatchHandler: this.mismatchHandler || null
-    })
+  }
+
+  save(jsonString) {
+    this.run(
+      apply({
+        contentDocumentId: this.contentDocumentId,
+        jsonString,
+        mappingSetName: this.mappingSetName,
+        mode: this.mode,
+        findingHandler: this.findingHandler || null
+      }),
+      (result) => ({
+        title: this.toastTitle(result),
+        message: this.toastMessage(result),
+        variant: result.success
+          ? result.compliant
+            ? "success"
+            : "warning"
+          : "warning"
+      })
+    );
+  }
+
+  run(request, toastFor) {
+    this.busy = true;
+    this.lastResult = undefined;
+    request
       .then((result) => {
         this.lastResult = result;
-        this.dispatchEvent(
-          new ShowToastEvent({
-            title: this.toastTitle(result),
-            message: this.toastMessage(result),
-            variant: result.success
-              ? result.compliant
-                ? "success"
-                : "warning"
-              : "warning"
-          })
-        );
+        this.dispatchEvent(new ShowToastEvent(toastFor(result)));
       })
       .catch((error) => {
         const message =
           (error.body && error.body.message) ||
           "The mapping could not be applied.";
-        this.lastResult = { success: false, errors: [message] };
+        this.lastResult = {
+          success: false,
+          findings: [{ code: "ERROR", severity: ERROR, message }],
+          plannedChanges: []
+        };
         this.dispatchEvent(
-          new ShowToastEvent({
-            title: "Mapping failed",
-            message,
-            variant: "error"
-          })
+          new ShowToastEvent({ title: "Mapping failed", message, variant: "error" })
         );
       })
       .finally(() => {
-        this.saving = false;
+        this.busy = false;
       });
   }
 
@@ -125,37 +176,83 @@ export default class FileJsonReviewMappingDemo extends LightningElement {
     }
     if (result.fieldsCompared > 0) {
       parts.push(
-        `${result.fieldsCompared} field(s) checked, ${result.mismatches.length} mismatch(es)`
+        `${result.fieldsCompared} field(s) checked, ${this.mismatchFindings(result).length} mismatch(es)`
       );
     }
     return parts.join("; ") || "Nothing to process.";
+  }
+
+  mismatchFindings(result) {
+    return (result.findings || []).filter(
+      (f) => f.code === "VALUE_MISMATCH" || f.code === "VALUE_NEAR"
+    );
   }
 
   get hasResult() {
     return this.lastResult !== undefined;
   }
 
-  get hasErrors() {
-    return Boolean(this.lastResult?.errors?.length);
+  get isAwaitingConfirm() {
+    return Boolean(this.pendingJson);
   }
 
-  get hasMismatches() {
-    return Boolean(this.lastResult?.mismatches?.length);
+  get plannedRows() {
+    return (this.lastResult?.plannedChanges || []).map((change, index) => ({
+      key: `${change.recordId}-${change.fieldName}-${index}`,
+      field: `${change.objectName}.${change.fieldName}`,
+      oldValue: change.oldValue === null ? "(blank)" : change.oldValue,
+      newValue: change.newValue,
+      grade: change.grade
+    }));
+  }
+
+  get hasPlannedRows() {
+    return this.plannedRows.length > 0;
   }
 
   get mismatchRows() {
-    return (this.lastResult?.mismatches || []).map((m, index) => ({
-      key: `${m.recordId}-${m.fieldName}-${index}`,
-      field: `${m.objectName}.${m.fieldName}`,
-      stored: m.actualValue === null ? "(blank)" : m.actualValue,
-      extracted: m.extractedValue,
-      jsonPath: m.jsonPath
+    return this.mismatchFindings(this.lastResult || {}).map((f, index) => ({
+      key: `${f.recordId}-${f.fieldName}-${index}`,
+      field: `${f.objectName}.${f.fieldName}`,
+      stored: f.storedValue === null ? "(blank)" : f.storedValue,
+      extracted: f.extractedValue,
+      outcome: f.compareOutcome,
+      jsonPath: f.jsonPath
     }));
+  }
+
+  get hasMismatches() {
+    return this.mismatchRows.length > 0;
+  }
+
+  get problemFindings() {
+    return (this.lastResult?.findings || [])
+      .filter(
+        (f) =>
+          f.code !== "VALUE_MISMATCH" &&
+          f.code !== "VALUE_NEAR" &&
+          f.severity !== "Info"
+      )
+      .map((f, index) => ({
+        key: `${f.code}-${index}`,
+        label: `${f.code}: ${f.message}`,
+        cssClass:
+          f.severity === ERROR
+            ? "slds-text-color_error"
+            : "slds-text-color_weak"
+      }));
+  }
+
+  get hasProblemFindings() {
+    return this.problemFindings.length > 0;
   }
 
   get resultSummary() {
     if (!this.lastResult || this.lastResult.fieldsApplied === undefined) {
       return "";
+    }
+    if (this.isAwaitingConfirm) {
+      return `${this.plannedRows.length} change(s) will be written when you confirm.`;
     }
     return this.toastMessage(this.lastResult);
   }

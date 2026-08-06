@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Statement_Processed__c</fullName>
+    <externalId>false</externalId>
+    <label>Statement Processed</label>
+    <type>DateTime</type>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <description>When the stored statement JSON was last processed by IdpBatchProcessor — the mapping set's Processed Marker Field. Blank means "not yet processed"; clear it to make the batch pick this statement up again.</description>
+</CustomField>

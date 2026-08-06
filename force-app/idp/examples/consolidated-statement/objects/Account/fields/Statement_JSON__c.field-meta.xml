@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Statement_JSON__c</fullName>
+    <externalId>false</externalId>
+    <label>Statement JSON</label>
+    <length>131072</length>
+    <type>LongTextArea</type>
+    <visibleLines>10</visibleLines>
+    <trackTrending>false</trackTrending>
+    <description>Raw extracted JSON of the latest consolidated statement. The mapping set's JSON Source Field — IdpBatchProcessor reads it to reprocess statements without a user in the loop.</description>
+</CustomField>

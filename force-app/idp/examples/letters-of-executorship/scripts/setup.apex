@@ -27,7 +27,7 @@ if (seeded.isEmpty()) {
 }
 Case intake = seeded[0];
 
-// The same hop DocumentContextResolver makes: the file hangs off the Case,
+// The same hop IdpContextResolver makes: the file hangs off the Case,
 // and the Estate Case is found as its child. If this returns nothing, the
 // engine will not find an Estate_Case__c to write to either.
 List<Estate_Case__c> estates = [

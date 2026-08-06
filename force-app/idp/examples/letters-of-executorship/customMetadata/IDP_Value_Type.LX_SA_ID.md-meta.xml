@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomMetadata
+  xmlns="http://soap.sforce.com/2006/04/metadata"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+>
+    <label>LX: SA Identity Number</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Extracts the 13-digit South African identity number from whatever surrounds it; anything else fails loudly.</value>
+    </values>
+    <values>
+        <field>Kind__c</field>
+        <value xsi:type="xsd:string">Regex</value>
+    </values>
+    <values>
+        <field>Handler_Class__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Locale__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Formats__c</field>
+        <value xsi:type="xsd:string">(\d{13})</value>
+    </values>
+    <values>
+        <field>Output_Format__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Region__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Scale_Factor__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Compare_Tolerance__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Pivot_Year__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Timezone__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Custom_Options__c</field>
+        <value xsi:nil="true" />
+    </values>
+</CustomMetadata>

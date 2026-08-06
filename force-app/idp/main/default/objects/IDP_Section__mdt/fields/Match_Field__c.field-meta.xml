@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Match_Field__c</fullName>
+    <label>Match Field</label>
+    <type>MetadataRelationship</type>
+    <referenceTo>FieldDefinition</referenceTo>
+    <metadataRelationshipControllingField>IDP_Section__mdt.Target_Object__c</metadataRelationshipControllingField>
+    <relationshipLabel>IDP Sections (Match Field)</relationshipLabel>
+    <relationshipName>IDP_Sections_Match</relationshipName>
+    <required>false</required>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Repeating only: the queryable field a row is identified by. Does not need to be an External Id.</description>
+</CustomField>

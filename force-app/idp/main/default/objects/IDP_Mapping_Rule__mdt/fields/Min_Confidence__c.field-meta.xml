@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Min_Confidence__c</fullName>
+    <label>Minimum Confidence</label>
+    <type>Number</type>
+    <precision>3</precision>
+    <scale>2</scale>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>0–1. When the JSON carries a confidence envelope ({"value": ..., "confidence": 0.93}), values below this threshold are reported instead of written. Blank accepts any confidence.</description>
+</CustomField>

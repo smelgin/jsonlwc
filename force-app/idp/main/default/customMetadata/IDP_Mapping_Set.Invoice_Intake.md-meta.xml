@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomMetadata
+  xmlns="http://soap.sforce.com/2006/04/metadata"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+>
+    <label>Invoice Intake</label>
+    <protected>false</protected>
+    <values>
+        <field>Description__c</field>
+        <value xsi:type="xsd:string">Sample set: an invoice's repeating detail lines update Asset rows matched by serial number. Standard fields only, so it runs in any org.</value>
+    </values>
+    <values>
+        <field>Default_Mode__c</field>
+        <value xsi:type="xsd:string">Extraction</value>
+    </values>
+    <values>
+        <field>JSON_Source_Field__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Finding_Handler__c</field>
+        <value xsi:nil="true" />
+    </values>
+    <values>
+        <field>Active__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+</CustomMetadata>

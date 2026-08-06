@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Formats__c</fullName>
+    <label>Formats</label>
+    <type>Text</type>
+    <length>255</length>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Date kind: ordered pipe-separated input patterns tried first to last, e.g. "dd MMMM yyyy|dd MMM yyyy|dd/MM/yyyy|yyyy-MM-dd". Tokens: d/dd, M/MM/MMM/MMMM, yy/yyyy. Regex kind: the pattern (first capturing group is the value).</description>
+</CustomField>

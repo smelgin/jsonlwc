@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Description__c</fullName>
+    <label>Description</label>
+    <type>TextArea</type>
+    <required>false</required>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>What this value type handles, e.g. "South African money amounts as printed on bank statements".</description>
+</CustomField>

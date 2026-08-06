@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Processed_Marker_Field__c</fullName>
+    <label>Processed Marker Field</label>
+    <type>Text</type>
+    <length>255</length>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>API name of a Datetime field on the JSON Source Field's object. When set, IdpBatchProcessor becomes idempotent: it only picks up records where this field is blank, and stamps it after processing a document (successfully or with errors — deferred documents stay unstamped and are retried). Rerunning the batch then never reprocesses finished work.</description>
+</CustomField>

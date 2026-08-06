@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Locale__c</fullName>
+    <label>Locale</label>
+    <type>Text</type>
+    <length>40</length>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Number kind: locale of the document's number formatting, e.g. en-ZA (comma decimal) or en-US (dot decimal). Makes separator parsing deterministic (Exact); blank falls back to a graded heuristic.</description>
+</CustomField>

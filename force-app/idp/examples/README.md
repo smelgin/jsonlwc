@@ -1,7 +1,7 @@
 # IDP Examples
 
 Four self-contained demonstrations of [`fileJsonReview`](../../../DOC_PREVIEWER.md)
-driving the [JSON field mapping engine](../../../JSON_FIELD_MAPPING.md) — three
+driving the [IDP mapping engine](../../../IDP_MAPPING.md) — three
 set in a generic retail/commercial bank, one in a bank's deceased estates
 department.
 
@@ -28,11 +28,18 @@ or none.
 | `Parent_Section__c` row scoping                      |     | ✅  |     |     |
 | `Record_Filter__c` / `unmatchedRowKeys`              |     | ✅  |     |     |
 | `Overwrite_Policy__c = Only if blank`                | ✅  |     |     |     |
-| Date `Transform__c`                                  | ✅  | ✅  | ✅  | ✅  |
-| Restricted picklist coercion                         | ✅  | ✅  |     | ✅  |
+| Date value types (ordered format lists)              | ✅  | ✅  | ✅  | ✅  |
+| Money value type / Compare Tolerance (Near)          | ✅  | ✅  | ✅  |     |
+| Phone value type (E.164 canonicalization)            | ✅  |     |     |     |
+| Value map (document text → picklist value)           | ✅  |     |     |     |
+| Regex value type                                     |     |     |     | ✅  |
+| `Required__c` rules                                  | ✅  |     |     | ✅  |
+| Preview mode (planned old → new before saving)       | ✅  | ✅  |     | ✅  |
+| Batch reprocessing (`JSON_Source_Field__c`)          |     | ✅  |     |     |
+| Restricted picklist validation                       | ✅  | ✅  |     | ✅  |
 | Compliance comparison rules                          |     |     | ✅  |     |
-| Per-rule `Mode__c` override                          |     |     | ✅  |     |
-| `IComplianceMismatchHandler`                         |     |     | ✅  |     |
+| Per-rule `Mode__c` override / set-level defaults     |     |     | ✅  |     |
+| `IIdpFindingHandler`                                 |     |     | ✅  |     |
 | Child-hop resolution to a custom object              |     |     |     | ✅  |
 | Two sections sharing one target object               |     |     |     | ✅  |
 
@@ -45,7 +52,7 @@ read if your data does not live on the object the file is filed against.
 ```
 <example>/
   README.md          what it is, what it demonstrates, how to deploy and run it
-  customMetadata/    the JSON_Field_Mapping__mdt and JSON_Mapping_Section__mdt records
+  customMetadata/    the IDP_Mapping_Set/Section/Rule/Value_Type records
   objects/           the custom fields it adds
   permissionsets/    field (and class) access, so the engine can actually write
   classes/           Apex, where the example needs it (example 3 only)
@@ -119,6 +126,6 @@ is what the engine is fed on the right.
 
 ---
 
-_Engine reference: [JSON_FIELD_MAPPING.md](../../../JSON_FIELD_MAPPING.md) ·
+_Engine reference: [IDP_MAPPING.md](../../../IDP_MAPPING.md) ·
 previewer: [DOC_PREVIEWER.md](../../../DOC_PREVIEWER.md) ·
 [repository index](../../../README.md)_

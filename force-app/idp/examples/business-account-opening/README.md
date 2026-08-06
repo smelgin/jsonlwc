@@ -7,20 +7,22 @@ onto the customer's Account and onto the Case tracking the application.
 
 This is the simplest shape the mapping engine takes: **Data Extraction** mode,
 two **Fixed** sections, no repeating band. Nothing here is code — the whole
-behaviour is thirteen `JSON_Field_Mapping__mdt` records and two
-`JSON_Mapping_Section__mdt` records.
+behaviour is one `IDP_Mapping_Set__mdt`, two `IDP_Section__mdt`, thirteen
+`IDP_Mapping_Rule__mdt` records and four value types.
 
 ## What it demonstrates
 
-| Feature                         | Where to look                                                                                        |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Fixed sections                  | Two sections declare the target object once; the thirteen rules never repeat `Target_Object__c`.     |
-| Multi-object writes in one call | `Customer` writes to Account, `Application` writes to Case — reached from one file.                  |
-| Record reachability             | The file is linked to the **Case**; the Account is found by following `Case.AccountId`.              |
-| `Only if blank`                 | The blank `Account.Phone` gets filled; the pre-populated `Case.Description` is deliberately left be. |
-| Date transforms                 | `09/03/2018` is read as 9 March 2018 via `Transform__c = dd/MM/yyyy`.                                |
-| Numeric cleanup                 | `"R 8 420 000.00"` lands in a Currency field as `8420000.00`.                                        |
-| Restricted picklists            | `Private Company` and `Business Cheque Account` are validated against the picklist before the write. |
+| Feature                         | Where to look                                                                                            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Fixed sections                  | Two sections declare the target object once; rules attach to them.                                       |
+| Multi-object writes in one call | `Customer` writes to Account, `Application` writes to Case — reached from one file.                      |
+| Record reachability             | The file is linked to the **Case**; the Account is found by following `Case.AccountId`.                  |
+| `Only if blank`                 | The blank `Account.Phone` gets filled; the pre-populated `Case.Description` is deliberately left be.     |
+| Date value type                 | `AO_Date_ZA` reads `09/03/2018` **and** ISO `2026-07-14` through one ordered format list.                |
+| Money value type                | `AO_Money` lands `"R 8 420 000.00"` in a Currency field as `8420000.00` — deterministically, not by regex-stripping. |
+| Phone value type                | `AO_Phone_ZA` canonicalizes `+27 21 555 0142` to E.164.                                                  |
+| Value map                       | `AO_Entity_Type_Map` translates whatever the form says ("Pty Ltd", "Proprietary Limited") into the restricted `Entity_Type__c` picklist. |
+| Preview mode                    | The demo shows the planned old → new changes before anything is written.                                 |
 
 ## The document and the JSON
 
@@ -58,21 +60,28 @@ Mapping set: **`Account_Opening_Intake`**
 
 ### Rules
 
-| Section       | `JSON_Path__c`                | Target field                      | Policy        | Transform    |
-| ------------- | ----------------------------- | --------------------------------- | ------------- | ------------ |
-| `Customer`    | `business.registrationNumber` | `Account.Registration_Number__c`  | Always        |              |
-| `Customer`    | `business.taxReference`       | `Account.Tax_Reference_Number__c` | Always        |              |
-| `Customer`    | `business.dateIncorporated`   | `Account.Date_Incorporated__c`    | Always        | `dd/MM/yyyy` |
-| `Customer`    | `business.entityType`         | `Account.Entity_Type__c`          | Always        |              |
-| `Customer`    | `business.annualTurnover`     | `Account.Annual_Turnover__c`      | Always        |              |
-| `Customer`    | `business.phone`              | `Account.Phone`                   | Only if blank |              |
-| `Application` | `application.reference`       | `Case.Application_Reference__c`   | Always        |              |
-| `Application` | `application.branchCode`      | `Case.Branch_Code__c`             | Always        |              |
-| `Application` | `application.product`         | `Case.Product_Applied_For__c`     | Always        |              |
-| `Application` | `application.signedDate`      | `Case.Application_Signed_Date__c` | Always        |              |
-| `Application` | `application.notes`           | `Case.Description`                | Only if blank |              |
-| `Application` | `signatory.fullName`          | `Case.SuppliedName`               | Always        |              |
-| `Application` | `signatory.email`             | `Case.SuppliedEmail`              | Always        |              |
+Sections are `Account_Opening_Customer` and `Account_Opening_Application`
+(their record DeveloperNames), shortened here:
+
+| Section       | `JSON_Path__c`                | Target field                      | Policy        | Value Type           |
+| ------------- | ----------------------------- | --------------------------------- | ------------- | -------------------- |
+| `Customer`    | `business.registrationNumber` | `Account.Registration_Number__c`  | Always        |                      |
+| `Customer`    | `business.taxReference`       | `Account.Tax_Reference_Number__c` | Always        |                      |
+| `Customer`    | `business.dateIncorporated`   | `Account.Date_Incorporated__c`    | Always        | `AO_Date_ZA`         |
+| `Customer`    | `business.entityType`         | `Account.Entity_Type__c`          | Always        | `AO_Entity_Type_Map` |
+| `Customer`    | `business.annualTurnover`     | `Account.Annual_Turnover__c`      | Always        | `AO_Money`           |
+| `Customer`    | `business.phone`              | `Account.Phone`                   | Only if blank | `AO_Phone_ZA`        |
+| `Application` | `application.reference`       | `Case.Application_Reference__c`   | Always (Required) |                  |
+| `Application` | `application.branchCode`      | `Case.Branch_Code__c`             | Always        |                      |
+| `Application` | `application.product`         | `Case.Product_Applied_For__c`     | Always        |                      |
+| `Application` | `application.signedDate`      | `Case.Application_Signed_Date__c` | Always        | `AO_Date_ZA`         |
+| `Application` | `application.notes`           | `Case.Description`                | Only if blank |                      |
+| `Application` | `signatory.fullName`          | `Case.SuppliedName`               | Always        |                      |
+| `Application` | `signatory.email`             | `Case.SuppliedEmail`              | Always        |                      |
+
+A rule without a value type gets a strict one auto-derived from its target
+field; the four declared types are where the document's formatting is
+described once instead of per rule.
 
 ### Custom fields ([`objects/`](objects))
 
@@ -147,16 +156,18 @@ on any App or Home page and set:
 | Mode                | `Extraction`                            |
 
 Review the form on the right — correct anything the OCR got wrong, which is
-the point of the component — and press **Save to Salesforce**. The toast
-reports `12 field(s) applied to 2 record(s)`.
+the point of the component — and press **Preview changes**. A table shows
+every planned old → new value with its parse grade, and nothing is written
+until you press **Confirm & Save**. The toast then reports
+`12 field(s) applied to 2 record(s)`.
 
 Twelve, not thirteen: `Case.Description` is skipped because it already holds
 the branch note, and `Account.Phone` is written because it was blank. That
 asymmetry is `Overwrite_Policy__c` doing its job.
 
 The same thing works from a Screen Flow — host `fileJsonReview`, then call the
-**Apply JSON Field Mappings** action with the same four values. See
-[JSON_FIELD_MAPPING.md](../../../../JSON_FIELD_MAPPING.md#usage-from-a-screen-flow).
+**Apply IDP Mapping Set** action with the same four values. See
+[IDP_MAPPING.md](../../../../IDP_MAPPING.md#usage-from-a-screen-flow).
 
 ## Verify
 
@@ -169,20 +180,25 @@ sf data query --query "SELECT CaseNumber, Application_Reference__c, Branch_Code_
 ```
 
 Expect `Date_Incorporated__c` = `2018-03-09` (not 3 September),
-`Annual_Turnover__c` = `8420000.00`, `Phone` = `+27 21 555 0142`, and a
-`Description` still describing the FICA pack.
+`Annual_Turnover__c` = `8420000.00`, `Phone` = `+27215550142` (the E.164
+canonical form `AO_Phone_ZA` renders), and a `Description` still describing
+the FICA pack.
 
 ## Things worth trying
 
-- Change `business.entityType` in the JSON to `Close Corporation` and save
-  again. The rule fails with _"Close Corporation" is not an active value of
-  picklist Entity_Type\_\_c_ in `result.errors`, while the other twelve fields
-  still apply — the engine's partial-success behaviour.
-- Change `business.dateIncorporated` to `2018-03-09` without changing
-  `Transform__c`. It fails to parse, because the rule promised `dd/MM/yyyy`.
+- Change `business.entityType` in the JSON to `Pty Ltd` and preview again. It
+  still lands as `Private Company` — that is `AO_Entity_Type_Map` translating
+  document wording into the picklist.
+- Change it to `Close Corporation` instead. The rule fails with _"Close
+  Corporation" is not mapped by value map AO_Entity_Type_Map_ while the other
+  twelve fields still apply — the engine's partial-success behaviour. Add a
+  map entry and it starts working, with no deploy of code.
+- Change `business.dateIncorporated` to `2018-03-09`. It still parses — the
+  value type's format list carries ISO as a fallback, which is exactly what
+  the v1 single-format transform could not do.
 - Delete `business.taxReference` from the JSON entirely. No error: a path that
-  is simply absent is skipped, since a document that does not mention a field
-  says nothing about it.
+  is simply absent is skipped. Delete `application.reference` instead and the
+  run reports `REQUIRED_MISSING`, because that rule is flagged Required.
 
 ## Clean up
 
@@ -197,4 +213,4 @@ sf data delete record --sobject Account --where "Name='Blue Harbour Trading'" --
 ---
 
 _Back to the [examples index](../README.md) · engine reference:
-[JSON_FIELD_MAPPING.md](../../../../JSON_FIELD_MAPPING.md)_
+[IDP_MAPPING.md](../../../../IDP_MAPPING.md)_

@@ -12,8 +12,8 @@ estates administrator reviews that JSON in `fileJsonReview`, and pressing
 the whole estate hangs off.
 
 This is **Data Extraction** mode with two **Fixed** sections and no repeating
-band. Nothing here is code: the behaviour is nine `JSON_Field_Mapping__mdt`
-records and two `JSON_Mapping_Section__mdt` records.
+band. Nothing here is code: the behaviour is one `IDP_Mapping_Set__mdt`, two
+`IDP_Section__mdt`, nine `IDP_Mapping_Rule__mdt` records and two value types.
 
 > **The document is a specimen.** The PDF is a generated stand-in marked
 > SPECIMEN top and bottom, with fictitious names and identity numbers. It is a
@@ -29,12 +29,13 @@ Two things none of examples 1–3 show:
 | **Child hop resolution**       | The file is linked to the **Case**. Nothing points from the Case to the Estate Case — the engine finds it by looking for the child whose `Case__c` is that Case. |
 | **Writing to a custom object** | Every rule targets `Estate_Case__c`, proving the engine is not limited to the standard objects the other examples use.                                           |
 | **Two sections, one object**   | `Appointment` and `Deceased` both target `Estate_Case__c`. Sections group the **document**; the object is the **destination**. They merge into a single update.  |
-| Date transforms                | `14/02/2026` and `08/04/2026` are read as 14 February and 8 April via `Transform__c = dd/MM/yyyy`.                                                               |
+| Date value type                | `LX_Date_ZA` reads `14/02/2026`, `8 April 2026` and ISO through one ordered format list — legal documents love spelling months out.                              |
+| **Regex value type**           | `LX_SA_ID` extracts the 13-digit identity number from whatever text surrounds it, and fails loudly on anything else.                                             |
 | Restricted picklists           | `Executrix` and `Cape Town` are validated against the picklist before the write.                                                                                 |
 
 The child hop is the point. In a real deceased-estates org the file is filed
 against the Case an agent is working, but the data belongs on the Estate Case.
-[`DocumentContextResolver`](../../main/default/classes/DocumentContextResolver.cls)
+[`IdpContextResolver`](../../main/default/classes/IdpContextResolver.cls)
 resolves that in one pass, so no rule has to know how the two are joined.
 
 ```
@@ -74,17 +75,21 @@ Mapping set: **`Letters_Of_Executorship`**
 
 ### Rules
 
-| Section       | `JSON_Path__c`            | Target field (`Estate_Case__c`) | Policy | Transform    |
-| ------------- | ------------------------- | ------------------------------- | ------ | ------------ |
-| `Appointment` | `letters.estateNumber`    | `Estate_Number__c`              | Always |              |
-| `Appointment` | `letters.issuedDate`      | `Letters_Issued_Date__c`        | Always | `dd/MM/yyyy` |
-| `Appointment` | `letters.mastersOffice`   | `Masters_Office__c`             | Always |              |
-| `Appointment` | `executor.fullName`       | `Executor_Full_Name__c`         | Always |              |
-| `Appointment` | `executor.identityNumber` | `Executor_ID_Number__c`         | Always |              |
-| `Appointment` | `executor.capacity`       | `Appointment_Capacity__c`       | Always |              |
-| `Deceased`    | `deceased.fullName`       | `Deceased_Full_Name__c`         | Always |              |
-| `Deceased`    | `deceased.identityNumber` | `Deceased_ID_Number__c`         | Always |              |
-| `Deceased`    | `deceased.dateOfDeath`    | `Date_Of_Death__c`              | Always | `dd/MM/yyyy` |
+| Section       | `JSON_Path__c`            | Target field (`Estate_Case__c`) | Policy            | Value Type   |
+| ------------- | ------------------------- | ------------------------------- | ----------------- | ------------ |
+| `Appointment` | `letters.estateNumber`    | `Estate_Number__c`              | Always (Required) |              |
+| `Appointment` | `letters.issuedDate`      | `Letters_Issued_Date__c`        | Always            | `LX_Date_ZA` |
+| `Appointment` | `letters.mastersOffice`   | `Masters_Office__c`             | Always            |              |
+| `Appointment` | `executor.fullName`       | `Executor_Full_Name__c`         | Always            |              |
+| `Appointment` | `executor.identityNumber` | `Executor_ID_Number__c`         | Always            | `LX_SA_ID`   |
+| `Appointment` | `executor.capacity`       | `Appointment_Capacity__c`       | Always            |              |
+| `Deceased`    | `deceased.fullName`       | `Deceased_Full_Name__c`         | Always            |              |
+| `Deceased`    | `deceased.identityNumber` | `Deceased_ID_Number__c`         | Always            | `LX_SA_ID`   |
+| `Deceased`    | `deceased.dateOfDeath`    | `Date_Of_Death__c`              | Always            | `LX_Date_ZA` |
+
+A letter without an estate number is not usable, so that rule is flagged
+**Required**: a document lacking the path produces an error finding instead
+of a silent skip.
 
 ### Custom fields ([`objects/`](objects))
 
@@ -203,16 +208,16 @@ on any App or Home page and set:
 
 Review the form on the right — correcting what the OCR misread is the whole
 point of the component, and handwritten Master's stamps are exactly what it
-misreads — then press **Save to Salesforce**. The toast reports
-`9 field(s) applied to 1 record(s)`.
+misreads — then press **Preview changes** and **Confirm & Save**. The toast
+reports `9 field(s) applied to 1 record(s)`.
 
 One record, not two: both sections target `Estate_Case__c`, so the nine values
 merge into a single update. The Case the file is linked to is never written
 to — it was only the way in.
 
 The same thing works from a Screen Flow — host `fileJsonReview`, then call the
-**Apply JSON Field Mappings** action with the same four values. See
-[JSON_FIELD_MAPPING.md](../../../../JSON_FIELD_MAPPING.md#usage-from-a-screen-flow).
+**Apply IDP Mapping Set** action with the same four values. See
+[IDP_MAPPING.md](../../../../IDP_MAPPING.md#usage-from-a-screen-flow).
 
 ## Verify
 
@@ -222,17 +227,24 @@ sf data query --query "SELECT Name, Estate_Number__c, Letters_Issued_Date__c, Ma
 
 Expect `Date_Of_Death__c` = `2026-02-14` and `Letters_Issued_Date__c` =
 `2026-04-08` — **8 April, not 4 August**. `08/04/2026` is the ambiguous date on
-the page, and it reads correctly only because the rule declares `dd/MM/yyyy`.
+the page, and it reads correctly only because `LX_Date_ZA` declares day-first
+formats.
 
 ## Things worth trying
 
 - Change `executor.capacity` to `Trustee` and save again. That rule fails with
-  _"Trustee" is not an active value of picklist Appointment_Capacity\_\_c_ in
-  `result.errors`, while the other eight fields still apply — the engine's
-  partial-success behaviour.
-- Drop `Transform__c` from the `Letters: Issued Date` rule and re-run. `08/04/2026`
-  now fails to parse against the default `yyyy-MM-dd`, which is the failure you
-  want: a silently wrong date is far worse than a rejected one.
+  _"Trustee" is not an active value of picklist Appointment_Capacity\_\_c_
+  while the other eight fields still apply — the engine's partial-success
+  behaviour.
+- Change `letters.issuedDate` to `8 April 2026`, the way the Master's clerk
+  actually writes it. It still parses — `LX_Date_ZA`'s format list carries
+  `d MMMM yyyy`.
+- Add `MM/dd/yyyy` to `LX_Date_ZA`'s Formats and re-run. `08/04/2026` now
+  reads two ways, so the engine reports it **Ambiguous** and writes nothing —
+  a silently wrong date is far worse than a rejected one, and v2 refuses to
+  guess.
+- Change `deceased.identityNumber` to `ID No: 5107085042083 (RSA)`. The
+  `LX_SA_ID` regex still extracts the 13 digits.
 - Delete the Estate Case and save again. Every rule reports that no
   `Estate_Case__c` could be resolved — the child hop found nothing, and the
   engine writes nothing rather than guessing.
@@ -257,4 +269,4 @@ sf data delete record --sobject Account --where "Name='Estate Late J P van der M
 ---
 
 _Back to the [examples index](../README.md) · engine reference:
-[JSON_FIELD_MAPPING.md](../../../../JSON_FIELD_MAPPING.md)_
+[IDP_MAPPING.md](../../../../IDP_MAPPING.md)_

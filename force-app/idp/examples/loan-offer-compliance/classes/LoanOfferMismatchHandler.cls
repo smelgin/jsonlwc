@@ -1,10 +1,11 @@
 /**
- * IComplianceMismatchHandler for the loan offer compliance example.
+ * IIdpFindingHandler for the loan offer compliance example.
  *
  * A Compliance run writes nothing itself — it hands the differences it found
  * to a handler and lets the org decide what they mean. Here they mean the
  * signed offer letter disagrees with the approved credit decision, which is
- * something a human has to clear before money moves. So this handler:
+ * something a human has to clear before money moves. So for each
+ * non-compliant document this handler:
  *
  *  1. stamps the Case as Mismatched and records a readable breakdown, giving
  *     the record itself a verification state rather than leaving the finding
@@ -12,56 +13,71 @@
  *  2. raises one high-priority Task carrying the same breakdown, so the
  *     difference lands in somebody's queue.
  *
- * The writes are the handler's own decision, not the engine's: the mapping
- * rules stay read-only. Contrast with the bundled ComplianceTaskHandler,
- * which only creates the Task — this one shows a handler that also updates
- * the record it was checking.
+ * Near matches (inside a value type's Compare Tolerance, e.g. a cent of
+ * rounding) are listed in the breakdown for context but do not by
+ * themselves trigger anything — only Mismatch findings do.
  *
- * Registered by passing "LoanOfferMismatchHandler" as the mismatchHandler
- * argument of JsonMappingService.applyMappings / the invocable action.
+ * The writes are the handler's own decision, not the engine's: the mapping
+ * rules stay read-only. Contrast with the bundled IdpComplianceTaskHandler,
+ * which only creates the Task — this one shows a handler that also updates
+ * the record it was checking. Registered on the mapping set's
+ * Finding_Handler__c (or passed as the findingHandler argument).
  */
-public inherited sharing class LoanOfferMismatchHandler implements IComplianceMismatchHandler {
+public inherited sharing class LoanOfferMismatchHandler implements IIdpFindingHandler {
   private static final String STATUS_MISMATCHED = 'Mismatched';
   private static final String TASK_SUBJECT = 'Verify signed loan offer against the system record';
   private static final Integer NOTES_LIMIT = 32768;
 
-  public void handle(JsonMappingService.ComplianceReport report) {
-    if (
-      report == null ||
-      report.mismatches == null ||
-      report.mismatches.isEmpty()
-    ) {
-      return; // nothing to report — the document agreed with the record
+  public void handle(IdpResult.RunReport report) {
+    if (report == null || report.results == null) {
+      return;
     }
-
-    Id caseId = firstRecordOfType(report.mismatches, Case.SObjectType);
-    Id whatId = caseId != null
-      ? caseId
-      : Id.valueOf(report.mismatches[0].recordId);
-    String narrative = narrative(report);
-
-    Database.insert(
-      new Task(
-        Subject = TASK_SUBJECT,
-        WhatId = whatId,
-        Priority = 'High',
-        ActivityDate = Date.today().addDays(2),
-        Description = narrative.abbreviate(32000)
-      ),
-      AccessLevel.USER_MODE
-    );
-
-    // Only a Case carries the verification fields this example ships; a run
-    // whose mismatches are all on other objects still gets its Task.
-    if (caseId != null) {
-      Database.update(
-        new Case(
-          Id = caseId,
-          Offer_Verification_Status__c = STATUS_MISMATCHED,
-          Offer_Verification_Notes__c = narrative.abbreviate(NOTES_LIMIT)
-        ),
-        AccessLevel.USER_MODE
+    List<Task> tasks = new List<Task>();
+    List<Case> stamps = new List<Case>();
+    for (IdpResult.Result result : report.results) {
+      List<IdpResult.Finding> mismatches = result.findingsWith(
+        IdpResult.CODE_VALUE_MISMATCH
       );
+      if (mismatches.isEmpty()) {
+        continue; // this document agreed with the record
+      }
+      List<IdpResult.Finding> nears = result.findingsWith(
+        IdpResult.CODE_VALUE_NEAR
+      );
+
+      Id caseId = firstRecordOfType(mismatches, Case.SObjectType);
+      Id whatId = caseId != null
+        ? caseId
+        : Id.valueOf(mismatches[0].recordId);
+      String narrative = narrative(report.mappingSetName, mismatches, nears);
+
+      tasks.add(
+        new Task(
+          Subject = TASK_SUBJECT,
+          WhatId = whatId,
+          Priority = 'High',
+          ActivityDate = Date.today().addDays(2),
+          Description = narrative.abbreviate(32000)
+        )
+      );
+      // Only a Case carries the verification fields this example ships; a
+      // document whose mismatches are all on other objects still gets its
+      // Task.
+      if (caseId != null) {
+        stamps.add(
+          new Case(
+            Id = caseId,
+            Offer_Verification_Status__c = STATUS_MISMATCHED,
+            Offer_Verification_Notes__c = narrative.abbreviate(NOTES_LIMIT)
+          )
+        );
+      }
+    }
+    if (!tasks.isEmpty()) {
+      Database.insert(tasks, AccessLevel.USER_MODE);
+    }
+    if (!stamps.isEmpty()) {
+      Database.update(stamps, AccessLevel.USER_MODE);
     }
   }
 
@@ -70,31 +86,24 @@ public inherited sharing class LoanOfferMismatchHandler implements IComplianceMi
    * is" apart from "what the borrower was offered", rather than one flat
    * list of field names.
    */
-  private static String narrative(JsonMappingService.ComplianceReport report) {
+  private static String narrative(
+    String mappingSetName,
+    List<IdpResult.Finding> mismatches,
+    List<IdpResult.Finding> nears
+  ) {
     Map<String, List<String>> byObject = new Map<String, List<String>>();
-    for (JsonMappingService.Mismatch mismatch : report.mismatches) {
-      if (!byObject.containsKey(mismatch.objectName)) {
-        byObject.put(mismatch.objectName, new List<String>());
-      }
-      byObject.get(mismatch.objectName)
-        .add(
-          '  - ' +
-            mismatch.fieldName +
-            ': document "' +
-            mismatch.extractedValue +
-            '", system "' +
-            (mismatch.actualValue == null ? '(blank)' : mismatch.actualValue) +
-            '"  [' +
-            mismatch.jsonPath +
-            ']'
-        );
+    for (IdpResult.Finding mismatch : mismatches) {
+      describe(byObject, mismatch, '');
+    }
+    for (IdpResult.Finding near : nears) {
+      describe(byObject, near, '  (near match — within tolerance)');
     }
 
     List<String> lines = new List<String>{
       'Mapping set "' +
-      report.mappingSetName +
+      mappingSetName +
       '" found ' +
-      report.mismatches.size() +
+      mismatches.size() +
       ' difference(s) between the signed document and the system record.',
       ''
     };
@@ -110,15 +119,38 @@ public inherited sharing class LoanOfferMismatchHandler implements IComplianceMi
     return String.join(lines, '\n');
   }
 
+  private static void describe(
+    Map<String, List<String>> byObject,
+    IdpResult.Finding finding,
+    String suffix
+  ) {
+    if (!byObject.containsKey(finding.objectName)) {
+      byObject.put(finding.objectName, new List<String>());
+    }
+    byObject.get(finding.objectName)
+      .add(
+        '  - ' +
+          finding.fieldName +
+          ': document "' +
+          finding.extractedValue +
+          '", system "' +
+          (finding.storedValue == null ? '(blank)' : finding.storedValue) +
+          '"  [' +
+          finding.jsonPath +
+          ']' +
+          suffix
+      );
+  }
+
   private static Id firstRecordOfType(
-    List<JsonMappingService.Mismatch> mismatches,
+    List<IdpResult.Finding> findings,
     Schema.SObjectType targetType
   ) {
-    for (JsonMappingService.Mismatch mismatch : mismatches) {
-      if (String.isBlank(mismatch.recordId)) {
+    for (IdpResult.Finding finding : findings) {
+      if (String.isBlank(finding.recordId)) {
         continue;
       }
-      Id recordId = Id.valueOf(mismatch.recordId);
+      Id recordId = Id.valueOf(finding.recordId);
       if (recordId.getSObjectType() == targetType) {
         return recordId;
       }

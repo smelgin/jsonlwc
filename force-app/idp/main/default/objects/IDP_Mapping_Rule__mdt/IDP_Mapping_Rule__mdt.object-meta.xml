@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>IDP Mapping Rule</label>
+    <pluralLabel>IDP Mapping Rules</pluralLabel>
+    <visibility>Public</visibility>
+    <description>Maps one JSON path of the reviewed document onto one field of the section's target object, optionally through an IDP Value Type.</description>
+</CustomObject>

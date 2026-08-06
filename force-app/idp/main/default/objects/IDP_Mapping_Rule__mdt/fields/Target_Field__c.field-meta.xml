@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Target_Field__c</fullName>
+    <label>Target Field</label>
+    <type>MetadataRelationship</type>
+    <referenceTo>FieldDefinition</referenceTo>
+    <metadataRelationshipControllingField>IDP_Mapping_Rule__mdt.Target_Object__c</metadataRelationshipControllingField>
+    <relationshipLabel>IDP Mapping Rules (Target Field)</relationshipLabel>
+    <relationshipName>IDP_Mapping_Rules_Target</relationshipName>
+    <required>true</required>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>The field that receives (Extraction) or is compared against (Compliance) the extracted value.</description>
+</CustomField>

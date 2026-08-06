@@ -22,6 +22,7 @@ would serve four hundred without a change.
 | `Record_Filter__c`         | `Account_Status__c != 'Closed'` protects closed products; the closed row comes back in `unmatchedRowKeys`. |
 | Rows are never created     | A statement line with no matching record is reported, not inserted.                                        |
 | Fixed and repeating in one | The `Statement` header section writes the period end and total to the Account in the same call.            |
+| **Batch reprocessing**     | The statement JSON stored on `Account.Statement_JSON__c` reprocesses with `IdpBatchProcessor` — no user, no file needed. |
 
 ## The document and the JSON
 
@@ -61,16 +62,20 @@ Mapping set: **`Consolidated_Statement`**
 
 ### Rules
 
-| Section     | `JSON_Path__c`                       | Target field                            | Transform    |
+| Section     | `JSON_Path__c`                       | Target field                            | Value Type   |
 | ----------- | ------------------------------------ | --------------------------------------- | ------------ |
-| `Statement` | `statement.periodEnd`                | `Account.Statement_Period_End__c`       |              |
-| `Statement` | `statement.totalRelationshipBalance` | `Account.Total_Relationship_Balance__c` |              |
+| `Statement` | `statement.periodEnd`                | `Account.Statement_Period_End__c`       | `CS_Date_ZA` |
+| `Statement` | `statement.totalRelationshipBalance` | `Account.Total_Relationship_Balance__c` | `CS_Money`   |
 | `Holdings`  | `productName`                        | `Asset.Name`                            |              |
-| `Holdings`  | `currentBalance`                     | `Asset.Current_Balance__c`              |              |
-| `Holdings`  | `availableBalance`                   | `Asset.Available_Balance__c`            |              |
+| `Holdings`  | `currentBalance`                     | `Asset.Current_Balance__c`              | `CS_Money`   |
+| `Holdings`  | `availableBalance`                   | `Asset.Available_Balance__c`            | `CS_Money`   |
 | `Holdings`  | `interestRate`                       | `Asset.Interest_Rate__c`                |              |
-| `Holdings`  | `openedDate`                         | `Asset.InstallDate`                     | `dd/MM/yyyy` |
+| `Holdings`  | `openedDate`                         | `Asset.InstallDate`                     | `CS_Date_ZA` |
 | `Holdings`  | `status`                             | `Asset.Account_Status__c`               |              |
+
+`CS_Date_ZA` reads `22/06/2021` on the holdings and ISO `2026-07-31` on the
+header through one ordered format list; `CS_Money` compares balances to the
+cent in Compliance mode.
 
 The six `Holdings` paths carry no `holdings[n]` prefix. Inside a repeating
 section every path is read against the current row, which is exactly why the
@@ -99,7 +104,8 @@ two-line statement and a two-hundred-line one cost the same.
 
 ### Custom fields ([`objects/`](objects))
 
-- **Account** — `Statement_Period_End__c`, `Total_Relationship_Balance__c`
+- **Account** — `Statement_Period_End__c`, `Total_Relationship_Balance__c`,
+  `Statement_JSON__c` (long text — the batch input, see below)
 - **Asset** — `Product_Account_Number__c` (the match field, flagged as an
   External Id), `Current_Balance__c`, `Available_Balance__c`,
   `Interest_Rate__c` (Percent), `Account_Status__c` (restricted picklist)
@@ -162,11 +168,12 @@ Host **File JSON Review + Field Mapping Demo** and set:
 | Mapping Set         | `Consolidated_Statement`                |
 | Mode                | `Extraction`                            |
 
-Press **Save to Salesforce**.
+Press **Preview changes**, check the planned old → new table, then **Confirm
+& Save**.
 
 > **Read the row counters from a Flow.** The demo LWC reports fields,
 > mismatches and errors, but not `rowsMatched`, `rowsUpdated` or
-> `unmatchedRowKeys`. A Screen Flow calling the **Apply JSON Field Mappings**
+> `unmatchedRowKeys`. A Screen Flow calling the **Apply IDP Mapping Set**
 > action can display all three directly, and for a repeating section they are
 > the interesting numbers.
 
@@ -208,7 +215,46 @@ The credit card should have moved to `In Arrears` with a balance of
   never creates them.
 - Switch **Mode** to `Compliance` and re-run. Nothing is written, and each
   mismatch now carries `sectionName`, `rowIndex` and `rowKey`, so the report
-  names the statement line that disagrees rather than just the field.
+  names the statement line that disagrees rather than just the field. A
+  balance off by less than a cent comes back as **Near** rather than
+  Mismatch — `CS_Money`'s Compare Tolerance at work.
+
+## Run it in batch
+
+The mapping set's **JSON Source Field** is `Account.Statement_JSON__c`, so the
+same statement can be reprocessed with no user and no file. Paste the sample
+JSON onto the Account and run the batch:
+
+```bash
+sf data query --query "SELECT Id FROM Account WHERE Name = 'Cape Meridian Logistics'" --target-org <alias>
+```
+
+Then in Anonymous Apex (Developer Console or `sf apex run`):
+
+```apex
+Account statementHolder = [SELECT Id FROM Account WHERE Name = 'Cape Meridian Logistics'];
+statementHolder.Statement_JSON__c = /* contents of sample/extracted.json */;
+update statementHolder;
+Database.executeBatch(new IdpBatchProcessor('Consolidated_Statement'), 10);
+```
+
+The engine seeds each document from its record (`Account` here) instead of a
+file, resolves the same anchors, and matches the same rows — the batch path
+and the interactive path are one pipeline.
+
+The mapping set also names `Statement_Processed__c` as its **Processed
+Marker Field**, which makes the batch idempotent: only Accounts where the
+marker is blank are picked up, and each is stamped once processed. Run the
+batch twice and the second run touches nothing. To reprocess after a rule
+change, pass `reprocessAll`:
+
+```apex
+Database.executeBatch(
+  new IdpBatchProcessor('Consolidated_Statement', null, null, null, true), 10);
+```
+
+Documents the governor-limits guard deferred are left unstamped, and the
+batch chains one retry pass for exactly those records.
 
 ## Clean up
 
@@ -221,4 +267,4 @@ Assets are children of the Account and go with it.
 ---
 
 _Back to the [examples index](../README.md) · engine reference:
-[JSON_FIELD_MAPPING.md](../../../../JSON_FIELD_MAPPING.md#sections-fixed-and-repeating-regions)_
+[IDP_MAPPING.md](../../../../IDP_MAPPING.md#sections-fixed-and-repeating-regions)_

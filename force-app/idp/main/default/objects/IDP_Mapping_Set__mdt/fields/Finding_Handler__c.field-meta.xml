@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Finding_Handler__c</fullName>
+    <label>Finding Handler</label>
+    <type>Text</type>
+    <length>255</length>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Apex class implementing IIdpFindingHandler, invoked when a run produces mismatches. A handler passed by the caller overrides this default.</description>
+</CustomField>

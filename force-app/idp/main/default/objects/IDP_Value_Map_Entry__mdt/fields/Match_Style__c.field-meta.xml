@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Match_Style__c</fullName>
+    <label>Match Style</label>
+    <type>Picklist</type>
+    <required>false</required>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>How From Text is matched against the document value. Normalized (the default) trims, collapses whitespace and ignores case.</description>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Normalized</fullName>
+                <default>true</default>
+                <label>Normalized</label>
+            </value>
+            <value>
+                <fullName>Exact</fullName>
+                <default>false</default>
+                <label>Exact</label>
+            </value>
+            <value>
+                <fullName>Regex</fullName>
+                <default>false</default>
+                <label>Regex</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Output_Format__c</fullName>
+    <label>Output Format</label>
+    <type>Text</type>
+    <length>80</length>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>How the canonical value is rendered into text targets. Date kind: a date pattern (default yyyy-MM-dd). Phone kind: e164 (default), national or digits.</description>
+</CustomField>

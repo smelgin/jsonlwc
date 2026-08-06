@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Compare_Tolerance__c</fullName>
+    <label>Compare Tolerance</label>
+    <type>Number</type>
+    <precision>12</precision>
+    <scale>4</scale>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Compliance: differences within this tolerance are Near rather than Mismatch. Number kind: absolute amount (0.01 = one cent). Date kind: days. Datetime kind: minutes. Blank means exact comparison only.</description>
+</CustomField>

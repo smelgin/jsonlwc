@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>IDP Value Type</label>
+    <pluralLabel>IDP Value Types</pluralLabel>
+    <visibility>Public</visibility>
+    <description>Declares how a document value is parsed, canonicalized, compared and rendered: a built-in Kind (Number, Date, Phone, ValueMap, ...) configured by the typed fields, or a Custom Apex handler implementing IValueType.</description>
+</CustomObject>

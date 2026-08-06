@@ -61,30 +61,44 @@ private class LoanOfferMismatchHandlerTest {
     return runner;
   }
 
-  private static JsonMappingService.Mismatch mismatch(
+  private static IdpResult.Finding mismatch(
     String objectName,
     Id recordId,
     String fieldName,
     String jsonPath,
     String extracted,
-    String actual
+    String stored
   ) {
-    JsonMappingService.Mismatch result = new JsonMappingService.Mismatch();
-    result.objectName = objectName;
-    result.recordId = recordId;
-    result.fieldName = fieldName;
-    result.jsonPath = jsonPath;
-    result.extractedValue = extracted;
-    result.actualValue = actual;
-    return result;
+    IdpResult.Finding finding = new IdpResult.Finding();
+    finding.code = IdpResult.CODE_VALUE_MISMATCH;
+    finding.severity = IdpResult.SEV_WARNING;
+    finding.objectName = objectName;
+    finding.recordId = recordId;
+    finding.fieldName = fieldName;
+    finding.jsonPath = jsonPath;
+    finding.extractedValue = extracted;
+    finding.storedValue = stored;
+    finding.compareOutcome = 'Mismatch';
+    return finding;
   }
 
-  private static JsonMappingService.ComplianceReport reportOf(
-    List<JsonMappingService.Mismatch> mismatches
+  private static IdpResult.RunReport reportOf(
+    List<IdpResult.Finding> mismatches
   ) {
-    JsonMappingService.ComplianceReport report = new JsonMappingService.ComplianceReport();
+    IdpResult.Result result = new IdpResult.Result();
+    if (mismatches != null) {
+      for (IdpResult.Finding finding : mismatches) {
+        result.findings.add(finding);
+        result.compliant = false;
+      }
+      if (mismatches.isEmpty()) {
+        result.compliant = true;
+      }
+    }
+    IdpResult.RunReport report = new IdpResult.RunReport();
     report.mappingSetName = 'Loan_Offer_Compliance';
-    report.mismatches = mismatches;
+    report.mode = 'Compliance';
+    report.results = new List<IdpResult.Result>{ result };
     return report;
   }
 
@@ -92,8 +106,8 @@ private class LoanOfferMismatchHandlerTest {
   static void stampsTheCaseAndRaisesOneTask() {
     User runner = userWithExampleAccess();
     Case offer = [SELECT Id, AccountId FROM Case LIMIT 1];
-    JsonMappingService.ComplianceReport report = reportOf(
-      new List<JsonMappingService.Mismatch>{
+    IdpResult.RunReport report = reportOf(
+      new List<IdpResult.Finding>{
         mismatch(
           'Account',
           offer.AccountId,
@@ -139,7 +153,7 @@ private class LoanOfferMismatchHandlerTest {
     );
 
     List<Task> tasks = [SELECT WhatId, Priority, Description FROM Task];
-    Assert.areEqual(1, tasks.size(), 'One Task per handled report.');
+    Assert.areEqual(1, tasks.size(), 'One Task per non-compliant document.');
     Assert.areEqual(
       offer.Id,
       tasks[0].WhatId,
@@ -156,8 +170,8 @@ private class LoanOfferMismatchHandlerTest {
   @IsTest
   static void fallsBackToTheFirstRecordWhenNoCaseDiffers() {
     Account borrower = [SELECT Id FROM Account LIMIT 1];
-    JsonMappingService.ComplianceReport report = reportOf(
-      new List<JsonMappingService.Mismatch>{
+    IdpResult.RunReport report = reportOf(
+      new List<IdpResult.Finding>{
         mismatch(
           'Account',
           borrower.Id,
@@ -192,8 +206,9 @@ private class LoanOfferMismatchHandlerTest {
   static void doesNothingWithoutMismatches() {
     Test.startTest();
     new LoanOfferMismatchHandler()
-      .handle(reportOf(new List<JsonMappingService.Mismatch>()));
+      .handle(reportOf(new List<IdpResult.Finding>()));
     new LoanOfferMismatchHandler().handle(reportOf(null));
+    new LoanOfferMismatchHandler().handle(null);
     Test.stopTest();
 
     Assert.areEqual(

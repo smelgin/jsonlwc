@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Min_Grade__c</fullName>
+    <label>Minimum Parse Grade</label>
+    <type>Picklist</type>
+    <required>false</required>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Lowest parse grade allowed to write. "Exact" blocks heuristic (Inferred) parses; the default "Inferred" writes Exact and Inferred but never Ambiguous.</description>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Inferred</fullName>
+                <default>true</default>
+                <label>Inferred</label>
+            </value>
+            <value>
+                <fullName>Exact</fullName>
+                <default>false</default>
+                <label>Exact</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

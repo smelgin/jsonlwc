@@ -9,7 +9,7 @@ That is not an extraction problem. Nothing on this document should be written
 anywhere; the document is the claim, and Salesforce is the record. So this
 example runs the engine in **Compliance Check** mode, where it compares
 instead of writing, and hands whatever it finds to a custom
-[`IComplianceMismatchHandler`](classes/LoanOfferMismatchHandler.cls).
+[`IIdpFindingHandler`](classes/LoanOfferMismatchHandler.cls).
 
 The seed data is rigged so the check fails in three instructive ways.
 
@@ -18,11 +18,12 @@ The seed data is rigged so the check fails in three instructive ways.
 | Feature                        | Where to look                                                                                       |
 | ------------------------------ | --------------------------------------------------------------------------------------------------- |
 | Compliance mode                | Two Fixed sections, nine rules, zero DML from the engine itself.                                    |
-| Per-rule `Mode__c`             | Every rule pins `Mode__c = Compliance`, so this set can never write even if run in Extraction mode. |
-| Forgiving text comparison      | `KALAHARI FREIGHT SERVICES` matches the stored `Kalahari Freight Services`.                         |
-| Forgiving number comparison    | `"R 2 400 000.00"` matches the stored `2400000.00`.                                                 |
+| Set-level defaults             | The mapping set declares `Default_Mode__c = Compliance` **and** its own `Finding_Handler__c`, so the caller configures nothing. |
+| Per-rule `Mode__c`             | Every rule additionally pins `Mode__c = Compliance`, so this set can never write even if run in Extraction mode. |
+| Both-sides comparison          | `KALAHARI FREIGHT SERVICES` matches the stored `Kalahari Freight Services`; `"R 2 400 000.00"` matches the stored `2400000.00` — both sides go through the value type's canonical form. |
+| Three-state verdicts           | `LO_Money_ZA` has a one-cent Compare Tolerance: a rounding difference is **Near**, not a Mismatch. |
 | Blank counts as a mismatch     | The empty `Credit_Risk_Grade__c` cannot confirm the document, so it is reported.                    |
-| `IComplianceMismatchHandler`   | `LoanOfferMismatchHandler` stamps the Case and raises a high-priority Task.                         |
+| `IIdpFindingHandler`           | `LoanOfferMismatchHandler` stamps the Case and raises a high-priority Task.                         |
 | Mismatches are data, not error | `result.success` stays `true`; `result.compliant` goes `false`.                                     |
 
 ## The document and the JSON
@@ -59,17 +60,17 @@ No repeating section: an offer letter is a single set of terms.
 
 ### Rules
 
-| Section    | `JSON_Path__c`                    | Compared against                      | Transform    |
-| ---------- | --------------------------------- | ------------------------------------- | ------------ |
-| `Borrower` | `borrower.registeredName`         | `Account.Name`                        |              |
-| `Borrower` | `borrower.creditRiskGrade`        | `Account.Credit_Risk_Grade__c`        |              |
-| `Borrower` | `borrower.verifiedAnnualTurnover` | `Account.Verified_Annual_Turnover__c` |              |
-| `Offer`    | `offer.reference`                 | `Case.Offer_Reference__c`             |              |
-| `Offer`    | `offer.principalAmount`           | `Case.Loan_Amount__c`                 |              |
-| `Offer`    | `offer.interestRate`              | `Case.Interest_Rate_Offered__c`       |              |
-| `Offer`    | `offer.termMonths`                | `Case.Loan_Term_Months__c`            |              |
-| `Offer`    | `offer.monthlyRepayment`          | `Case.Repayment_Amount__c`            |              |
-| `Offer`    | `offer.expiryDate`                | `Case.Offer_Expiry_Date__c`           | `dd/MM/yyyy` |
+| Section    | `JSON_Path__c`                    | Compared against                      | Value Type    |
+| ---------- | --------------------------------- | ------------------------------------- | ------------- |
+| `Borrower` | `borrower.registeredName`         | `Account.Name`                        |               |
+| `Borrower` | `borrower.creditRiskGrade`        | `Account.Credit_Risk_Grade__c`        |               |
+| `Borrower` | `borrower.verifiedAnnualTurnover` | `Account.Verified_Annual_Turnover__c` | `LO_Money_ZA` |
+| `Offer`    | `offer.reference`                 | `Case.Offer_Reference__c`             |               |
+| `Offer`    | `offer.principalAmount`           | `Case.Loan_Amount__c`                 | `LO_Money_ZA` |
+| `Offer`    | `offer.interestRate`              | `Case.Interest_Rate_Offered__c`       |               |
+| `Offer`    | `offer.termMonths`                | `Case.Loan_Term_Months__c`            |               |
+| `Offer`    | `offer.monthlyRepayment`          | `Case.Repayment_Amount__c`            | `LO_Money_ZA` |
+| `Offer`    | `offer.expiryDate`                | `Case.Offer_Expiry_Date__c`           | `LO_Date_ZA`  |
 
 Every one of them sets `Mode__c = Compliance` rather than leaving it blank to
 inherit the run's mode. That is deliberate: a mapping set that exists to
@@ -89,7 +90,7 @@ Pinning it per rule makes that mistake impossible.
 | `Case.Interest_Rate_Offered__c`       | `12.05`                   | `11.25`                   | ❌ **the terms really do differ**                    |
 | `Case.Loan_Term_Months__c`            | `60`                      | `60`                      | ✅                                                   |
 | `Case.Repayment_Amount__c`            | `R 53 480.19`             | `51902.44`                | ❌ **follows from the rate**                         |
-| `Case.Offer_Expiry_Date__c`           | `31/08/2026`              | `2026-08-31`              | ✅ parsed with the transform, then compared as dates |
+| `Case.Offer_Expiry_Date__c`           | `31/08/2026`              | `2026-08-31`              | ✅ parsed by the value type, then compared as dates  |
 
 The first, third, fifth and last rows are the point of the comparison rules:
 OCR output never matches stored formatting exactly, and a checker that flagged
@@ -104,15 +105,16 @@ see.
 the one-method contract:
 
 ```apex
-public interface IComplianceMismatchHandler {
-  void handle(JsonMappingService.ComplianceReport report);
-  // report: contentDocumentId, mappingSetName, mismatches
+public interface IIdpFindingHandler {
+  void handle(IdpResult.RunReport report);
+  // report: mappingSetName, mode, and every document's full Result —
+  // mismatches, near matches, errors, row context
 }
 ```
 
-It is named as a string (`mismatchHandler`) and instantiated with
-`Type.forName`, so the engine has no compile-time knowledge of it. On a
-failing run it:
+It is registered on the mapping set's `Finding_Handler__c` (a caller-supplied
+name overrides it) and instantiated with `Type.forName`, so the engine has no
+compile-time knowledge of it. On a failing run it:
 
 1. groups the differences by object and renders a readable breakdown;
 2. stamps `Case.Offer_Verification_Status__c = Mismatched` and writes the
@@ -127,11 +129,12 @@ failing run it:
 > somebody's queue — neither of which copies the document's values onto the
 > loan.
 
-This is the difference from the bundled `ComplianceTaskHandler`, which only
+This is the difference from the bundled `IdpComplianceTaskHandler`, which only
 creates a Task. Use whichever is closer to what you need as a starting point.
 Handlers run in the same transaction as the check; if one throws, the failure
-lands in `result.errors` and the mismatches still come back on the `Result`,
-so a hosting Flow or LWC can react whether or not a handler is configured.
+becomes a `HANDLER_FAILED` finding and the mismatches still come back on the
+`Result`, so a hosting Flow or LWC can react whether or not a handler is
+configured.
 
 ### Custom fields ([`objects/`](objects))
 
@@ -190,13 +193,15 @@ three that are about to be reported.
 
 Host **File JSON Review + Field Mapping Demo** and set:
 
-| Property               | Value                                   |
-| ---------------------- | --------------------------------------- |
-| Content Document Id    | the Id printed by `setup.apex`          |
-| Source JSON            | the contents of `sample/extracted.json` |
-| Mapping Set            | `Loan_Offer_Compliance`                 |
-| Mode                   | `Compliance`                            |
-| Mismatch Handler Class | `LoanOfferMismatchHandler`              |
+| Property            | Value                                   |
+| ------------------- | --------------------------------------- |
+| Content Document Id | the Id printed by `setup.apex`          |
+| Source JSON         | the contents of `sample/extracted.json` |
+| Mapping Set         | `Loan_Offer_Compliance`                 |
+| Mode                | `Compliance`                            |
+
+No handler property needed: the mapping set itself names
+`LoanOfferMismatchHandler` as its Finding Handler.
 
 The button now reads **Check compliance**. Press it and the demo shows a
 mismatch table under the review pane:
@@ -221,18 +226,20 @@ sf data query --query "SELECT Subject, Priority, ActivityDate, Description FROM 
 
 ## Things worth trying
 
-- Clear the **Mismatch Handler Class** property and run again. The same three
-  mismatches come back on the `Result` — no Task, no stamp. The handler is an
-  optional action, not the way results are returned.
 - Correct `Case.Interest_Rate_Offered__c` to `12.05` and
   `Repayment_Amount__c` to `53480.19`, fill in `Credit_Risk_Grade__c` with
   `BB`, and re-run. `compliant` comes back `true` and the handler is never
   invoked.
+- Set `Repayment_Amount__c` to `53480.18` — one cent off — and re-run. It
+  comes back **Near** instead of Mismatch (`LO_Money_ZA`'s tolerance), listed
+  for context but not blocking: rounding is not a changed term.
 - Set **Mode** to `Extraction` and run. Nothing is written anyway, because
   every rule pins `Mode__c = Compliance`. Blank one rule's `Mode__c` and try
   again to see the difference.
-- Point `mismatchHandler` at a class that does not implement the interface.
-  The engine reports it in `result.errors` rather than failing the run.
+- Set the **Finding Handler Class** property to a class that does not
+  implement the interface. The engine reports a `HANDLER_FAILED` finding
+  rather than failing the run — and the caller-supplied name overrides the
+  set's default, which is the override order you want in a sandbox.
 
 ## Clean up
 
@@ -247,4 +254,4 @@ sf data delete record --sobject Account --where "Name='Kalahari Freight Services
 ---
 
 _Back to the [examples index](../README.md) · engine reference:
-[JSON_FIELD_MAPPING.md](../../../../JSON_FIELD_MAPPING.md#modes)_
+[IDP_MAPPING.md](../../../../IDP_MAPPING.md#modes)_

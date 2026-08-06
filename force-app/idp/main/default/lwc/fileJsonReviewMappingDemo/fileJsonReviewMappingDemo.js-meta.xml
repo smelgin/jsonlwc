@@ -4,7 +4,7 @@
     <isExposed>true</isExposed>
     <masterLabel>File JSON Review + Field Mapping Demo</masterLabel>
     <description
-  >Example host: reviews a file with fileJsonReview and extracts the JSON into Salesforce records — or checks it for compliance — via JsonMappingService and JSON_Field_Mapping__mdt.</description>
+  >Example host: reviews a file with fileJsonReview, previews the planned changes, and extracts the JSON into Salesforce records — or checks it for compliance — via the IDP mapping engine (IdpMappingController and IDP_Mapping_Set__mdt).</description>
     <targets>
         <target>lightning__AppPage</target>
         <target>lightning__HomePage</target>
@@ -32,7 +32,7 @@
         type="String"
         default="Estate_Intake"
         label="Mapping Set"
-        description="Mapping_Set__c of the JSON_Field_Mapping__mdt rules applied on save."
+        description="DeveloperName of the IDP_Mapping_Set__mdt applied on save."
       />
             <property
         name="mode"
@@ -40,14 +40,21 @@
         default="Extraction"
         datasource="Extraction,Compliance"
         label="Mode"
-        description="Extraction writes the values; Compliance compares them with the data model. A rule's Mode__c overrides this per field."
+        description="Extraction previews and writes the values; Compliance compares them with the data model. A rule's Mode overrides this per field."
       />
             <property
-        name="mismatchHandler"
+        name="findingHandler"
         type="String"
         default=""
-        label="Mismatch Handler Class"
-        description="Apex class implementing IComplianceMismatchHandler invoked when a Compliance run finds mismatches, e.g. ComplianceTaskHandler."
+        label="Finding Handler Class"
+        description="Apex class implementing IIdpFindingHandler invoked when a run finds mismatches, e.g. IdpComplianceTaskHandler."
+      />
+            <property
+        name="skipPreview"
+        type="Boolean"
+        default="false"
+        label="Skip Preview"
+        description="Save immediately on submit instead of showing the planned changes first."
       />
             <property
         name="height"
