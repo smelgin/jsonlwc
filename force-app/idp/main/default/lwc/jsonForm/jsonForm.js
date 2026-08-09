@@ -1,11 +1,18 @@
 import { LightningElement, api } from 'lwc';
 import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
 
+const LABEL_INPUT_CLASS = 'label-input';
+const VALUE_INPUT_CLASS = 'value-input';
+const MODIFIED_CLASS = 'field-modified';
+
 /**
  * Renders arbitrary JSON as a hierarchical form. Every object key gets an
  * editable "label" textbox and every primitive value gets an editable
  * "value" textbox. Array items get a fixed positional label. Any edit
  * dispatches a `jsonchange` event carrying the modified JSON.
+ *
+ * Textboxes holding something other than what was originally loaded are
+ * outlined in green; restoring the original text clears the outline again.
  */
 export default class JsonForm extends LightningElement {
     rows = [];
@@ -142,6 +149,12 @@ export default class JsonForm extends LightningElement {
             id,
             indentStyle: `padding-left: ${props.level * 1.75}rem;`,
             hasFixedLabel: !props.keyEditable,
+            // Pristine baseline the green outline is measured against.
+            // `props.value` is never rewritten once the row is built, so it
+            // doubles as the baseline for the value textbox.
+            originalLabel: props.label,
+            labelClass: LABEL_INPUT_CLASS,
+            valueClass: VALUE_INPUT_CLASS,
             ...props
         };
         this._rowsById.set(id, row);
@@ -159,7 +172,14 @@ export default class JsonForm extends LightningElement {
         }
         const parent = this.getNode(row.rowPath.slice(0, -1));
         const key = row.rowPath[row.rowPath.length - 1];
-        parent[key] = this.coerce(event.target.value, row.valueType);
+        const text = event.target.value;
+        parent[key] = this.coerce(text, row.valueType);
+        this.setModified(
+            row,
+            'valueClass',
+            VALUE_INPUT_CLASS,
+            text !== row.value
+        );
         this.notifyChange();
     }
 
@@ -169,8 +189,31 @@ export default class JsonForm extends LightningElement {
             return;
         }
         if (this.applyRename(row, event.target.value)) {
+            // Only a rename that reached the JSON counts, so a rejected one
+            // (empty or duplicate key) leaves the outline as it was.
+            this.setModified(
+                row,
+                'labelClass',
+                LABEL_INPUT_CLASS,
+                row.label !== row.originalLabel
+            );
             this.notifyChange();
         }
+    }
+
+    /**
+     * Adds or removes the green-outline class on one of a row's textboxes.
+     * Rows are plain objects, so `rows` has to be reassigned for the template
+     * to pick the change up — done only when the flag actually flips, to keep
+     * ordinary keystrokes from re-rendering the whole form.
+     */
+    setModified(row, classProperty, baseClass, isModified) {
+        const next = isModified ? `${baseClass} ${MODIFIED_CLASS}` : baseClass;
+        if (row[classProperty] === next) {
+            return;
+        }
+        row[classProperty] = next;
+        this.rows = [...this.rows];
     }
 
     // If a rename could not be applied (empty or duplicate key), snap the

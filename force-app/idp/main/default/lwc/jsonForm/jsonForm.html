@@ -19,7 +19,7 @@
                                     data-id={row.id}
                                     onchange={handleLabelChange}
                                     onblur={handleLabelBlur}
-                                    class="label-input"
+                                    class={row.labelClass}
                                 ></lightning-input>
                             </template>
                             <lightning-badge
@@ -44,7 +44,7 @@
                                     data-id={row.id}
                                     onchange={handleLabelChange}
                                     onblur={handleLabelBlur}
-                                    class="label-input"
+                                    class={row.labelClass}
                                 ></lightning-input>
                             </template>
                             <lightning-input
@@ -54,7 +54,7 @@
                                 value={row.value}
                                 data-id={row.id}
                                 onchange={handleValueChange}
-                                class="value-input"
+                                class={row.valueClass}
                             ></lightning-input>
                         </div>
                     </template>

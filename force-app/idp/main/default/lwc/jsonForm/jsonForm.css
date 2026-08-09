@@ -30,6 +30,38 @@
     justify-self: start;
 }
 
+/*
+ * Green outline on textboxes the user has edited away from the loaded JSON.
+ * lightning-input renders its <input> inside its own shadow tree, so only the
+ * SLDS styling hooks are used to recolour it — custom properties cross the
+ * shadow boundary. Nothing is drawn on the host itself: the host box is
+ * taller than the input and has its own corner radius, so a ring there would
+ * make edited rows sit differently from untouched ones.
+ */
+.field-modified {
+    --slds-c-input-color-border: var(--slds-g-color-success-base-40, #2e844a);
+    --slds-c-input-color-border-focus: var(
+        --slds-g-color-success-base-40,
+        #2e844a
+    );
+    --slds-c-input-color-background: var(
+        --slds-g-color-success-container-1,
+        #ebf7ee
+    );
+    /* Border-box sizing, so the heavier border does not resize the field */
+    --slds-c-input-sizing-border: 2px;
+    --sds-c-input-color-border: var(--slds-g-color-success-base-40, #2e844a);
+    --sds-c-input-color-border-focus: var(
+        --slds-g-color-success-base-40,
+        #2e844a
+    );
+    --sds-c-input-color-background: var(
+        --slds-g-color-success-container-1,
+        #ebf7ee
+    );
+    --sds-c-input-sizing-border: 2px;
+}
+
 .empty-state {
     padding: 0.5rem 0.75rem;
 }

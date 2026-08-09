@@ -30,6 +30,14 @@ function fireChange(input, value) {
     input.dispatchEvent(new CustomEvent('change'));
 }
 
+function flush() {
+    return Promise.resolve();
+}
+
+function isModified(input) {
+    return input.classList.contains('field-modified');
+}
+
 describe('c-json-form', () => {
     afterEach(() => {
         while (document.body.firstChild) {
@@ -161,6 +169,114 @@ describe('c-json-form', () => {
         // event fired and check the value through the jsonOutput property.
         expect(flowHandler).toHaveBeenCalledTimes(1);
         expect(JSON.parse(element.jsonOutput).Age).toBe(46);
+    });
+
+    it('flags an edited value and clears the flag once it is restored', async () => {
+        const element = buildComponent(SAMPLE);
+        const firstNameInput = getValueInputs(element)[0];
+        expect(isModified(firstNameInput)).toBe(false);
+
+        fireChange(firstNameInput, 'Carla');
+        await flush();
+        expect(isModified(firstNameInput)).toBe(true);
+        // Untouched fields stay unflagged
+        expect(isModified(getValueInputs(element)[1])).toBe(false);
+
+        fireChange(firstNameInput, 'Carlos');
+        await flush();
+        expect(isModified(firstNameInput)).toBe(false);
+        expect(element.getJson()).toEqual(SAMPLE);
+    });
+
+    it('flags edited numbers and array items', async () => {
+        const element = buildComponent(SAMPLE);
+        const ageInput = getValueInputs(element)[3];
+        const toolInput = getValueInputs(element)[5];
+
+        fireChange(ageInput, '46');
+        fireChange(toolInput, 'Drill');
+        await flush();
+        expect(isModified(ageInput)).toBe(true);
+        expect(isModified(toolInput)).toBe(true);
+
+        fireChange(ageInput, '45');
+        fireChange(toolInput, 'Hammer');
+        await flush();
+        expect(isModified(ageInput)).toBe(false);
+        expect(isModified(toolInput)).toBe(false);
+        expect(element.getJson()).toEqual(SAMPLE);
+    });
+
+    it('flags a renamed key and clears the flag once it is renamed back', async () => {
+        const element = buildComponent(SAMPLE);
+        const middleNameLabel = getLabelInputs(element)[1];
+        expect(isModified(middleNameLabel)).toBe(false);
+
+        fireChange(middleNameLabel, 'Second Name');
+        await flush();
+        expect(isModified(middleNameLabel)).toBe(true);
+
+        fireChange(middleNameLabel, 'Middle Name');
+        await flush();
+        expect(isModified(middleNameLabel)).toBe(false);
+        expect(element.getJson()).toEqual(SAMPLE);
+    });
+
+    it('does not flag a rejected rename', async () => {
+        const element = buildComponent(SAMPLE);
+        const firstNameLabel = getLabelInputs(element)[0];
+
+        fireChange(firstNameLabel, 'Last Name');
+        await flush();
+        expect(isModified(firstNameLabel)).toBe(false);
+    });
+
+    it('keeps the flags of separate fields independent', async () => {
+        const element = buildComponent(SAMPLE);
+        const inputs = getValueInputs(element);
+
+        fireChange(inputs[0], 'Carla');
+        fireChange(inputs[2], 'Perez');
+        await flush();
+        expect(inputs.map(isModified)).toEqual([
+            true,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false
+        ]);
+
+        fireChange(inputs[0], 'Carlos');
+        await flush();
+        expect(isModified(inputs[0])).toBe(false);
+        expect(isModified(inputs[2])).toBe(true);
+    });
+
+    it('does not clobber a typed value when another field is flagged', async () => {
+        const element = buildComponent(SAMPLE);
+        const inputs = getValueInputs(element);
+
+        fireChange(inputs[0], 'Carla');
+        fireChange(inputs[1], 'Andres');
+        await flush();
+
+        expect(inputs[0].value).toBe('Carla');
+        expect(inputs[1].value).toBe('Andres');
+    });
+
+    it('resets the flags when new JSON is loaded', async () => {
+        const element = buildComponent(SAMPLE);
+        fireChange(getValueInputs(element)[0], 'Carla');
+        await flush();
+        expect(isModified(getValueInputs(element)[0])).toBe(true);
+
+        element.jsonData = SAMPLE;
+        await flush();
+        expect(getValueInputs(element).some(isModified)).toBe(false);
+        expect(getLabelInputs(element).some(isModified)).toBe(false);
     });
 
     it('shows an empty state when no JSON is provided', () => {
