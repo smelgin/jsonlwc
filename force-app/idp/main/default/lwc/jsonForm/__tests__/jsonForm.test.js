@@ -10,11 +10,17 @@ const SAMPLE = {
     Tools: ['Hammer', 'Handsaw', 'Pliers']
 };
 
-function buildComponent(jsonData) {
+function buildComponent(jsonData, props = {}) {
     const element = createElement('c-json-form', { is: JsonForm });
+    Object.assign(element, props);
     element.jsonData = jsonData;
     document.body.appendChild(element);
     return element;
+}
+
+// Renaming keys is opt-in, so most label assertions need it switched on
+function buildRenamable(jsonData) {
+    return buildComponent(jsonData, { editLabels: true });
 }
 
 function getValueInputs(element) {
@@ -23,6 +29,12 @@ function getValueInputs(element) {
 
 function getLabelInputs(element) {
     return [...element.shadowRoot.querySelectorAll('.label-input')];
+}
+
+function getFixedLabels(element) {
+    return [...element.shadowRoot.querySelectorAll('.fixed-label')].map(
+        (span) => span.textContent
+    );
 }
 
 function fireChange(input, value) {
@@ -46,7 +58,7 @@ describe('c-json-form', () => {
     });
 
     it('renders a value textbox per primitive field, including array items', () => {
-        const element = buildComponent(SAMPLE);
+        const element = buildRenamable(SAMPLE);
         // 5 top-level primitives + 3 array items
         expect(getValueInputs(element)).toHaveLength(8);
         // Editable labels only for object keys (5 primitives + Tools branch)
@@ -85,7 +97,7 @@ describe('c-json-form', () => {
     });
 
     it('renames keys while preserving key order', () => {
-        const element = buildComponent(SAMPLE);
+        const element = buildRenamable(SAMPLE);
         const handler = jest.fn();
         element.addEventListener('jsonchange', handler);
 
@@ -107,7 +119,7 @@ describe('c-json-form', () => {
     });
 
     it('rejects a rename to an existing key', () => {
-        const element = buildComponent(SAMPLE);
+        const element = buildRenamable(SAMPLE);
         const handler = jest.fn();
         element.addEventListener('jsonchange', handler);
 
@@ -119,7 +131,7 @@ describe('c-json-form', () => {
     });
 
     it('renaming a branch key keeps its children editable', () => {
-        const element = buildComponent(SAMPLE);
+        const element = buildRenamable(SAMPLE);
         const toolsLabel = getLabelInputs(element)[5];
         fireChange(toolsLabel, 'Equipment');
 
@@ -208,7 +220,7 @@ describe('c-json-form', () => {
     });
 
     it('flags a renamed key and clears the flag once it is renamed back', async () => {
-        const element = buildComponent(SAMPLE);
+        const element = buildRenamable(SAMPLE);
         const middleNameLabel = getLabelInputs(element)[1];
         expect(isModified(middleNameLabel)).toBe(false);
 
@@ -223,7 +235,7 @@ describe('c-json-form', () => {
     });
 
     it('does not flag a rejected rename', async () => {
-        const element = buildComponent(SAMPLE);
+        const element = buildRenamable(SAMPLE);
         const firstNameLabel = getLabelInputs(element)[0];
 
         fireChange(firstNameLabel, 'Last Name');
@@ -277,6 +289,57 @@ describe('c-json-form', () => {
         await flush();
         expect(getValueInputs(element).some(isModified)).toBe(false);
         expect(getLabelInputs(element).some(isModified)).toBe(false);
+    });
+
+    it('locks the field names down by default', () => {
+        const element = buildComponent(SAMPLE);
+        expect(element.editLabels).toBe(false);
+        expect(getLabelInputs(element)).toHaveLength(0);
+        // Every row keeps its name, now as plain text
+        expect(getFixedLabels(element)).toEqual([
+            'First Name',
+            'Middle Name',
+            'Last Name',
+            'Age',
+            'Born Date',
+            'Tools',
+            'Item 1',
+            'Item 2',
+            'Item 3'
+        ]);
+        // Values stay editable
+        expect(getValueInputs(element)).toHaveLength(8);
+        fireChange(getValueInputs(element)[0], 'Carla');
+        expect(element.getJson()['First Name']).toBe('Carla');
+    });
+
+    it('keeps array item labels fixed even when editLabels is on', () => {
+        const element = buildRenamable(SAMPLE);
+        expect(getFixedLabels(element)).toEqual(['Item 1', 'Item 2', 'Item 3']);
+    });
+
+    it('accepts editLabels as the string Flow and App Builder pass', () => {
+        const element = buildComponent(SAMPLE, { editLabels: 'true' });
+        expect(element.editLabels).toBe(true);
+        expect(getLabelInputs(element)).toHaveLength(6);
+    });
+
+    it('toggles label editing without losing edits or their flags', async () => {
+        const element = buildRenamable(SAMPLE);
+        fireChange(getValueInputs(element)[0], 'Carla');
+        fireChange(getLabelInputs(element)[1], 'Second Name');
+        await flush();
+
+        element.editLabels = false;
+        await flush();
+        expect(getLabelInputs(element)).toHaveLength(0);
+        expect(isModified(getValueInputs(element)[0])).toBe(true);
+        expect(element.getJson()['Second Name']).toBe('Arturo');
+
+        element.editLabels = true;
+        await flush();
+        expect(isModified(getLabelInputs(element)[1])).toBe(true);
+        expect(getValueInputs(element)[0].value).toBe('Carla');
     });
 
     it('shows an empty state when no JSON is provided', () => {

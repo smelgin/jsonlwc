@@ -217,6 +217,28 @@ describe('c-file-json-review', () => {
         expect(flowHandler).toHaveBeenCalled();
     });
 
+    it('leaves the JSON field names read-only unless editLabels is set', () => {
+        const element = buildComponent({ jsonInput: SAMPLE_JSON });
+        const form = element.shadowRoot.querySelector('c-json-form');
+        expect(form.editLabels).toBe(false);
+        expect(form.shadowRoot.querySelectorAll('.label-input')).toHaveLength(
+            0
+        );
+    });
+
+    it('passes editLabels through to the child form', () => {
+        const element = buildComponent({
+            jsonInput: SAMPLE_JSON,
+            editLabels: true
+        });
+        const form = element.shadowRoot.querySelector('c-json-form');
+        expect(form.editLabels).toBe(true);
+        // 2 object keys, both renameable
+        expect(form.shadowRoot.querySelectorAll('.label-input')).toHaveLength(
+            2
+        );
+    });
+
     it('returns the current JSON via jsonsubmit when the button is clicked', async () => {
         const element = buildComponent({ jsonInput: SAMPLE_JSON });
         const submitHandler = jest.fn();

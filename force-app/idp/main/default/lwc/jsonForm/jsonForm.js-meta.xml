@@ -20,6 +20,14 @@
                 role="inputOnly"
             />
             <property
+                name="editLabels"
+                type="Boolean"
+                label="Allow field names to be edited"
+                default="false"
+                description="When off, field names render as plain text and only the values can be edited."
+                role="inputOnly"
+            />
+            <property
                 name="jsonOutput"
                 type="String"
                 label="Modified JSON"
@@ -33,6 +41,13 @@
                 type="String"
                 label="Source JSON"
                 description="The JSON string to render as an editable form."
+            />
+            <property
+                name="editLabels"
+                type="Boolean"
+                label="Allow field names to be edited"
+                default="false"
+                description="When off, field names render as plain text and only the values can be edited."
             />
         </targetConfig>
     </targetConfigs>

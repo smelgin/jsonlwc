@@ -104,6 +104,7 @@ graph TD
 | `json-output`         | `@api` (String, read-only) | The JSON string including the user's edits. Also a Flow **output** attribute, kept live via `FlowAttributeChangeEvent`. |
 | `height`              | `@api` (String)            | CSS height, default `600px` (e.g. `70vh`).                                                                              |
 | `submit-label`        | `@api` (String)            | Save button label, default `Save`.                                                                                      |
+| `edit-labels`         | `@api` (Boolean)           | Whether the reviewer may rename field names, not just edit values. Off by default; passed through to `c-json-form`.     |
 | `onjsonchange`        | event                      | Fired on **every edit**. `detail.value` (object), `detail.jsonString` (string).                                         |
 | `onjsonsubmit`        | event                      | Fired on **Save click**. Same detail shape — this is the "user is done curating" signal.                                |
 
@@ -121,7 +122,7 @@ The component is exposed to `lightning__FlowScreen` as **File and JSON Review**.
 2. Add a **Screen** element, drop **File and JSON Review** on it:
    - **Content Document Id** ← the file's `069…` id (e.g., from `ContentDocumentLink` on `Document__c`),
    - **Source JSON** ← `varOcrJson`,
-   - optionally **Height** / **Save Button Label**.
+   - optionally **Height** / **Save Button Label**, and **Allow field names to be edited** if reviewers should be able to rename keys (off by default).
 3. After the screen: read **Modified JSON** (`jsonOutput`) into a variable and use an **Update Records** element to write it to your JSON field on `Document__c` (e.g., `Curated_Json__c`, a Long Text Area sized for your payloads).
 
 > `jsonOutput` is updated on every keystroke _and_ on Save, so it is current regardless of how the user exits the screen (Next, Finish, custom footer).

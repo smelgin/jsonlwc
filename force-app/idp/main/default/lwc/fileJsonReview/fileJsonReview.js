@@ -37,6 +37,13 @@ export default class FileJsonReview extends LightningElement {
     /** Label of the button that returns the modified JSON. */
     @api submitLabel = 'Save';
 
+    /**
+     * Whether the reviewer may rename the JSON's field names as well as edit
+     * its values. Passed straight through to c-json-form, which owns the
+     * default (off) and the coercion of the string Flow hands over.
+     */
+    @api editLabels;
+
     fileInfo;
     fileError;
     leftPercent = 50;

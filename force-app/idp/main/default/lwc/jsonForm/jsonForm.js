@@ -21,6 +21,27 @@ export default class JsonForm extends LightningElement {
     _rowsById = new Map();
     _idCounter = 0;
     _jsonInput;
+    _editLabels = false;
+
+    /**
+     * Whether object keys may be renamed. Off by default: most hosts want the
+     * user to correct values against a fixed schema, so the labels render as
+     * plain text unless the developer opts in. Array items are never
+     * renameable either way — their positional labels are not part of the JSON.
+     */
+    @api
+    get editLabels() {
+        return this._editLabels;
+    }
+    set editLabels(value) {
+        // Flow and App Builder can hand a boolean over as the string "true"
+        const enabled = value === true || value === 'true';
+        if (enabled === this._editLabels) {
+            return;
+        }
+        this._editLabels = enabled;
+        this.applyLabelEditability();
+    }
 
     /** JSON to edit. Accepts an object/array or a JSON string. */
     @api
@@ -148,7 +169,7 @@ export default class JsonForm extends LightningElement {
         const row = {
             id,
             indentStyle: `padding-left: ${props.level * 1.75}rem;`,
-            hasFixedLabel: !props.keyEditable,
+            hasFixedLabel: !props.keyEditable || !this._editLabels,
             // Pristine baseline the green outline is measured against.
             // `props.value` is never rewritten once the row is built, so it
             // doubles as the baseline for the value textbox.
@@ -159,6 +180,21 @@ export default class JsonForm extends LightningElement {
         };
         this._rowsById.set(id, row);
         return row;
+    }
+
+    /**
+     * Swaps the label textboxes for plain text (or back) in place. Patching
+     * the existing rows rather than rebuilding them keeps the JSON, and the
+     * green outlines tracking it, intact when a host flips the flag late.
+     */
+    applyLabelEditability() {
+        if (this.rows.length === 0) {
+            return;
+        }
+        this._rowsById.forEach((row) => {
+            row.hasFixedLabel = !row.keyEditable || !this._editLabels;
+        });
+        this.rows = [...this.rows];
     }
 
     // ---------------------------------------------------------------------
