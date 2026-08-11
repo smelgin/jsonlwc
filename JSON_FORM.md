@@ -99,4 +99,4 @@ The `.vscode` folder recommends the Salesforce Extension Pack; open the folder i
 
 ---
 
-_Related docs: [README.md](README.md) (documentation index), [DOC_PREVIEWER.md](DOC_PREVIEWER.md) (document previewer that embeds this component), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component)._
+_Related docs: [README.md](README.md) (documentation index), [DOC_PREVIEWER.md](DOC_PREVIEWER.md) (document previewer that embeds this component)._

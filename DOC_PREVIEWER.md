@@ -320,4 +320,4 @@ Not bundled (add only if needed): `cmaps/` (CJK-encoded PDFs). If scanned/JBIG2/
 
 ---
 
-_Related docs: [README.md](README.md) (documentation index), [JSON_FORM.md](JSON_FORM.md) (the `jsonForm` child component reference), [LIQUIDITY_CALCULATOR.md](LIQUIDITY_CALCULATOR.md) (unrelated LQC component)._
+_Related docs: [README.md](README.md) (documentation index), [JSON_FORM.md](JSON_FORM.md) (the `jsonForm` child component reference)._

@@ -110,7 +110,7 @@ reports `No update access to …` instead of writing, because it applies
 
 **This example assumes `Estate_Case__c` already exists in the org**, because
 that is what a real deceased-estates org has and what the
-[Liquidity Calculator](../../../../LIQUIDITY_CALCULATOR.md#81-prerequisite-estate_case__c)
+[Liquidity Calculator](https://github.com/smelgin/lqc/blob/main/LIQUIDITY_CALCULATOR.md#81-prerequisite-estate_case__c)
 also expects. The example adds only the nine fields — the Estate Case record
 itself is created by the data import, with those fields blank.
 
@@ -124,8 +124,9 @@ sf project deploy start --source-dir force-app/idp/examples/bootstrap/estate-cas
 
 > Run that command **only** if the object is missing. In an org that already
 > has `Estate_Case__c`, it would rewrite that object's label and sharing model.
-> It also deliberately omits `LQC_Result__c`; add that yourself if you want the
-> Liquidity Calculator in the same org.
+> It also deliberately omits `LQC_Result__c`; the [lqc
+> repository](https://github.com/smelgin/lqc) ships its own copy of this object
+> with that field, if you want the Liquidity Calculator in the same org.
 >
 > This is why the stand-in lives in `examples/bootstrap/` rather than inside
 > this example: `--source-dir` deploys a directory **and everything under it**,

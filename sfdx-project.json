@@ -3,10 +3,6 @@
     {
       "path": "force-app/idp/main",
       "default": true
-    },
-    {
-      "path": "force-app/lqc",
-      "default": false
     }
   ],
   "name": "JsonLwc",
