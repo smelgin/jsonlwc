@@ -38,6 +38,66 @@ whoever hosts them — a Screen Flow calling the invocable action, a parent LWC
 like the bundled `fileJsonReviewMappingDemo`, or `IdpBatchProcessor` with no
 user at all.
 
+## Contents
+
+- [Ten Benefits and Capabilities](#ten-benefits-and-capabilities)
+- [Components](#components)
+- [Configuring a mapping set](#configuring-a-mapping-set)
+- [Value types](#value-types)
+- [Compliance: three-state, both sides canonicalized](#compliance-three-state-both-sides-canonicalized)
+- [Sections: fixed and repeating regions](#sections-fixed-and-repeating-regions)
+- [Reachable objects](#reachable-objects)
+- [Results and findings](#results-and-findings)
+- [Error handling and resilience](#error-handling-and-resilience)
+- [Performance model](#performance-model)
+- [Batch: reprocessing stored documents](#batch-reprocessing-stored-documents)
+- [Usage from a Screen Flow](#usage-from-a-screen-flow)
+- [Usage from a parent LWC](#usage-from-a-parent-lwc)
+- [Extending](#extending)
+- [Worked examples](#worked-examples)
+
+## Ten Benefits and Capabilities
+
+- **Documents become records, without code.** Point a JSON path at a field
+  and the value lands where it belongs — adding a document type is admin
+  configuration, not a development ticket.
+
+- **Nothing is guessed silently.** Every value is graded Exact, Inferred,
+  Ambiguous or Failed. Genuinely undecidable values are reported, never
+  written — the class of error where a wrong number arrives without
+  complaint is designed out.
+
+- **Formats are declared once, not per rule.** Money, dates, phone numbers
+  and picklist wording are described on reusable value types; forty rules
+  share one definition, and changing a convention is one edit.
+
+- **A human sees what will happen before it happens.** Preview mode runs the
+  full pipeline with the write suppressed, showing current → new per field.
+  Approval and persistence stop being able to disagree.
+
+- **Verify without writing.** Compliance mode compares a signed document
+  against the system of record and returns Match / Near / Mismatch — with
+  formatting differences never counted as content differences.
+
+- **Currency is treated as meaning, not decoration.** An amount in the wrong
+  currency is refused rather than stored; 100 EUR never becomes 100 ZAR.
+
+- **Runs unattended at volume.** The same engine drives a Screen Flow, an LWC
+  or an overnight batch, and reruns are idempotent — finished work is never
+  redone, deferred work retries itself.
+
+- **Cost doesn't grow with the document.** Ten two-hundred-line statements
+  cost what one two-line invoice costs; query consumption is flat against
+  rules and rows alike.
+
+- **Partial success at every level.** A bad rule, a bad value or a bad
+  document is reported while everything else completes — one problem never
+  takes the run down.
+
+- **Misconfiguration fails before it ships.** Objects and fields are chosen
+  from validated pickers, so a typo breaks the deployment rather than
+  surfacing months later as a runtime error.
+
 ## Components
 
 | Component                   | Type           | Role                                                                                                       |
