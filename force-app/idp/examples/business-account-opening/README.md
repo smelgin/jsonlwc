@@ -12,17 +12,17 @@ behaviour is one `IDP_Mapping_Set__mdt`, two `IDP_Section__mdt`, thirteen
 
 ## What it demonstrates
 
-| Feature                         | Where to look                                                                                            |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Fixed sections                  | Two sections declare the target object once; rules attach to them.                                       |
-| Multi-object writes in one call | `Customer` writes to Account, `Application` writes to Case — reached from one file.                      |
-| Record reachability             | The file is linked to the **Case**; the Account is found by following `Case.AccountId`.                  |
-| `Only if blank`                 | The blank `Account.Phone` gets filled; the pre-populated `Case.Description` is deliberately left be.     |
-| Date value type                 | `AO_Date_ZA` reads `09/03/2018` **and** ISO `2026-07-14` through one ordered format list.                |
-| Money value type                | `AO_Money` lands `"R 8 420 000.00"` in a Currency field as `8420000.00` — deterministically, not by regex-stripping. |
-| Phone value type                | `AO_Phone_ZA` canonicalizes `+27 21 555 0142` to E.164.                                                  |
+| Feature                         | Where to look                                                                                                                            |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Fixed sections                  | Two sections declare the target object once; rules attach to them.                                                                       |
+| Multi-object writes in one call | `Customer` writes to Account, `Application` writes to Case — reached from one file.                                                      |
+| Record reachability             | The file is linked to the **Case**; the Account is found by following `Case.AccountId`.                                                  |
+| `Only if blank`                 | The blank `Account.Phone` gets filled; the pre-populated `Case.Description` is deliberately left be.                                     |
+| Date value type                 | `AO_Date_ZA` reads `09/03/2018` **and** ISO `2026-07-14` through one ordered format list.                                                |
+| Money value type                | `AO_Money` lands `"R 8 420 000.00"` in a Currency field as `8420000.00` — deterministically, not by regex-stripping.                     |
+| Phone value type                | `AO_Phone_ZA` canonicalizes `+27 21 555 0142` to E.164.                                                                                  |
 | Value map                       | `AO_Entity_Type_Map` translates whatever the form says ("Pty Ltd", "Proprietary Limited") into the restricted `Entity_Type__c` picklist. |
-| Preview mode                    | The demo shows the planned old → new changes before anything is written.                                 |
+| Preview mode                    | The demo shows the planned old → new changes before anything is written.                                                                 |
 
 ## The document and the JSON
 
@@ -63,21 +63,21 @@ Mapping set: **`Account_Opening_Intake`**
 Sections are `Account_Opening_Customer` and `Account_Opening_Application`
 (their record DeveloperNames), shortened here:
 
-| Section       | `JSON_Path__c`                | Target field                      | Policy        | Value Type           |
-| ------------- | ----------------------------- | --------------------------------- | ------------- | -------------------- |
-| `Customer`    | `business.registrationNumber` | `Account.Registration_Number__c`  | Always        |                      |
-| `Customer`    | `business.taxReference`       | `Account.Tax_Reference_Number__c` | Always        |                      |
-| `Customer`    | `business.dateIncorporated`   | `Account.Date_Incorporated__c`    | Always        | `AO_Date_ZA`         |
-| `Customer`    | `business.entityType`         | `Account.Entity_Type__c`          | Always        | `AO_Entity_Type_Map` |
-| `Customer`    | `business.annualTurnover`     | `Account.Annual_Turnover__c`      | Always        | `AO_Money`           |
-| `Customer`    | `business.phone`              | `Account.Phone`                   | Only if blank | `AO_Phone_ZA`        |
-| `Application` | `application.reference`       | `Case.Application_Reference__c`   | Always (Required) |                  |
-| `Application` | `application.branchCode`      | `Case.Branch_Code__c`             | Always        |                      |
-| `Application` | `application.product`         | `Case.Product_Applied_For__c`     | Always        |                      |
-| `Application` | `application.signedDate`      | `Case.Application_Signed_Date__c` | Always        | `AO_Date_ZA`         |
-| `Application` | `application.notes`           | `Case.Description`                | Only if blank |                      |
-| `Application` | `signatory.fullName`          | `Case.SuppliedName`               | Always        |                      |
-| `Application` | `signatory.email`             | `Case.SuppliedEmail`              | Always        |                      |
+| Section       | `JSON_Path__c`                | Target field                      | Policy            | Value Type           |
+| ------------- | ----------------------------- | --------------------------------- | ----------------- | -------------------- |
+| `Customer`    | `business.registrationNumber` | `Account.Registration_Number__c`  | Always            |                      |
+| `Customer`    | `business.taxReference`       | `Account.Tax_Reference_Number__c` | Always            |                      |
+| `Customer`    | `business.dateIncorporated`   | `Account.Date_Incorporated__c`    | Always            | `AO_Date_ZA`         |
+| `Customer`    | `business.entityType`         | `Account.Entity_Type__c`          | Always            | `AO_Entity_Type_Map` |
+| `Customer`    | `business.annualTurnover`     | `Account.Annual_Turnover__c`      | Always            | `AO_Money`           |
+| `Customer`    | `business.phone`              | `Account.Phone`                   | Only if blank     | `AO_Phone_ZA`        |
+| `Application` | `application.reference`       | `Case.Application_Reference__c`   | Always (Required) |                      |
+| `Application` | `application.branchCode`      | `Case.Branch_Code__c`             | Always            |                      |
+| `Application` | `application.product`         | `Case.Product_Applied_For__c`     | Always            |                      |
+| `Application` | `application.signedDate`      | `Case.Application_Signed_Date__c` | Always            | `AO_Date_ZA`         |
+| `Application` | `application.notes`           | `Case.Description`                | Only if blank     |                      |
+| `Application` | `signatory.fullName`          | `Case.SuppliedName`               | Always            |                      |
+| `Application` | `signatory.email`             | `Case.SuppliedEmail`              | Always            |                      |
 
 A rule without a value type gets a strict one auto-derived from its target
 field; the four declared types are where the document's formatting is

@@ -12,7 +12,11 @@ private class IdpLocaleDataTest {
   @IsTest
   static void readsDialCodesFromMetadata() {
     Assert.areEqual('27', IdpLocaleData.dialCodeFor('ZA'));
-    Assert.areEqual('27', IdpLocaleData.dialCodeFor('  za  '), 'case and whitespace tolerant');
+    Assert.areEqual(
+      '27',
+      IdpLocaleData.dialCodeFor('  za  '),
+      'case and whitespace tolerant'
+    );
     Assert.areEqual(
       '46',
       IdpLocaleData.dialCodeFor('SE'),
@@ -57,7 +61,10 @@ private class IdpLocaleDataTest {
   @IsTest
   static void reportsWhetherALocaleIsSeeded() {
     Assert.isTrue(IdpLocaleData.isKnownLocale('pt-BR'));
-    Assert.isTrue(IdpLocaleData.isKnownLocale('de'), 'language alone is enough');
+    Assert.isTrue(
+      IdpLocaleData.isKnownLocale('de'),
+      'language alone is enough'
+    );
     Assert.isTrue(
       IdpLocaleData.isKnownLocale('xx-ZA'),
       'an unknown language over a known country still resolves'
@@ -162,7 +169,8 @@ private class IdpLocaleDataTest {
       String code = record.DeveloperName;
       Assert.isTrue(
         IdpLocaleData.readsMonthNames(code),
-        code + ' has Month Names that did not compile — it needs exactly 12 entries'
+        code +
+        ' has Month Names that did not compile — it needs exactly 12 entries'
       );
       Set<Integer> seen = new Set<Integer>();
       for (String entry : record.Month_Names__c.split('\\|')) {
@@ -198,7 +206,8 @@ private class IdpLocaleDataTest {
         code + ' has implausible dial code "' + record.Dial_Code__c + '"'
       );
       Assert.isTrue(
-        record.Decimal_Separator__c == ',' || record.Decimal_Separator__c == '.',
+        record.Decimal_Separator__c == ',' ||
+          record.Decimal_Separator__c == '.',
         code + ' has decimal separator "' + record.Decimal_Separator__c + '"'
       );
     }

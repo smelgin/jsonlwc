@@ -1,65 +1,251 @@
 <template>
     <div class="json-form">
+        <template lwc:if={hasToolbar}>
+            <div class="json-form-toolbar">
+                <template lwc:if={searchable}>
+                    <lightning-input
+                        type="search"
+                        label="Search fields"
+                        variant="label-hidden"
+                        placeholder="Search field names and values"
+                        value={searchTerm}
+                        onchange={handleSearch}
+                        class="search-input"
+                    ></lightning-input>
+                </template>
+                <div class="toolbar-actions">
+                    <template lwc:if={collapsible}>
+                        <lightning-button
+                            label="Expand all"
+                            variant="base"
+                            onclick={handleExpandAll}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Collapse all"
+                            variant="base"
+                            onclick={handleCollapseAll}
+                        ></lightning-button>
+                    </template>
+                    <template lwc:if={canAddToRoot}>
+                        <lightning-button
+                            label="Add field"
+                            variant="base"
+                            icon-name="utility:add"
+                            class="add-root-button"
+                            onclick={handleAddRootClick}
+                        ></lightning-button>
+                    </template>
+                </div>
+            </div>
+            <template lwc:if={isAddingToRoot}>
+                <div class="add-form">
+                    <template lwc:if={rootNeedsName}>
+                        <lightning-input
+                            type="text"
+                            label="Field name"
+                            value={addName}
+                            onchange={handleAddNameChange}
+                            class="add-name"
+                        ></lightning-input>
+                    </template>
+                    <lightning-combobox
+                        label="Type"
+                        value={addType}
+                        options={typeOptions}
+                        onchange={handleAddTypeChange}
+                        class="add-type"
+                    ></lightning-combobox>
+                    <div class="add-form-actions">
+                        <lightning-button
+                            label="Add"
+                            variant="brand"
+                            class="add-confirm"
+                            onclick={handleAddConfirm}
+                        ></lightning-button>
+                        <lightning-button
+                            label="Cancel"
+                            class="add-cancel"
+                            onclick={handleAddCancel}
+                        ></lightning-button>
+                    </div>
+                    <template lwc:if={addError}>
+                        <p class="add-error">{addError}</p>
+                    </template>
+                </div>
+            </template>
+        </template>
+
         <template lwc:if={hasRows}>
             <template for:each={rows} for:item="row">
                 <div key={row.id} class="form-row" style={row.indentStyle}>
-                    <template lwc:if={row.isBranch}>
-                        <div class="row-grid branch-row">
-                            <template lwc:if={row.hasFixedLabel}>
-                                <span class="fixed-label slds-truncate"
-                                    >{row.label}</span
-                                >
-                            </template>
-                            <template lwc:else>
+                    <div class="row-line">
+                        <template lwc:if={row.showToggle}>
+                            <lightning-button-icon
+                                icon-name={row.toggleIcon}
+                                variant="bare"
+                                size="small"
+                                alternative-text={row.toggleTitle}
+                                title={row.toggleTitle}
+                                data-id={row.id}
+                                class="collapse-toggle"
+                                onclick={handleToggleCollapse}
+                            ></lightning-button-icon>
+                        </template>
+
+                        <template lwc:if={row.isBranch}>
+                            <div class="row-grid branch-row">
+                                <template lwc:if={row.hasFixedLabel}>
+                                    <span class="fixed-label slds-truncate"
+                                        >{row.label}</span
+                                    >
+                                </template>
+                                <template lwc:else>
+                                    <lightning-input
+                                        type="text"
+                                        label="Field label"
+                                        variant="label-hidden"
+                                        value={row.label}
+                                        data-id={row.id}
+                                        onchange={handleLabelChange}
+                                        onblur={handleLabelBlur}
+                                        class={row.labelClass}
+                                    ></lightning-input>
+                                </template>
+                                <lightning-badge
+                                    label={row.badge}
+                                    class="type-badge"
+                                ></lightning-badge>
+                            </div>
+                        </template>
+                        <template lwc:else>
+                            <div class="row-grid">
+                                <template lwc:if={row.hasFixedLabel}>
+                                    <span class="fixed-label slds-truncate"
+                                        >{row.label}</span
+                                    >
+                                </template>
+                                <template lwc:else>
+                                    <lightning-input
+                                        type="text"
+                                        label="Field label"
+                                        variant="label-hidden"
+                                        value={row.label}
+                                        data-id={row.id}
+                                        onchange={handleLabelChange}
+                                        onblur={handleLabelBlur}
+                                        class={row.labelClass}
+                                    ></lightning-input>
+                                </template>
                                 <lightning-input
                                     type="text"
-                                    label="Field label"
+                                    label="Field value"
                                     variant="label-hidden"
-                                    value={row.label}
+                                    value={row.value}
                                     data-id={row.id}
-                                    onchange={handleLabelChange}
-                                    onblur={handleLabelBlur}
-                                    class={row.labelClass}
+                                    onchange={handleValueChange}
+                                    class={row.valueClass}
                                 ></lightning-input>
-                            </template>
-                            <lightning-badge
-                                label={row.badge}
-                                class="type-badge"
-                            ></lightning-badge>
+                            </div>
+                        </template>
+
+                        <template lwc:if={row.hasConfidence}>
+                            <span
+                                class={row.confidenceClass}
+                                title="Extraction confidence"
+                                >{row.confidenceLabel}</span
+                            >
+                        </template>
+                        <template lwc:if={row.showAdd}>
+                            <lightning-button-icon
+                                icon-name="utility:add"
+                                variant="bare"
+                                size="small"
+                                alternative-text="Add field"
+                                title="Add field"
+                                data-id={row.id}
+                                class="add-button"
+                                onclick={handleAddClick}
+                            ></lightning-button-icon>
+                        </template>
+                        <template lwc:if={row.showDelete}>
+                            <lightning-button-icon
+                                icon-name="utility:delete"
+                                variant="bare"
+                                size="small"
+                                alternative-text="Delete field"
+                                title="Delete field"
+                                data-id={row.id}
+                                class="delete-button"
+                                onclick={handleDeleteClick}
+                            ></lightning-button-icon>
+                        </template>
+                    </div>
+
+                    <template lwc:if={row.hasError}>
+                        <p class="field-error">{row.errorMessage}</p>
+                    </template>
+
+                    <template lwc:if={row.isConfirmingDelete}>
+                        <div class="confirm-delete">
+                            <span>{row.confirmMessage}</span>
+                            <lightning-button
+                                label="Delete"
+                                variant="destructive"
+                                data-id={row.id}
+                                class="delete-confirm"
+                                onclick={handleDeleteConfirm}
+                            ></lightning-button>
+                            <lightning-button
+                                label="Cancel"
+                                class="delete-cancel"
+                                onclick={handleDeleteCancel}
+                            ></lightning-button>
                         </div>
                     </template>
-                    <template lwc:else>
-                        <div class="row-grid">
-                            <template lwc:if={row.hasFixedLabel}>
-                                <span class="fixed-label slds-truncate"
-                                    >{row.label}</span
-                                >
-                            </template>
-                            <template lwc:else>
+
+                    <template lwc:if={row.isAdding}>
+                        <div class="add-form">
+                            <template lwc:if={row.addNeedsName}>
                                 <lightning-input
                                     type="text"
-                                    label="Field label"
-                                    variant="label-hidden"
-                                    value={row.label}
-                                    data-id={row.id}
-                                    onchange={handleLabelChange}
-                                    onblur={handleLabelBlur}
-                                    class={row.labelClass}
+                                    label="Field name"
+                                    value={row.addName}
+                                    onchange={handleAddNameChange}
+                                    class="add-name"
                                 ></lightning-input>
                             </template>
-                            <lightning-input
-                                type="text"
-                                label="Field value"
-                                variant="label-hidden"
-                                value={row.value}
-                                data-id={row.id}
-                                onchange={handleValueChange}
-                                class={row.valueClass}
-                            ></lightning-input>
+                            <lightning-combobox
+                                label="Type"
+                                value={row.addType}
+                                options={typeOptions}
+                                onchange={handleAddTypeChange}
+                                class="add-type"
+                            ></lightning-combobox>
+                            <div class="add-form-actions">
+                                <lightning-button
+                                    label="Add"
+                                    variant="brand"
+                                    class="add-confirm"
+                                    onclick={handleAddConfirm}
+                                ></lightning-button>
+                                <lightning-button
+                                    label="Cancel"
+                                    class="add-cancel"
+                                    onclick={handleAddCancel}
+                                ></lightning-button>
+                            </div>
+                            <template lwc:if={row.addError}>
+                                <p class="add-error">{row.addError}</p>
+                            </template>
                         </div>
                     </template>
                 </div>
             </template>
+        </template>
+        <template lwc:elseif={noMatches}>
+            <p class="slds-text-body_regular slds-text-color_weak empty-state">
+                No fields match "{searchTerm}".
+            </p>
         </template>
         <template lwc:else>
             <p class="slds-text-body_regular slds-text-color_weak empty-state">

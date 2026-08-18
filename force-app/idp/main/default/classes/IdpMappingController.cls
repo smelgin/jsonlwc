@@ -63,7 +63,10 @@ public with sharing class IdpMappingController {
   /** Parses rawText through the named IDP_Value_Type__mdt and reports the
    *  canonical value, the grade and the rendered output. */
   @AuraEnabled
-  public static ValuePreview previewValue(String valueTypeName, String rawText) {
+  public static ValuePreview previewValue(
+    String valueTypeName,
+    String rawText
+  ) {
     try {
       IdpValueTypes.Config cfg = IdpConfigLoader.loadValueType(valueTypeName);
       if (cfg == null) {

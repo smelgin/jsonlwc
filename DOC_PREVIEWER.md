@@ -42,15 +42,15 @@ _Figure 1 — Component overview._
 ## 2. What the user sees
 
 - **Left pane** — preview of the file identified by `contentDocumentId`:
-  - **PDF** → rendered inline by a bundled PDF.js viewer (consistent across browsers/devices).
-  - **JPG / PNG / GIF** → rendered as an image.
-  - Other types → a friendly "preview not available" message.
+    - **PDF** → rendered inline by a bundled PDF.js viewer (consistent across browsers/devices).
+    - **JPG / PNG / GIF** → rendered as an image.
+    - Other types → a friendly "preview not available" message.
 - **Divider** — drag with the mouse, or focus it and use the arrow keys (accessible, clamped 20–80 %).
 - **Right pane** — the OCR JSON rendered by `c-json-form`:
-  - one textbox per **field label** (editable → renames the JSON key, order preserved),
-  - one textbox per **field value** (editable → type-preserving: numbers stay numbers, booleans stay booleans),
-  - nested objects/arrays render as indented **Group** / **List** sections,
-  - a **Save** button (configurable label) that returns the curated JSON.
+    - one textbox per **field label** (editable → renames the JSON key, order preserved),
+    - one textbox per **field value** (editable → type-preserving: numbers stay numbers, booleans stay booleans),
+    - nested objects/arrays render as indented **Group** / **List** sections,
+    - a **Save** button (configurable label) that returns the curated JSON.
 
 ![Screenshot placeholder: close-up of the right pane with a renamed key and corrected value](docs/images/file-json-review-form-detail.png)
 _Figure 2 — Editing the OCR result (placeholder)._
@@ -120,9 +120,9 @@ The component is exposed to `lightning__FlowScreen` as **File and JSON Review**.
 
 1. Upstream of the screen: call MuleSoft (e.g., via an Invocable Apex action or External Service) and put the returned JSON into a **text variable** (e.g., `varOcrJson`).
 2. Add a **Screen** element, drop **File and JSON Review** on it:
-   - **Content Document Id** ← the file's `069…` id (e.g., from `ContentDocumentLink` on `Document__c`),
-   - **Source JSON** ← `varOcrJson`,
-   - optionally **Height** / **Save Button Label**, and **Allow field names to be edited** if reviewers should be able to rename keys (off by default).
+    - **Content Document Id** ← the file's `069…` id (e.g., from `ContentDocumentLink` on `Document__c`),
+    - **Source JSON** ← `varOcrJson`,
+    - optionally **Height** / **Save Button Label**, and **Allow field names to be edited** if reviewers should be able to rename keys (off by default).
 3. After the screen: read **Modified JSON** (`jsonOutput`) into a variable and use an **Update Records** element to write it to your JSON field on `Document__c` (e.g., `Curated_Json__c`, a Long Text Area sized for your payloads).
 
 > `jsonOutput` is updated on every keystroke _and_ on Save, so it is current regardless of how the user exits the screen (Next, Finish, custom footer).
@@ -141,10 +141,10 @@ _Figure 3 — Screen Flow wiring (placeholder)._
 
 ```html
 <c-file-json-review
-  content-document-id="{documentId}"
-  json-input="{ocrJson}"
-  submit-label="Confirm extraction"
-  onjsonsubmit="{handleJsonSubmit}"
+    content-document-id="{documentId}"
+    json-input="{ocrJson}"
+    submit-label="Confirm extraction"
+    onjsonsubmit="{handleJsonSubmit}"
 ></c-file-json-review>
 ```
 

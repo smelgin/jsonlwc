@@ -113,9 +113,9 @@ public inherited sharing class IdpConfigLoader {
           querySet(mappingSetName),
           querySections(mappingSetName),
           queryRules(mappingSetName),
-          new Map<String, IdpValueTypes.Config>() // filled inside assemble via loadValueTypes
+          new Map<String, IdpValueTypes.Config>()
         )
-      );
+      ); // filled inside assemble via loadValueTypes
     }
     return cache.get(key);
   }
@@ -340,7 +340,9 @@ public inherited sharing class IdpConfigLoader {
   ) {
     if (typeConfig.kind == IdpValueTypes.KIND_REGEX) {
       try {
-        Pattern.compile(typeConfig.formatsRaw == null ? '' : typeConfig.formatsRaw);
+        Pattern.compile(
+          typeConfig.formatsRaw == null ? '' : typeConfig.formatsRaw
+        );
       } catch (Exception e) {
         issue(
           config,
@@ -470,11 +472,7 @@ public inherited sharing class IdpConfigLoader {
     return false;
   }
 
-  private static void issue(
-    SetConfig config,
-    String severity,
-    String message
-  ) {
+  private static void issue(SetConfig config, String severity, String message) {
     IdpResult.Finding finding = new IdpResult.Finding();
     finding.code = IdpResult.CODE_CONFIG_ISSUE;
     finding.severity = severity;
@@ -526,9 +524,7 @@ public inherited sharing class IdpConfigLoader {
         Record_Filter__c,
         Parent_Section__c
       FROM IDP_Section__mdt
-      WHERE
-        Mapping_Set__r.DeveloperName = :mappingSetName
-        AND Active__c = TRUE
+      WHERE Mapping_Set__r.DeveloperName = :mappingSetName AND Active__c = TRUE
       ORDER BY DeveloperName
     ]) {
       RawSection raw = new RawSection();

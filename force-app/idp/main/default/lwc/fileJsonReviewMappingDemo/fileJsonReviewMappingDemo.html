@@ -1,111 +1,117 @@
 <template>
-  <lightning-card
-    title="Document Review with Field Mapping"
-    icon-name="standard:document_reference"
-  >
-    <div class="slds-card__body_inner">
-      <c-file-json-review
-        content-document-id={contentDocumentId}
-        json-input={reviewJson}
-        edit-labels="false"
-        height={height}
-        submit-label={submitLabel}
-        onjsonsubmit={handleJsonSubmit}
-      ></c-file-json-review>
+    <lightning-card
+        title="Document Review with Field Mapping"
+        icon-name="standard:document_reference"
+    >
+        <div class="slds-card__body_inner">
+            <c-file-json-review
+                content-document-id={contentDocumentId}
+                json-input={reviewJson}
+                edit-labels="false"
+                height={height}
+                submit-label={submitLabel}
+                onjsonsubmit={handleJsonSubmit}
+            ></c-file-json-review>
 
-      <template lwc:if={busy}>
-        <div class="slds-is-relative slds-var-m-top_medium spinner-row">
-          <lightning-spinner
-            alternative-text="Running the mapping engine"
-            size="small"
-          ></lightning-spinner>
+            <template lwc:if={busy}>
+                <div class="slds-is-relative slds-var-m-top_medium spinner-row">
+                    <lightning-spinner
+                        alternative-text="Running the mapping engine"
+                        size="small"
+                    ></lightning-spinner>
+                </div>
+            </template>
+
+            <template lwc:if={hasResult}>
+                <div class="slds-var-m-top_medium">
+                    <template lwc:if={resultSummary}>
+                        <p class="slds-text-body_regular">{resultSummary}</p>
+                    </template>
+
+                    <template lwc:if={hasPlannedRows}>
+                        <table
+                            class="slds-table slds-table_bordered slds-table_cell-buffer slds-var-m-top_small"
+                        >
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col">Field</th>
+                                    <th scope="col">Current value</th>
+                                    <th scope="col">New value</th>
+                                    <th scope="col">Grade</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template for:each={plannedRows} for:item="row">
+                                    <tr key={row.key}>
+                                        <td>{row.field}</td>
+                                        <td>{row.oldValue}</td>
+                                        <td>{row.newValue}</td>
+                                        <td>{row.grade}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+
+                    <template lwc:if={isAwaitingConfirm}>
+                        <div class="slds-var-m-top_small">
+                            <lightning-button
+                                variant="brand"
+                                label="Confirm &amp; Save"
+                                onclick={handleConfirmSave}
+                                class="slds-var-m-right_x-small"
+                            ></lightning-button>
+                            <lightning-button
+                                label="Discard"
+                                onclick={handleDiscardPreview}
+                            ></lightning-button>
+                        </div>
+                    </template>
+
+                    <template lwc:if={hasMismatches}>
+                        <table
+                            class="slds-table slds-table_bordered slds-table_cell-buffer slds-var-m-top_small"
+                        >
+                            <thead>
+                                <tr class="slds-line-height_reset">
+                                    <th scope="col">Field</th>
+                                    <th scope="col">Stored value</th>
+                                    <th scope="col">Extracted value</th>
+                                    <th scope="col">Verdict</th>
+                                    <th scope="col">JSON path</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <template
+                                    for:each={mismatchRows}
+                                    for:item="row"
+                                >
+                                    <tr key={row.key}>
+                                        <td>{row.field}</td>
+                                        <td>{row.stored}</td>
+                                        <td>{row.extracted}</td>
+                                        <td>{row.outcome}</td>
+                                        <td>{row.jsonPath}</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </template>
+
+                    <template lwc:if={hasProblemFindings}>
+                        <ul class="slds-list_dotted slds-var-m-top_small">
+                            <template
+                                for:each={problemFindings}
+                                for:item="finding"
+                            >
+                                <li key={finding.key} class={finding.cssClass}>
+                                    {finding.label}
+                                </li>
+                            </template>
+                        </ul>
+                    </template>
+                </div>
+            </template>
         </div>
-      </template>
-
-      <template lwc:if={hasResult}>
-        <div class="slds-var-m-top_medium">
-          <template lwc:if={resultSummary}>
-            <p class="slds-text-body_regular">{resultSummary}</p>
-          </template>
-
-          <template lwc:if={hasPlannedRows}>
-            <table
-              class="slds-table slds-table_bordered slds-table_cell-buffer slds-var-m-top_small"
-            >
-              <thead>
-                <tr class="slds-line-height_reset">
-                  <th scope="col">Field</th>
-                  <th scope="col">Current value</th>
-                  <th scope="col">New value</th>
-                  <th scope="col">Grade</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template for:each={plannedRows} for:item="row">
-                  <tr key={row.key}>
-                    <td>{row.field}</td>
-                    <td>{row.oldValue}</td>
-                    <td>{row.newValue}</td>
-                    <td>{row.grade}</td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </template>
-
-          <template lwc:if={isAwaitingConfirm}>
-            <div class="slds-var-m-top_small">
-              <lightning-button
-                variant="brand"
-                label="Confirm &amp; Save"
-                onclick={handleConfirmSave}
-                class="slds-var-m-right_x-small"
-              ></lightning-button>
-              <lightning-button
-                label="Discard"
-                onclick={handleDiscardPreview}
-              ></lightning-button>
-            </div>
-          </template>
-
-          <template lwc:if={hasMismatches}>
-            <table
-              class="slds-table slds-table_bordered slds-table_cell-buffer slds-var-m-top_small"
-            >
-              <thead>
-                <tr class="slds-line-height_reset">
-                  <th scope="col">Field</th>
-                  <th scope="col">Stored value</th>
-                  <th scope="col">Extracted value</th>
-                  <th scope="col">Verdict</th>
-                  <th scope="col">JSON path</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template for:each={mismatchRows} for:item="row">
-                  <tr key={row.key}>
-                    <td>{row.field}</td>
-                    <td>{row.stored}</td>
-                    <td>{row.extracted}</td>
-                    <td>{row.outcome}</td>
-                    <td>{row.jsonPath}</td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </template>
-
-          <template lwc:if={hasProblemFindings}>
-            <ul class="slds-list_dotted slds-var-m-top_small">
-              <template for:each={problemFindings} for:item="finding">
-                <li key={finding.key} class={finding.cssClass}>
-                  {finding.label}
-                </li>
-              </template>
-            </ul>
-          </template>
-        </div>
-      </template>
-    </div>
-  </lightning-card>
+    </lightning-card>
 </template>

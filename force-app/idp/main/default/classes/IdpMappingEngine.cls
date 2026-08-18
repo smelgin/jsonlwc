@@ -262,9 +262,7 @@ public inherited sharing class IdpMappingEngine {
     // null) — one query per group.
     Map<String, List<DocRows>> groups = new Map<String, List<DocRows>>();
     for (DocRows docRows : allDocRows) {
-      String groupKey = docRows.lookupField == null
-        ? ''
-        : docRows.lookupField;
+      String groupKey = docRows.lookupField == null ? '' : docRows.lookupField;
       if (!groups.containsKey(groupKey)) {
         groups.put(groupKey, new List<DocRows>());
       }
@@ -423,9 +421,7 @@ public inherited sharing class IdpMappingEngine {
     }
 
     // Per-document queries only when the filter binds document values.
-    Boolean docBound = IdpFilterBinder.referencesDocument(
-      section.recordFilter
-    );
+    Boolean docBound = IdpFilterBinder.referencesDocument(section.recordFilter);
     Map<String, SObject> recordsByKey = new Map<String, SObject>();
     if (docBound) {
       for (DocRows docRows : docGroup) {
@@ -753,17 +749,16 @@ public inherited sharing class IdpMappingEngine {
           ((IIdpFindingHandler) instance).handle(report);
         } catch (Exception e) {
           failure =
-            'Finding handler "' + handlerName + '" failed: ' + e.getMessage();
+            'Finding handler "' +
+            handlerName +
+            '" failed: ' +
+            e.getMessage();
         }
       }
     }
     if (failure != null) {
       for (IdpResult.Result result : withMismatches) {
-        result.add(
-          IdpResult.CODE_HANDLER_FAILED,
-          IdpResult.SEV_ERROR,
-          failure
-        );
+        result.add(IdpResult.CODE_HANDLER_FAILED, IdpResult.SEV_ERROR, failure);
       }
     }
   }

@@ -100,31 +100,31 @@ user at all.
 
 ## Components
 
-| Component                   | Type           | Role                                                                                                       |
-| --------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------- |
-| `IDP_Mapping_Set__mdt`      | CMDT           | One use case: default mode, batch JSON source, default finding handler. Sections attach to it.             |
-| `IDP_Section__mdt`          | CMDT           | A Fixed (one record) or Repeating (one record per row) region of the document.                             |
-| `IDP_Mapping_Rule__mdt`     | CMDT           | One JSON path → one field, through an optional value type, with per-rule gates.                            |
-| `IDP_Value_Type__mdt`       | CMDT           | How one semantic kind of value (money, phone, date, …) is parsed, compared and rendered.                   |
-| `IDP_Value_Map_Entry__mdt`  | CMDT           | One document-text → stored-value pair of a ValueMap-kind value type.                                       |
-| `IDP_Country__mdt`          | CMDT           | One ISO country: dial code and decimal separator. DeveloperName is the country code.                       |
-| `IDP_Language__mdt`         | CMDT           | One ISO language: month names and decimal separator. DeveloperName is the language code.                   |
-| `IdpMappingEngine`          | Apex           | Orchestrator. `run(List<DocumentWork>, setName, mode, handler)` → `List<IdpResult.Result>`.                |
-| `IdpConfigLoader`           | Apex           | Loads and validates one set's config into DTOs; config problems degrade to findings, never throw.          |
-| `IdpContextResolver`        | Apex           | Bulk anchor resolution: one `ContentDocumentLink` query per run, grouped queries per object.               |
-| `IdpRuleEvaluator`          | Apex           | Read → parse/grade → gate → stage or compare, per rule per record.                                         |
-| `IdpDmlExecutor`            | Apex           | Accumulates every write of the run; one partial-success update, FLS-stripped, outcomes mapped per document.|
-| `IdpJsonReader`             | Apex           | Dot-path JSON reads, confidence-envelope aware (`{"value": …, "confidence": 0.93}`).                       |
-| `IdpFilterBinder`           | Apex           | Binds `{json:…}` / `{row:…}` tokens in filters and key templates — values are bound, never concatenated.   |
-| `IdpSchemaCache`            | Apex           | All describe access, cached; lookup discovery between objects. No `Schema.getGlobalDescribe()`.            |
-| `IValueType` / `IdpValueTypes` / `IdpTypeRegistry` | Apex | The value type contract, the eight built-ins, and resolution (built-in by Kind, custom by class name). |
-| `IdpLocaleData`             | Apex           | Dial codes, decimal separators and month names, read from the two tables above and cached per transaction. |
-| `IdpMappingInvocable`       | Apex           | `Apply IDP Mapping Set` action for Flows — genuinely bulk: 50 interviews share one engine run.             |
-| `IdpMappingController`      | Apex           | `apply` / `preview` / `previewValue` for LWCs.                                                             |
-| `IdpBatchProcessor`         | Apex           | Batchable over records holding stored JSON (`JSON_Source_Field__c`).                                       |
-| `IIdpFindingHandler`        | Apex interface | Custom reaction to a run's findings; `IdpComplianceTaskHandler` is the bundled sample.                     |
-| `IdpLimitsGuard`            | Apex           | Defers documents cleanly when governor headroom runs out.                                                  |
-| `fileJsonReviewMappingDemo` | LWC            | Example host wiring `fileJsonReview` to the engine, with the Preview step.                                 |
+| Component                                          | Type           | Role                                                                                                        |
+| -------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------- |
+| `IDP_Mapping_Set__mdt`                             | CMDT           | One use case: default mode, batch JSON source, default finding handler. Sections attach to it.              |
+| `IDP_Section__mdt`                                 | CMDT           | A Fixed (one record) or Repeating (one record per row) region of the document.                              |
+| `IDP_Mapping_Rule__mdt`                            | CMDT           | One JSON path → one field, through an optional value type, with per-rule gates.                             |
+| `IDP_Value_Type__mdt`                              | CMDT           | How one semantic kind of value (money, phone, date, …) is parsed, compared and rendered.                    |
+| `IDP_Value_Map_Entry__mdt`                         | CMDT           | One document-text → stored-value pair of a ValueMap-kind value type.                                        |
+| `IDP_Country__mdt`                                 | CMDT           | One ISO country: dial code and decimal separator. DeveloperName is the country code.                        |
+| `IDP_Language__mdt`                                | CMDT           | One ISO language: month names and decimal separator. DeveloperName is the language code.                    |
+| `IdpMappingEngine`                                 | Apex           | Orchestrator. `run(List<DocumentWork>, setName, mode, handler)` → `List<IdpResult.Result>`.                 |
+| `IdpConfigLoader`                                  | Apex           | Loads and validates one set's config into DTOs; config problems degrade to findings, never throw.           |
+| `IdpContextResolver`                               | Apex           | Bulk anchor resolution: one `ContentDocumentLink` query per run, grouped queries per object.                |
+| `IdpRuleEvaluator`                                 | Apex           | Read → parse/grade → gate → stage or compare, per rule per record.                                          |
+| `IdpDmlExecutor`                                   | Apex           | Accumulates every write of the run; one partial-success update, FLS-stripped, outcomes mapped per document. |
+| `IdpJsonReader`                                    | Apex           | Dot-path JSON reads, confidence-envelope aware (`{"value": …, "confidence": 0.93}`).                        |
+| `IdpFilterBinder`                                  | Apex           | Binds `{json:…}` / `{row:…}` tokens in filters and key templates — values are bound, never concatenated.    |
+| `IdpSchemaCache`                                   | Apex           | All describe access, cached; lookup discovery between objects. No `Schema.getGlobalDescribe()`.             |
+| `IValueType` / `IdpValueTypes` / `IdpTypeRegistry` | Apex           | The value type contract, the eight built-ins, and resolution (built-in by Kind, custom by class name).      |
+| `IdpLocaleData`                                    | Apex           | Dial codes, decimal separators and month names, read from the two tables above and cached per transaction.  |
+| `IdpMappingInvocable`                              | Apex           | `Apply IDP Mapping Set` action for Flows — genuinely bulk: 50 interviews share one engine run.              |
+| `IdpMappingController`                             | Apex           | `apply` / `preview` / `previewValue` for LWCs.                                                              |
+| `IdpBatchProcessor`                                | Apex           | Batchable over records holding stored JSON (`JSON_Source_Field__c`).                                        |
+| `IIdpFindingHandler`                               | Apex interface | Custom reaction to a run's findings; `IdpComplianceTaskHandler` is the bundled sample.                      |
+| `IdpLimitsGuard`                                   | Apex           | Defers documents cleanly when governor headroom runs out.                                                   |
+| `fileJsonReviewMappingDemo`                        | LWC            | Example host wiring `fileJsonReview` to the engine, with the Preview step.                                  |
 
 All CMDT references are **metadata relationships** — sections point at real
 `EntityDefinition` records, rules pick their `Target_Field__c` from a
@@ -135,13 +135,13 @@ records. A typo'd object or field name cannot deploy, and renames follow.
 
 ### `IDP_Mapping_Set__mdt` — the use case
 
-| Field                  | Meaning                                                                                                  |
-| ---------------------- | -------------------------------------------------------------------------------------------------------- |
-| `Default_Mode__c`      | `Extraction` or `Compliance` when the caller passes no mode.                                             |
-| `JSON_Source_Field__c` | `Object.Field` of the long-text field holding raw JSON for batch runs, e.g. `Document__c.Extracted_JSON__c`. |
-| `Processed_Marker_Field__c` | Datetime field on the same object; makes the batch idempotent (see Batch below).                    |
-| `Finding_Handler__c`   | Default `IIdpFindingHandler` class; a caller-supplied name overrides it.                                 |
-| `Active__c`            | Untick to disable the whole set.                                                                         |
+| Field                       | Meaning                                                                                                      |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `Default_Mode__c`           | `Extraction` or `Compliance` when the caller passes no mode.                                                 |
+| `JSON_Source_Field__c`      | `Object.Field` of the long-text field holding raw JSON for batch runs, e.g. `Document__c.Extracted_JSON__c`. |
+| `Processed_Marker_Field__c` | Datetime field on the same object; makes the batch idempotent (see Batch below).                             |
+| `Finding_Handler__c`        | Default `IIdpFindingHandler` class; a caller-supplied name overrides it.                                     |
+| `Active__c`                 | Untick to disable the whole set.                                                                             |
 
 The engine is called with the set's **DeveloperName**.
 
@@ -150,33 +150,33 @@ The engine is called with the set's **DeveloperName**.
 Every rule belongs to a section (the v1 standalone-rule shape is gone — a
 single record is just a Fixed section).
 
-| Field               | Meaning                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------- |
-| `Mapping_Set__c`    | The parent set (relationship).                                                                |
-| `Section_Type__c`   | `Fixed` (one record) or `Repeating` (one record per row).                                     |
-| `Target_Object__c`  | EntityDefinition relationship; attached rules inherit it.                                     |
-| `Row_Path__c`       | Repeating only: JSON path to the array of rows.                                               |
-| `Match_Field__c`    | Repeating only: FieldDefinition of the field a row is identified by (any queryable field).    |
-| `Match_Value__c`    | Repeating only: template producing each row's key (tokens below).                             |
-| `Record_Filter__c`  | Optional extra WHERE fragment. Supersedes a rule's `Anchor_Filter__c`.                        |
-| `Parent_Section__c` | Section whose record constrains this one's rows. Blank discovers the parent from the schema.  |
-| `Active__c`         | Disables the section and every rule on it.                                                    |
+| Field               | Meaning                                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `Mapping_Set__c`    | The parent set (relationship).                                                               |
+| `Section_Type__c`   | `Fixed` (one record) or `Repeating` (one record per row).                                    |
+| `Target_Object__c`  | EntityDefinition relationship; attached rules inherit it.                                    |
+| `Row_Path__c`       | Repeating only: JSON path to the array of rows.                                              |
+| `Match_Field__c`    | Repeating only: FieldDefinition of the field a row is identified by (any queryable field).   |
+| `Match_Value__c`    | Repeating only: template producing each row's key (tokens below).                            |
+| `Record_Filter__c`  | Optional extra WHERE fragment. Supersedes a rule's `Anchor_Filter__c`.                       |
+| `Parent_Section__c` | Section whose record constrains this one's rows. Blank discovers the parent from the schema. |
+| `Active__c`         | Disables the section and every rule on it.                                                   |
 
 ### `IDP_Mapping_Rule__mdt` — one field
 
-| Field                 | Meaning                                                                                                     |
-| --------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `Section__c`          | The section (relationship, required).                                                                       |
-| `JSON_Path__c`        | Dot path, `[n]` for indexes. Relative to the row inside a Repeating section.                                |
-| `Target_Object__c` / `Target_Field__c` | Entity/FieldDefinition pair. The object must match the section's; the loader reports a config issue otherwise. |
-| `Value_Type__c`       | Optional relationship to an `IDP_Value_Type__mdt`. Blank auto-derives a **strict** type from the field: Number for numeric fields, ISO Date for dates, Phone for phones, Text otherwise. |
-| `Mode__c`             | Per-rule override (`Extraction`/`Compliance`), so one set can extract some fields while verifying others.   |
-| `Overwrite_Policy__c` | `Always` or `Only if blank`. Extraction only.                                                               |
-| `Min_Grade__c`        | Lowest parse grade allowed to write: `Exact` blocks heuristic parses; the default `Inferred` blocks only Ambiguous. |
-| `Min_Confidence__c`   | 0–1 gate against the JSON's confidence envelopes (below).                                                   |
-| `Required__c`         | A document lacking this path produces an error finding instead of a silent skip.                            |
-| `Anchor_Filter__c`    | Optional filter narrowing which record the target resolves to.                                              |
-| `Active__c`           | Untick to disable the rule.                                                                                 |
+| Field                                  | Meaning                                                                                                                                                                                  |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Section__c`                           | The section (relationship, required).                                                                                                                                                    |
+| `JSON_Path__c`                         | Dot path, `[n]` for indexes. Relative to the row inside a Repeating section.                                                                                                             |
+| `Target_Object__c` / `Target_Field__c` | Entity/FieldDefinition pair. The object must match the section's; the loader reports a config issue otherwise.                                                                           |
+| `Value_Type__c`                        | Optional relationship to an `IDP_Value_Type__mdt`. Blank auto-derives a **strict** type from the field: Number for numeric fields, ISO Date for dates, Phone for phones, Text otherwise. |
+| `Mode__c`                              | Per-rule override (`Extraction`/`Compliance`), so one set can extract some fields while verifying others.                                                                                |
+| `Overwrite_Policy__c`                  | `Always` or `Only if blank`. Extraction only.                                                                                                                                            |
+| `Min_Grade__c`                         | Lowest parse grade allowed to write: `Exact` blocks heuristic parses; the default `Inferred` blocks only Ambiguous.                                                                      |
+| `Min_Confidence__c`                    | 0–1 gate against the JSON's confidence envelopes (below).                                                                                                                                |
+| `Required__c`                          | A document lacking this path produces an error finding instead of a silent skip.                                                                                                         |
+| `Anchor_Filter__c`                     | Optional filter narrowing which record the target resolves to.                                                                                                                           |
+| `Active__c`                            | Untick to disable the rule.                                                                                                                                                              |
 
 ## Value types
 
@@ -184,10 +184,14 @@ A value type answers four questions about one semantic kind of value:
 
 ```apex
 public interface IValueType {
-  IdpValueTypes.ParseResult parse(Object raw, IdpValueTypes.Config cfg);   // document → typed value + Grade
-  Object canonical(Object value, IdpValueTypes.Config cfg);                // EITHER side → comparable form
-  IdpResult.CompareOutcome compare(Object extracted, Object stored, IdpValueTypes.Config cfg); // MATCH | NEAR | MISMATCH
-  String render(Object canonicalValue, IdpValueTypes.Config cfg);          // canonical → stored/displayed text
+    IdpValueTypes.ParseResult parse(Object raw, IdpValueTypes.Config cfg); // document → typed value + Grade
+    Object canonical(Object value, IdpValueTypes.Config cfg); // EITHER side → comparable form
+    IdpResult.CompareOutcome compare(
+        Object extracted,
+        Object stored,
+        IdpValueTypes.Config cfg
+    ); // MATCH | NEAR | MISMATCH
+    String render(Object canonicalValue, IdpValueTypes.Config cfg); // canonical → stored/displayed text
 }
 ```
 
@@ -195,12 +199,12 @@ public interface IValueType {
 
 Every parse carries a grade the engine acts on:
 
-| Grade       | Meaning                                                | Default behaviour                                        |
-| ----------- | ------------------------------------------------------ | -------------------------------------------------------- |
-| `Exact`     | Deterministic reading.                                 | Writes.                                                  |
-| `Inferred`  | A documented heuristic decided (note says which).      | Writes, unless the rule demands `Min_Grade__c = Exact`.  |
-| `Ambiguous` | More than one legitimate reading (`03/04/2024`).       | **Never writes** — reported with every interpretation.   |
-| `Failed`    | No reading at all.                                     | Error finding.                                           |
+| Grade       | Meaning                                           | Default behaviour                                       |
+| ----------- | ------------------------------------------------- | ------------------------------------------------------- |
+| `Exact`     | Deterministic reading.                            | Writes.                                                 |
+| `Inferred`  | A documented heuristic decided (note says which). | Writes, unless the rule demands `Min_Grade__c = Exact`. |
+| `Ambiguous` | More than one legitimate reading (`03/04/2024`).  | **Never writes** — reported with every interpretation.  |
+| `Failed`    | No reading at all.                                | Error finding.                                          |
 
 This is the successor to v1's silent regex-stripping, which read
 `ZAR 100,00` as `10000`. v2 parses that as exactly `100` — and where a value
@@ -208,17 +212,17 @@ genuinely cannot be decided, it says so instead of picking.
 
 ### Built-in kinds (`Kind__c`)
 
-| Kind       | Behaviour                                                                                                                                                                                                          | Config it reads |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
-| `Text`     | Trimmed; compares whitespace-collapsed and case-insensitively.                                                                                                                                                     | —               |
-| `Number`   | Money and plain numbers: both separator conventions, `(…)`, trailing `-` and `CR`/`DR` negatives, "in thousands" scaling. Both separators present → last one is the decimal (Exact). A single separator is Exact with a `Locale__c`, graded heuristic without. **Currency is captured, not stripped**: an ISO code or unambiguous symbol next to the amount becomes the parse's `currencyCode`; a stated currency that disagrees with `Currency__c` fails the parse; ambiguous symbols (`$`, `¥`, `kr`) are never guessed — declare `Currency__c` instead. In a multi-currency org a value denominated differently from the record's `CurrencyIsoCode` is refused (`CURRENCY_MISMATCH`) rather than written or "confirmed". | `Locale__c`, `Currency__c`, `Scale_Factor__c`, `Compare_Tolerance__c` |
-| `Date`     | Ordered `Formats__c` pattern list (`dd/MM/yyyy\|d MMMM yyyy\|yyyy-MM-dd`); month names are read in `Locale__c`'s language (below); text in `'single quotes'` is literal, so `d 'de' MMMM 'de' yyyy` reads a Romance long date; components are range-checked (31/02 fails); two patterns reading differently → Ambiguous. | `Formats__c`, `Locale__c`, `Pivot_Year__c`, `Output_Format__c`, `Compare_Tolerance__c` (days) |
-| `Datetime` | ISO 8601. An explicit offset is Exact; a naive timestamp is read in `Timezone__c` (Exact) or as GMT (Inferred, flagged).                                                                                            | `Timezone__c`, `Compare_Tolerance__c` (minutes) |
-| `Boolean`  | true/yes/y/1, false/no/n/0.                                                                                                                                                                                        | —               |
-| `Phone`    | Canonical E.164: `+27 82 123 4567`, `0027…` and — with `Region__c = ZA` — `082 123 4567` all become `+27821234567`. Renders `e164` (default), `national` or `digits`.                                              | `Region__c`, `Output_Format__c` |
-| `ValueMap` | Admin dictionary: `IDP_Value_Map_Entry__mdt` records translate document wording into stored values ("Pty Ltd" → `Private Company`), matched Exact, Normalized or Regex. Unmapped input fails loudly.               | its map entries |
-| `Regex`    | Extracts the first capturing group of the pattern in `Formats__c` (used unsplit, so `\|` alternations work).                                                                                                       | `Formats__c`    |
-| `Custom`   | Your Apex class implementing `IValueType`, named in `Handler_Class__c`, resolved with `Type.forName`. `Custom_Options__c` JSON is passed through.                                                                   | `Handler_Class__c`, `Custom_Options__c` |
+| Kind       | Behaviour                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Config it reads                                                                               |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `Text`     | Trimmed; compares whitespace-collapsed and case-insensitively.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | —                                                                                             |
+| `Number`   | Money and plain numbers: both separator conventions, `(…)`, trailing `-` and `CR`/`DR` negatives, "in thousands" scaling. Both separators present → last one is the decimal (Exact). A single separator is Exact with a `Locale__c`, graded heuristic without. **Currency is captured, not stripped**: an ISO code or unambiguous symbol next to the amount becomes the parse's `currencyCode`; a stated currency that disagrees with `Currency__c` fails the parse; ambiguous symbols (`$`, `¥`, `kr`) are never guessed — declare `Currency__c` instead. In a multi-currency org a value denominated differently from the record's `CurrencyIsoCode` is refused (`CURRENCY_MISMATCH`) rather than written or "confirmed". | `Locale__c`, `Currency__c`, `Scale_Factor__c`, `Compare_Tolerance__c`                         |
+| `Date`     | Ordered `Formats__c` pattern list (`dd/MM/yyyy\|d MMMM yyyy\|yyyy-MM-dd`); month names are read in `Locale__c`'s language (below); text in `'single quotes'` is literal, so `d 'de' MMMM 'de' yyyy` reads a Romance long date; components are range-checked (31/02 fails); two patterns reading differently → Ambiguous.                                                                                                                                                                                                                                                                                                                                                                                                    | `Formats__c`, `Locale__c`, `Pivot_Year__c`, `Output_Format__c`, `Compare_Tolerance__c` (days) |
+| `Datetime` | ISO 8601. An explicit offset is Exact; a naive timestamp is read in `Timezone__c` (Exact) or as GMT (Inferred, flagged).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `Timezone__c`, `Compare_Tolerance__c` (minutes)                                               |
+| `Boolean`  | true/yes/y/1, false/no/n/0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | —                                                                                             |
+| `Phone`    | Canonical E.164: `+27 82 123 4567`, `0027…` and — with `Region__c = ZA` — `082 123 4567` all become `+27821234567`. Renders `e164` (default), `national` or `digits`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `Region__c`, `Output_Format__c`                                                               |
+| `ValueMap` | Admin dictionary: `IDP_Value_Map_Entry__mdt` records translate document wording into stored values ("Pty Ltd" → `Private Company`), matched Exact, Normalized or Regex. Unmapped input fails loudly.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | its map entries                                                                               |
+| `Regex`    | Extracts the first capturing group of the pattern in `Formats__c` (used unsplit, so `\|` alternations work).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `Formats__c`                                                                                  |
+| `Custom`   | Your Apex class implementing `IValueType`, named in `Handler_Class__c`, resolved with `Type.forName`. `Custom_Options__c` JSON is passed through.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `Handler_Class__c`, `Custom_Options__c`                                                       |
 
 Declare the document's formatting **once** on a value type record and point
 rules at it — not per rule, and not in code.
@@ -227,13 +231,13 @@ rules at it — not per rule, and not in code.
 
 Two org-wide reference tables, not per-mapping-set config — which is why they
 are documented here, beside the `Region__c` and `Locale__c` fields that reach
-them, rather than under *Configuring a mapping set*. Onboarding a market is a
+them, rather than under _Configuring a mapping set_. Onboarding a market is a
 record, not a release.
 
 **Symptoms that send you here:** amounts parsing `Inferred` with a note asking
 for a Locale; long-form dates failing in a non-English document; phone numbers
-staying as digits instead of becoming `+…`; a config issue reading *"has
-unknown Region"* or *"has unrecognized Locale"*.
+staying as digits instead of becoming `+…`; a config issue reading _"has
+unknown Region"_ or _"has unrecognized Locale"_.
 
 #### `IDP_Country__mdt` — one country
 
@@ -241,27 +245,27 @@ DeveloperName **is** the ISO 3166-1 alpha-2 code, uppercase: `ZA`, `DE`, `PL`.
 Nothing else looks it up, so a typo here is a country that silently does not
 exist.
 
-| Field                  | Meaning                                                                                                                                   |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `MasterLabel`          | The country's name, for humans. Never read by the engine.                                                                                 |
+| Field                  | Meaning                                                                                                                                               |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MasterLabel`          | The country's name, for humans. Never read by the engine.                                                                                             |
 | `Dial_Code__c`         | E.164 calling code, digits only, **no `+`** — `27`, `49`, `48`. Reached by a Phone value type's `Region__c`. Blank leaves national numbers as digits. |
-| `Decimal_Separator__c` | `,` or `.` — what this country prints between units and cents. Beats the language (below). Blank falls through to the language.            |
+| `Decimal_Separator__c` | `,` or `.` — what this country prints between units and cents. Beats the language (below). Blank falls through to the language.                       |
 
 #### `IDP_Language__mdt` — one language
 
 DeveloperName **is** the ISO 639-1 code, lowercase: `en`, `pt`, `pl`.
 
-| Field                  | Meaning                                                                                                                        |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `MasterLabel`          | The language's name, for humans. Never read by the engine.                                                                     |
-| `Decimal_Separator__c` | `,` or `.` — used when `Locale__c` names no country, or names one with no separator of its own.                                 |
+| Field                  | Meaning                                                                                                                                                                                        |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MasterLabel`          | The language's name, for humans. Never read by the engine.                                                                                                                                     |
+| `Decimal_Separator__c` | `,` or `.` — used when `Locale__c` names no country, or names one with no separator of its own.                                                                                                |
 | `Month_Names__c`       | Twelve `\|`-separated months, **January first**. Each may list `,`-separated spellings, the first canonical. Blank means this language cannot read `MMM`/`MMMM`, and it falls back to English. |
 
 #### How a value type reaches them
 
-| Value type field | Resolves to                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------- |
-| `Region__c`      | `IDP_Country__mdt.Dial_Code__c`. One country code, e.g. `ZA`.                                    |
+| Value type field | Resolves to                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `Region__c`      | `IDP_Country__mdt.Dial_Code__c`. One country code, e.g. `ZA`.                                                        |
 | `Locale__c`      | A `language[-COUNTRY]` tag, e.g. `pl`, `pl-PL`, `de-CH`. Supplies the decimal separator and the month-name language. |
 
 **The country subtag wins** for the separator: `de-CH` reads Swiss dot decimals
@@ -279,7 +283,7 @@ Januar|Februar|März,Maerz,Mrz|April|Mai|Juni|Juli|August|September|Oktober|Nove
 ```
 
 - Accents fold, so `März` already matches `MARZ` and `marz` — **no `Marz` alias
-  needed**. `Maerz` *is* needed: it is a different spelling, not an accent.
+  needed**. `Maerz` _is_ needed: it is a different spelling, not an accent.
 - Three-letter abbreviations that are prefixes come free: `Mar`, `Dez`, `Jun`.
   Only list an abbreviation that is **not** a prefix of the name — German `Mrz`.
 - List inflected forms that are not prefixes either — Polish genitive
@@ -297,9 +301,9 @@ Januar|Februar|März,Maerz,Mrz|April|Mai|Juni|Juli|August|September|Oktober|Nove
    `Decimal_Separator__c` = `,`.
 2. **Add the language**, if it is not already seeded. IDP Language → New. Label
    `Polish`, Name `pl`, `Decimal_Separator__c` = `,`, and `Month_Names__c`:
-   ```
-   styczeń,stycznia|luty,lutego|marzec,marca|kwiecień,kwietnia|maj,maja|czerwiec,czerwca|lipiec,lipca|sierpień,sierpnia|wrzesień,września|październik,października|listopad,listopada|grudzień,grudnia
-   ```
+    ```
+    styczeń,stycznia|luty,lutego|marzec,marca|kwiecień,kwietnia|maj,maja|czerwiec,czerwca|lipiec,lipca|sierpień,sierpnia|wrzesień,września|październik,października|listopad,listopada|grudzień,grudnia
+    ```
 3. **Point a value type at it.** On your Date value type set `Locale__c` = `pl`
    and add a pattern such as `d MMMM yyyy`; on your Number value type set
    `Locale__c` = `pl-PL`; on your Phone value type set `Region__c` = `PL`.
@@ -324,7 +328,7 @@ change, the script to keep one.
 
 Deliberately **not** Java locale data: `Datetime.parse` resolves against the
 running user's locale, so the same document would read differently depending on
-who ran the job. A value type names the locale of the *document*, and that is
+who ran the job. A value type names the locale of the _document_, and that is
 the only locale consulted.
 
 Rendering is **not** localised — `Output_Format__c` produces English month names
@@ -340,8 +344,8 @@ surface as a quietly degraded parse.
 
 `IdpMappingController.previewValue(valueTypeName, rawText)` parses sample text
 through a value type and returns the canonical value, the grade, the note and
-the rendered output — the difference between config being *configurable* and
-being *fiddly*.
+the rendered output — the difference between config being _configurable_ and
+being _fiddly_.
 
 ### Confidence envelopes
 
@@ -353,7 +357,7 @@ reported (`LOW_CONFIDENCE`) instead of written.
 
 ## Compliance: three-state, both sides canonicalized
 
-v1 compared the *parsed document value* against the *raw stored value*, so a
+v1 compared the _parsed document value_ against the _raw stored value_, so a
 stored `0821234567` mismatched a document's `+27 82 123 4567` forever. v2 runs
 **both sides** through the value type's `canonical()` before comparing, and
 the verdict has three states:
@@ -377,8 +381,8 @@ instantiates it via `Type.forName`:
 
 ```apex
 public interface IIdpFindingHandler {
-  void handle(IdpResult.RunReport report);
-  // report: mappingSetName, mode, every document's full Result
+    void handle(IdpResult.RunReport report);
+    // report: mappingSetName, mode, every document's full Result
 }
 ```
 
@@ -469,19 +473,19 @@ noteworthy event is a **Finding** with a machine-readable code, a severity
 and a human message, plus whatever context applies (object, record, field,
 JSON path, section, row, raw/extracted/stored values, grade, confidence):
 
-| Code                                        | Severity | Meaning                                                    |
-| ------------------------------------------- | -------- | ---------------------------------------------------------- |
-| `CONFIG_ISSUE`                              | Warn/Err | A rule or section was disabled by validation; the set ran without it. |
-| `JSON_INVALID`, `INVALID_INPUT`, `INVALID_MODE` | Error | The document or call could not be processed.               |
-| `UNREACHABLE_TARGET`, `UNKNOWN_FIELD`       | Error    | Schema problems, reported per section / rule.              |
-| `REQUIRED_MISSING`                          | Error    | A `Required__c` path is absent from the document.          |
-| `PARSE_FAILED` / `PARSE_AMBIGUOUS` / `BELOW_MIN_GRADE` / `LOW_CONFIDENCE` | Err/Warn | The value could not be used; the finding says exactly why. |
-| `PICKLIST_INVALID`                          | Error    | Not an active value of a restricted picklist.              |
-| `CURRENCY_MISMATCH`                         | Error    | The document's currency disagrees with the record's `CurrencyIsoCode`. |
-| `VALUE_MISMATCH` / `VALUE_NEAR`             | Warning  | Compliance verdicts.                                       |
-| `ROW_UNMATCHED` / `ROW_DUPLICATE_KEY` / `ROW_LOOKUP_FAILED` | Info/Err | Repeating-section row outcomes.                            |
-| `FLS_BLOCKED`, `DML_FAILED`, `HANDLER_FAILED` | Error  | Write-side problems, attributed to the documents involved. |
-| `DOC_DEFERRED`                              | Error    | The limits guard postponed this document — rerun it.       |
+| Code                                                                      | Severity | Meaning                                                                |
+| ------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------- |
+| `CONFIG_ISSUE`                                                            | Warn/Err | A rule or section was disabled by validation; the set ran without it.  |
+| `JSON_INVALID`, `INVALID_INPUT`, `INVALID_MODE`                           | Error    | The document or call could not be processed.                           |
+| `UNREACHABLE_TARGET`, `UNKNOWN_FIELD`                                     | Error    | Schema problems, reported per section / rule.                          |
+| `REQUIRED_MISSING`                                                        | Error    | A `Required__c` path is absent from the document.                      |
+| `PARSE_FAILED` / `PARSE_AMBIGUOUS` / `BELOW_MIN_GRADE` / `LOW_CONFIDENCE` | Err/Warn | The value could not be used; the finding says exactly why.             |
+| `PICKLIST_INVALID`                                                        | Error    | Not an active value of a restricted picklist.                          |
+| `CURRENCY_MISMATCH`                                                       | Error    | The document's currency disagrees with the record's `CurrencyIsoCode`. |
+| `VALUE_MISMATCH` / `VALUE_NEAR`                                           | Warning  | Compliance verdicts.                                                   |
+| `ROW_UNMATCHED` / `ROW_DUPLICATE_KEY` / `ROW_LOOKUP_FAILED`               | Info/Err | Repeating-section row outcomes.                                        |
+| `FLS_BLOCKED`, `DML_FAILED`, `HANDLER_FAILED`                             | Error    | Write-side problems, attributed to the documents involved.             |
+| `DOC_DEFERRED`                                                            | Error    | The limits guard postponed this document — rerun it.                   |
 
 Convenience on the Result: `success` (no Error findings), `compliant` (no
 mismatches), `deferred`, counters (`fieldsApplied`, `fieldsCompared`,
@@ -545,13 +549,13 @@ clear the marker on the records you want redone.
 1. Add a screen element hosting **fileJsonReview**, giving it the
    `contentDocumentId` and the `jsonInput` from your OCR/IDP response.
 2. Follow it with the **Apply IDP Mapping Set** action:
-   - _Content Document Id_ → the same `contentDocumentId` (or _Record Id_ to
-     seed from a record instead)
-   - _JSON String_ → the screen component's `jsonOutput`
-   - _Mapping Set Name_ → e.g. `Estate_Intake`
-   - _Mode_ → blank inherits the set's default; `Extraction`, `Compliance` or
-     `Preview`
-   - _Finding Handler Class_ → optional override of the set's default
+    - _Content Document Id_ → the same `contentDocumentId` (or _Record Id_ to
+      seed from a record instead)
+    - _JSON String_ → the screen component's `jsonOutput`
+    - _Mapping Set Name_ → e.g. `Estate_Intake`
+    - _Mode_ → blank inherits the set's default; `Extraction`, `Compliance` or
+      `Preview`
+    - _Finding Handler Class_ → optional override of the set's default
 3. Branch on `success` and `compliant`; show `findings` (or just the
    Error-severity ones) and, for repeating sections, `rowsMatched` /
    `unmatchedRowKeys` on a result screen.
@@ -565,8 +569,8 @@ run.
 `c-file-json-review` and, on submit, previews first:
 
 ```js
-import apply from "@salesforce/apex/IdpMappingController.apply";
-import preview from "@salesforce/apex/IdpMappingController.preview";
+import apply from '@salesforce/apex/IdpMappingController.apply';
+import preview from '@salesforce/apex/IdpMappingController.preview';
 
 // 1. preview() → show result.plannedChanges (old → new, per-field grade)
 // 2. user confirms → apply() with the same JSON
@@ -586,7 +590,7 @@ appears under the review pane.
 - **A new document format** usually needs no new config either — add the
   format to the relevant value type's `Formats__c` list or its value map.
 - **A new value semantics** means one `IDP_Value_Type__mdt` record — and only
-  for genuinely new *behaviour* an Apex class implementing `IValueType`
+  for genuinely new _behaviour_ an Apex class implementing `IValueType`
   (Kind = Custom). The engine does not change.
 - **A new finding reaction** means implementing `IIdpFindingHandler`, using
   `IdpComplianceTaskHandler` or the loan-offer example's handler as a
@@ -603,7 +607,7 @@ sample PDF and deployment commands:
 
 | Example                                                                               | Mode       | Adds                                                                        |
 | ------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------- |
-| [Business Account Opening](force-app/idp/examples/business-account-opening/README.md) | Extraction | Fixed sections, `Only if blank`, date/money/phone value types, a value map |
+| [Business Account Opening](force-app/idp/examples/business-account-opening/README.md) | Extraction | Fixed sections, `Only if blank`, date/money/phone value types, a value map  |
 | [Consolidated Statement](force-app/idp/examples/consolidated-statement/README.md)     | Extraction | A repeating detail band, `Parent_Section__c`, `Record_Filter__c`, **batch** |
 | [Loan Offer Compliance](force-app/idp/examples/loan-offer-compliance/README.md)       | Compliance | Set-level defaults, Near verdicts, a custom `IIdpFindingHandler`            |
 | [Letters of Executorship](force-app/idp/examples/letters-of-executorship/README.md)   | Extraction | A custom object via child hop, Regex value type, `Required__c`              |

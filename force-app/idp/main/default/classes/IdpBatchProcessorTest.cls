@@ -181,7 +181,7 @@ private class IdpBatchProcessorTest {
       Assert.isTrue(
         processed.LastName.startsWith('Person'),
         'the rerun must not have applied the changed JSON: ' +
-          processed.LastName
+        processed.LastName
       );
     }
   }

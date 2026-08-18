@@ -128,7 +128,11 @@ private class IdpConfigLoaderTest {
 
   @IsTest
   static void unknownParentSectionIsDropped() {
-    IdpConfigLoader.RawSection lines = rawSection('Lines', 'Repeating', 'Asset');
+    IdpConfigLoader.RawSection lines = rawSection(
+      'Lines',
+      'Repeating',
+      'Asset'
+    );
     lines.rowPath = 'Details';
     lines.matchField = 'SerialNumber';
     lines.matchValue = '{row:number}';
@@ -188,9 +192,7 @@ private class IdpConfigLoaderTest {
       new Map<String, IdpValueTypes.Config>{ 'Broken_Custom' => custom }
     );
     Assert.areEqual(0, config.sections[0].rules.size());
-    Assert.isTrue(
-      config.issues[0].message.contains('DoesNotExistAnywhere')
-    );
+    Assert.isTrue(config.issues[0].message.contains('DoesNotExistAnywhere'));
   }
 
   @IsTest

@@ -759,7 +759,12 @@ private class IdpValueTypesTest {
     );
 
     try {
-      IdpValueTypes.coerceForField(revenue, 'not a number', numberType, numberCfg);
+      IdpValueTypes.coerceForField(
+        revenue,
+        'not a number',
+        numberType,
+        numberCfg
+      );
       Assert.fail('expected a TypeException');
     } catch (IdpValueTypes.TypeException e) {
       Assert.isTrue(e.getMessage().contains('AnnualRevenue'));

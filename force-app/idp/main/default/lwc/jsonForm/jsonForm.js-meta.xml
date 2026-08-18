@@ -28,6 +28,54 @@
                 role="inputOnly"
             />
             <property
+                name="editStructure"
+                type="Boolean"
+                label="Allow fields to be added and deleted"
+                default="false"
+                description="When on, the user can add fields, list items and groups, and delete any of them. Deleting a group with contents asks for confirmation."
+                role="inputOnly"
+            />
+            <property
+                name="collapsible"
+                type="Boolean"
+                label="Allow groups to be collapsed"
+                default="false"
+                description="When on, groups and lists get an expand/collapse chevron plus Expand all and Collapse all buttons."
+                role="inputOnly"
+            />
+            <property
+                name="searchable"
+                type="Boolean"
+                label="Show a search box"
+                default="false"
+                description="When on, a search box filters the form by field name or value, keeping matches in the context of their parent groups."
+                role="inputOnly"
+            />
+            <property
+                name="showConfidence"
+                type="Boolean"
+                label="Show extraction confidence"
+                default="false"
+                description="When on, {value, confidence} envelopes are unwrapped so the field shows its value, with the confidence as a badge. The envelope is restored in the output JSON."
+                role="inputOnly"
+            />
+            <property
+                name="confidenceThreshold"
+                type="String"
+                label="Low confidence below"
+                default="0.8"
+                description="Confidence under which the badge turns red. Accepts a fraction (0.8) or a percentage (80). Only used when Show extraction confidence is on."
+                role="inputOnly"
+            />
+            <property
+                name="validateTypes"
+                type="Boolean"
+                label="Flag values of the wrong type"
+                default="false"
+                description="When on, a value that no longer parses as the type it was loaded as (number, true/false) is outlined in red with a message."
+                role="inputOnly"
+            />
+            <property
                 name="jsonOutput"
                 type="String"
                 label="Modified JSON"
@@ -48,6 +96,48 @@
                 label="Allow field names to be edited"
                 default="false"
                 description="When off, field names render as plain text and only the values can be edited."
+            />
+            <property
+                name="editStructure"
+                type="Boolean"
+                label="Allow fields to be added and deleted"
+                default="false"
+                description="When on, the user can add fields, list items and groups, and delete any of them. Deleting a group with contents asks for confirmation."
+            />
+            <property
+                name="collapsible"
+                type="Boolean"
+                label="Allow groups to be collapsed"
+                default="false"
+                description="When on, groups and lists get an expand/collapse chevron plus Expand all and Collapse all buttons."
+            />
+            <property
+                name="searchable"
+                type="Boolean"
+                label="Show a search box"
+                default="false"
+                description="When on, a search box filters the form by field name or value, keeping matches in the context of their parent groups."
+            />
+            <property
+                name="showConfidence"
+                type="Boolean"
+                label="Show extraction confidence"
+                default="false"
+                description="When on, {value, confidence} envelopes are unwrapped so the field shows its value, with the confidence as a badge. The envelope is restored in the output JSON."
+            />
+            <property
+                name="confidenceThreshold"
+                type="String"
+                label="Low confidence below"
+                default="0.8"
+                description="Confidence under which the badge turns red. Accepts a fraction (0.8) or a percentage (80). Only used when Show extraction confidence is on."
+            />
+            <property
+                name="validateTypes"
+                type="Boolean"
+                label="Flag values of the wrong type"
+                default="false"
+                description="When on, a value that no longer parses as the type it was loaded as (number, true/false) is outlined in red with a message."
             />
         </targetConfig>
     </targetConfigs>

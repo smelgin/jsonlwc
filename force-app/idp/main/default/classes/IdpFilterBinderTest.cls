@@ -45,7 +45,12 @@ private class IdpFilterBinderTest {
     Map<String, Object> row = new Map<String, Object>{ 'Qty' => 2.0 };
     Assert.areEqual(
       'INV-A1-3',
-      IdpFilterBinder.renderTemplate('INV-{json:Invoice}-{row:number}', ROOT, row, 2)
+      IdpFilterBinder.renderTemplate(
+        'INV-{json:Invoice}-{row:number}',
+        ROOT,
+        row,
+        2
+      )
     );
     Assert.areEqual(
       '2-of-2',

@@ -98,9 +98,7 @@ public inherited sharing class IdpTypeRegistry {
     }
     if (!(instance instanceof IValueType)) {
       throw new IdpValueTypes.TypeException(
-        'Value type handler "' +
-          className +
-          '" does not implement IValueType.'
+        'Value type handler "' + className + '" does not implement IValueType.'
       );
     }
     customInstances.put(className, (IValueType) instance);

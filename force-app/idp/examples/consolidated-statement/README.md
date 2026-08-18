@@ -13,15 +13,15 @@ would serve four hundred without a change.
 
 ## What it demonstrates
 
-| Feature                    | Where to look                                                                                              |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| Repeating sections         | `Holdings` walks `Row_Path__c = holdings` and applies its rules once per row.                              |
-| Row-relative paths         | Rules on `Holdings` read `currentBalance`, not `holdings[0].currentBalance`.                               |
-| Row matching               | `Match_Value__c = {row:accountNumber}` is looked up against `Asset.Product_Account_Number__c`.             |
-| `Parent_Section__c`        | Rows are constrained to the statement's own Account, so a key cannot reach another customer's products.    |
-| `Record_Filter__c`         | `Account_Status__c != 'Closed'` protects closed products; the closed row comes back in `unmatchedRowKeys`. |
-| Rows are never created     | A statement line with no matching record is reported, not inserted.                                        |
-| Fixed and repeating in one | The `Statement` header section writes the period end and total to the Account in the same call.            |
+| Feature                    | Where to look                                                                                                            |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Repeating sections         | `Holdings` walks `Row_Path__c = holdings` and applies its rules once per row.                                            |
+| Row-relative paths         | Rules on `Holdings` read `currentBalance`, not `holdings[0].currentBalance`.                                             |
+| Row matching               | `Match_Value__c = {row:accountNumber}` is looked up against `Asset.Product_Account_Number__c`.                           |
+| `Parent_Section__c`        | Rows are constrained to the statement's own Account, so a key cannot reach another customer's products.                  |
+| `Record_Filter__c`         | `Account_Status__c != 'Closed'` protects closed products; the closed row comes back in `unmatchedRowKeys`.               |
+| Rows are never created     | A statement line with no matching record is reported, not inserted.                                                      |
+| Fixed and repeating in one | The `Statement` header section writes the period end and total to the Account in the same call.                          |
 | **Batch reprocessing**     | The statement JSON stored on `Account.Statement_JSON__c` reprocesses with `IdpBatchProcessor` — no user, no file needed. |
 
 ## The document and the JSON

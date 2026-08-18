@@ -218,7 +218,17 @@ public inherited sharing class IdpRuleEvaluator {
       contextualize(failure, rule, objectName, record, row);
       return;
     }
-    if (!validatePicklist(describe, coerced, rule, objectName, record, row, result)) {
+    if (
+      !validatePicklist(
+        describe,
+        coerced,
+        rule,
+        objectName,
+        record,
+        row,
+        result
+      )
+    ) {
       return;
     }
 
@@ -278,8 +288,8 @@ public inherited sharing class IdpRuleEvaluator {
         : IdpResult.CODE_VALUE_MISMATCH,
       IdpResult.SEV_WARNING,
       (outcome == IdpResult.CompareOutcome.NEAR
-        ? 'Near match on '
-        : 'Mismatch on ') +
+          ? 'Near match on '
+          : 'Mismatch on ') +
         objectName +
         '.' +
         rule.targetField +

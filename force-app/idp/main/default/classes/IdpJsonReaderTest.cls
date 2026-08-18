@@ -9,9 +9,7 @@ private class IdpJsonReaderTest {
 
   @IsTest
   static void readsDotPathsAndIndexes() {
-    Object root = parse(
-      '{"a": {"b": [{"c": "x"}, {"c": "y"}]}, "n": 5}'
-    );
+    Object root = parse('{"a": {"b": [{"c": "x"}, {"c": "y"}]}, "n": 5}');
     Assert.areEqual('y', IdpJsonReader.read(root, 'a.b[1].c'));
     Assert.areEqual(5, IdpJsonReader.read(root, 'n'));
     Assert.isNull(IdpJsonReader.read(root, 'a.b[9].c'));
@@ -44,7 +42,11 @@ private class IdpJsonReaderTest {
       'applicant.name'
     );
     Assert.areEqual('Jane', read.value);
-    Assert.areEqual(0.8, read.confidence, 'the envelope on the way through counts');
+    Assert.areEqual(
+      0.8,
+      read.confidence,
+      'the envelope on the way through counts'
+    );
   }
 
   @IsTest

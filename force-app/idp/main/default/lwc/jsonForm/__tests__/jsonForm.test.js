@@ -50,6 +50,101 @@ function isModified(input) {
     return input.classList.contains('field-modified');
 }
 
+// --- helpers for the opt-in features ---------------------------------
+
+function buildStructural(jsonData) {
+    return buildComponent(jsonData, { editStructure: true });
+}
+
+function queryAll(element, selector) {
+    return [...element.shadowRoot.querySelectorAll(selector)];
+}
+
+/** The data-id of the row whose fixed label is `label`. */
+function rowIdFor(element, label) {
+    const row = queryAll(element, '.form-row').find((candidate) => {
+        const span = candidate.querySelector('.fixed-label');
+        return span && span.textContent === label;
+    });
+    return row ? row.querySelector('[data-id]').dataset.id : undefined;
+}
+
+function branchRowId(element, label) {
+    return rowIdFor(element, label);
+}
+
+function clickDeleteFor(element, label) {
+    const id = rowIdFor(element, label);
+    const button = queryAll(element, '.delete-button').find(
+        (candidate) => candidate.dataset.id === id
+    );
+    button.dispatchEvent(new CustomEvent('click'));
+}
+
+function clickButtonLabelled(element, label) {
+    const button = queryAll(element, 'lightning-button').find(
+        (candidate) => candidate.label === label
+    );
+    button.dispatchEvent(new CustomEvent('click'));
+}
+
+async function openRootAddForm(element) {
+    element.shadowRoot
+        .querySelector('.add-root-button')
+        .dispatchEvent(new CustomEvent('click'));
+    await flush();
+}
+
+async function openAddFormOn(element, rowId) {
+    const button = queryAll(element, '.add-button').find(
+        (candidate) => candidate.dataset.id === rowId
+    );
+    button.dispatchEvent(new CustomEvent('click'));
+    await flush();
+}
+
+function setAddName(element, name) {
+    const input = element.shadowRoot.querySelector('.add-form .add-name');
+    input.value = name;
+    input.dispatchEvent(new CustomEvent('change'));
+}
+
+function setAddType(element, type) {
+    element.shadowRoot
+        .querySelector('.add-form .add-type')
+        .dispatchEvent(new CustomEvent('change', { detail: { value: type } }));
+}
+
+function clickConfirmAdd(element) {
+    element.shadowRoot
+        .querySelector('.add-form .add-confirm')
+        .dispatchEvent(new CustomEvent('click'));
+}
+
+/** Opens the add form (root when rowId is null), fills it in, confirms. */
+async function addField(element, rowId, name, type) {
+    if (rowId === null) {
+        await openRootAddForm(element);
+    } else {
+        await openAddFormOn(element, rowId);
+    }
+    if (name !== undefined && name !== null) {
+        setAddName(element, name);
+    }
+    if (type) {
+        setAddType(element, type);
+    }
+    clickConfirmAdd(element);
+    await flush();
+}
+
+async function search(element, term) {
+    const input = element.shadowRoot.querySelector('.search-input');
+    input.value = term;
+    input.dispatchEvent(new CustomEvent('change'));
+    await flush();
+}
+
 describe('c-json-form', () => {
     afterEach(() => {
         while (document.body.firstChild) {
@@ -89,11 +184,7 @@ describe('c-json-form', () => {
         const element = buildComponent(SAMPLE);
         const toolInput = getValueInputs(element)[5]; // first Tools item
         fireChange(toolInput, 'Drill');
-        expect(element.getJson().Tools).toEqual([
-            'Drill',
-            'Handsaw',
-            'Pliers'
-        ]);
+        expect(element.getJson().Tools).toEqual(['Drill', 'Handsaw', 'Pliers']);
     });
 
     it('renames keys while preserving key order', () => {
@@ -345,8 +436,534 @@ describe('c-json-form', () => {
     it('shows an empty state when no JSON is provided', () => {
         const element = buildComponent(undefined);
         expect(getValueInputs(element)).toHaveLength(0);
+        expect(element.shadowRoot.querySelector('.empty-state')).not.toBeNull();
+    });
+
+    // -----------------------------------------------------------------
+    // editStructure — adding and deleting
+    // -----------------------------------------------------------------
+
+    describe('editStructure', () => {
+        it('is off by default, so no add or delete controls render', () => {
+            const element = buildComponent(SAMPLE);
+            expect(element.editStructure).toBe(false);
+            expect(queryAll(element, '.delete-button')).toHaveLength(0);
+            expect(queryAll(element, '.add-button')).toHaveLength(0);
+            expect(
+                element.shadowRoot.querySelector('.add-root-button')
+            ).toBeNull();
+        });
+
+        it('adds a named text field to the root object', async () => {
+            const element = buildStructural(SAMPLE);
+            const handler = jest.fn();
+            element.addEventListener('jsonchange', handler);
+
+            await addField(element, null, 'Nickname', 'string');
+
+            expect(handler).toHaveBeenCalledTimes(1);
+            const result = element.getJson();
+            expect(result.Nickname).toBe('');
+            // Appended, so the original key order is untouched
+            expect(Object.keys(result)).toEqual([
+                ...Object.keys(SAMPLE),
+                'Nickname'
+            ]);
+        });
+
+        it('adds fields of each type with a sensible starting value', async () => {
+            const element = buildStructural({ Root: 'x' });
+            await addField(element, null, 'Count', 'number');
+            await addField(element, null, 'Active', 'boolean');
+            await addField(element, null, 'Blank', 'null');
+            await addField(element, null, 'Group', 'object');
+            await addField(element, null, 'List', 'array');
+
+            expect(element.getJson()).toEqual({
+                Root: 'x',
+                Count: 0,
+                Active: false,
+                Blank: null,
+                Group: {},
+                List: []
+            });
+        });
+
+        it('flags a newly added field as modified', async () => {
+            const element = buildStructural(SAMPLE);
+            await addField(element, null, 'Nickname', 'string');
+
+            const labels = getFixedLabels(element);
+            expect(labels).toContain('Nickname');
+            // The new field's value box is the last one rendered
+            const inputs = getValueInputs(element);
+            expect(isModified(inputs[inputs.length - 1])).toBe(true);
+        });
+
+        it('rejects an unnamed or duplicate field name', async () => {
+            const element = buildStructural(SAMPLE);
+
+            await openRootAddForm(element);
+            clickConfirmAdd(element);
+            await flush();
+            expect(
+                element.shadowRoot.querySelector('.add-error')
+            ).not.toBeNull();
+            expect(element.getJson()).toEqual(SAMPLE);
+
+            setAddName(element, 'Last Name');
+            clickConfirmAdd(element);
+            await flush();
+            expect(
+                element.shadowRoot.querySelector('.add-error').textContent
+            ).toContain('Last Name');
+            expect(element.getJson()).toEqual(SAMPLE);
+        });
+
+        it('appends an item to a list without asking for a name', async () => {
+            const element = buildStructural(SAMPLE);
+            // The Tools branch is the only branch row
+            const toolsRow = branchRowId(element, 'Tools');
+            await openAddFormOn(element, toolsRow);
+            // Arrays take positional labels, so no name field is offered
+            expect(
+                element.shadowRoot.querySelector('.add-form .add-name')
+            ).toBeNull();
+            clickConfirmAdd(element);
+            await flush();
+
+            expect(element.getJson().Tools).toEqual([
+                'Hammer',
+                'Handsaw',
+                'Pliers',
+                ''
+            ]);
+        });
+
+        it('deletes a leaf field immediately', async () => {
+            const element = buildStructural(SAMPLE);
+            const handler = jest.fn();
+            element.addEventListener('jsonchange', handler);
+
+            clickDeleteFor(element, 'Middle Name');
+            await flush();
+
+            expect(handler).toHaveBeenCalledTimes(1);
+            expect(element.getJson()['Middle Name']).toBeUndefined();
+            expect(Object.keys(element.getJson())).toEqual([
+                'First Name',
+                'Last Name',
+                'Age',
+                'Born Date',
+                'Tools'
+            ]);
+        });
+
+        it('asks before deleting a group that has contents', async () => {
+            const element = buildStructural(SAMPLE);
+
+            clickDeleteFor(element, 'Tools');
+            await flush();
+            // Nothing gone yet — a confirmation is showing instead
+            expect(element.getJson().Tools).toHaveLength(3);
+            const confirm = element.shadowRoot.querySelector('.confirm-delete');
+            expect(confirm.textContent).toContain('3 fields');
+
+            element.shadowRoot
+                .querySelector('.delete-confirm')
+                .dispatchEvent(new CustomEvent('click'));
+            await flush();
+            expect(element.getJson().Tools).toBeUndefined();
+        });
+
+        it('keeps the list when the delete confirmation is cancelled', async () => {
+            const element = buildStructural(SAMPLE);
+            clickDeleteFor(element, 'Tools');
+            await flush();
+
+            element.shadowRoot
+                .querySelector('.delete-cancel')
+                .dispatchEvent(new CustomEvent('click'));
+            await flush();
+
+            expect(
+                element.shadowRoot.querySelector('.confirm-delete')
+            ).toBeNull();
+            expect(element.getJson()).toEqual(SAMPLE);
+        });
+
+        it('re-labels the remaining items after a list item is deleted', async () => {
+            const element = buildStructural(SAMPLE);
+            // Delete "Item 2" (Handsaw)
+            clickDeleteFor(element, 'Item 2');
+            await flush();
+
+            expect(element.getJson().Tools).toEqual(['Hammer', 'Pliers']);
+            expect(getFixedLabels(element)).toContain('Item 2');
+            expect(getFixedLabels(element)).not.toContain('Item 3');
+        });
+
+        it('keeps the edit flags of surviving fields when a list item is deleted', async () => {
+            const element = buildStructural(SAMPLE);
+            // Edit the third tool, then delete the first one before it
+            const toolInputs = getValueInputs(element);
+            fireChange(toolInputs[7], 'Wrench'); // Pliers -> Wrench
+            await flush();
+
+            clickDeleteFor(element, 'Item 1');
+            await flush();
+
+            expect(element.getJson().Tools).toEqual(['Handsaw', 'Wrench']);
+            // The edited item shifted from index 2 to index 1 but is still flagged
+            const remaining = getValueInputs(element);
+            expect(remaining[remaining.length - 1].value).toBe('Wrench');
+            expect(isModified(remaining[remaining.length - 1])).toBe(true);
+            expect(isModified(remaining[remaining.length - 2])).toBe(false);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // collapsible
+    // -----------------------------------------------------------------
+
+    describe('collapsible', () => {
+        it('is off by default, so no chevrons render', () => {
+            const element = buildComponent(SAMPLE);
+            expect(queryAll(element, '.collapse-toggle')).toHaveLength(0);
+        });
+
+        it('hides a group’s children when collapsed and shows them again', async () => {
+            const element = buildComponent(SAMPLE, { collapsible: true });
+            expect(getValueInputs(element)).toHaveLength(8);
+
+            const toggle = element.shadowRoot.querySelector('.collapse-toggle');
+            toggle.dispatchEvent(new CustomEvent('click'));
+            await flush();
+            // The three Tools items are gone; the five top-level ones remain
+            expect(getValueInputs(element)).toHaveLength(5);
+            expect(getFixedLabels(element)).toContain('Tools');
+
+            element.shadowRoot
+                .querySelector('.collapse-toggle')
+                .dispatchEvent(new CustomEvent('click'));
+            await flush();
+            expect(getValueInputs(element)).toHaveLength(8);
+        });
+
+        it('collapses and expands everything from the toolbar', async () => {
+            const element = buildComponent(
+                { A: { B: { C: 'deep' } }, D: 'top' },
+                { collapsible: true }
+            );
+            expect(getValueInputs(element)).toHaveLength(2);
+
+            clickButtonLabelled(element, 'Collapse all');
+            await flush();
+            expect(getValueInputs(element)).toHaveLength(1); // only D
+
+            clickButtonLabelled(element, 'Expand all');
+            await flush();
+            expect(getValueInputs(element)).toHaveLength(2);
+        });
+
+        it('does not change the JSON', async () => {
+            const element = buildComponent(SAMPLE, { collapsible: true });
+            element.shadowRoot
+                .querySelector('.collapse-toggle')
+                .dispatchEvent(new CustomEvent('click'));
+            await flush();
+            expect(element.getJson()).toEqual(SAMPLE);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // searchable
+    // -----------------------------------------------------------------
+
+    describe('searchable', () => {
+        it('is off by default, so no search box renders', () => {
+            const element = buildComponent(SAMPLE);
+            expect(
+                element.shadowRoot.querySelector('.search-input')
+            ).toBeNull();
+        });
+
+        it('filters by field name and keeps the parent group for context', async () => {
+            const element = buildComponent(SAMPLE, { searchable: true });
+            await search(element, 'name');
+
+            // First/Middle/Last Name match; nothing else does
+            expect(getFixedLabels(element)).toEqual([
+                'First Name',
+                'Middle Name',
+                'Last Name'
+            ]);
+        });
+
+        it('filters by value', async () => {
+            const element = buildComponent(SAMPLE, { searchable: true });
+            await search(element, 'handsaw');
+            // The matching item plus its Tools parent, for context
+            expect(getFixedLabels(element)).toEqual(['Tools', 'Item 2']);
+        });
+
+        it('shows a whole group when the group name matches', async () => {
+            const element = buildComponent(SAMPLE, { searchable: true });
+            await search(element, 'tools');
+            expect(getFixedLabels(element)).toEqual([
+                'Tools',
+                'Item 1',
+                'Item 2',
+                'Item 3'
+            ]);
+        });
+
+        it('reveals matches inside a collapsed group', async () => {
+            const element = buildComponent(SAMPLE, {
+                searchable: true,
+                collapsible: true
+            });
+            element.shadowRoot
+                .querySelector('.collapse-toggle')
+                .dispatchEvent(new CustomEvent('click'));
+            await flush();
+            expect(getFixedLabels(element)).not.toContain('Item 2');
+
+            await search(element, 'handsaw');
+            expect(getFixedLabels(element)).toContain('Item 2');
+        });
+
+        it('reports when nothing matches, without touching the JSON', async () => {
+            const element = buildComponent(SAMPLE, { searchable: true });
+            await search(element, 'zzzz');
+            expect(getValueInputs(element)).toHaveLength(0);
+            expect(
+                element.shadowRoot.querySelector('.empty-state').textContent
+            ).toContain('No fields match');
+            expect(element.getJson()).toEqual(SAMPLE);
+        });
+
+        it('restores every row when the search is cleared', async () => {
+            const element = buildComponent(SAMPLE, { searchable: true });
+            await search(element, 'name');
+            await search(element, '');
+            expect(getValueInputs(element)).toHaveLength(8);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // showConfidence
+    // -----------------------------------------------------------------
+
+    describe('showConfidence', () => {
+        const ENVELOPED = {
+            Name: { value: 'Carlos', confidence: 0.97 },
+            Age: { value: 45, confidence: 0.42 }
+        };
+
+        it('leaves envelopes as ordinary JSON when off', () => {
+            const element = buildComponent(ENVELOPED);
+            // Two groups of {value, confidence} => four value textboxes
+            expect(getValueInputs(element)).toHaveLength(4);
+            expect(queryAll(element, '.confidence-badge')).toHaveLength(0);
+        });
+
+        it('unwraps envelopes and badges the confidence when on', () => {
+            const element = buildComponent(ENVELOPED, { showConfidence: true });
+            const inputs = getValueInputs(element);
+            expect(inputs).toHaveLength(2);
+            expect(inputs[0].value).toBe('Carlos');
+            expect(inputs[1].value).toBe('45');
+
+            const badges = queryAll(element, '.confidence-badge').map(
+                (b) => b.textContent
+            );
+            expect(badges).toEqual(['97%', '42%']);
+        });
+
+        it('marks confidence below the threshold as low', () => {
+            const element = buildComponent(ENVELOPED, { showConfidence: true });
+            const badges = queryAll(element, '.confidence-badge');
+            expect(badges[0].classList.contains('confidence-badge_low')).toBe(
+                false
+            );
+            expect(badges[1].classList.contains('confidence-badge_low')).toBe(
+                true
+            );
+        });
+
+        it('honours a custom threshold, as a fraction or a percentage', () => {
+            const asFraction = buildComponent(ENVELOPED, {
+                showConfidence: true,
+                confidenceThreshold: 0.99
+            });
+            expect(
+                queryAll(asFraction, '.confidence-badge').filter((b) =>
+                    b.classList.contains('confidence-badge_low')
+                )
+            ).toHaveLength(2);
+
+            const asPercent = buildComponent(ENVELOPED, {
+                showConfidence: true,
+                confidenceThreshold: '30'
+            });
+            expect(
+                queryAll(asPercent, '.confidence-badge').filter((b) =>
+                    b.classList.contains('confidence-badge_low')
+                )
+            ).toHaveLength(0);
+        });
+
+        it('restores the envelope in the output JSON, edits included', () => {
+            const element = buildComponent(ENVELOPED, { showConfidence: true });
+            fireChange(getValueInputs(element)[0], 'Carla');
+
+            expect(element.getJson()).toEqual({
+                Name: { value: 'Carla', confidence: 0.97 },
+                Age: { value: 45, confidence: 0.42 }
+            });
+        });
+
+        it('keeps the type of an enveloped value', () => {
+            const element = buildComponent(ENVELOPED, { showConfidence: true });
+            fireChange(getValueInputs(element)[1], '46');
+            expect(element.getJson().Age.value).toBe(46);
+        });
+
+        it('does not treat a business field named "value" as an envelope', () => {
+            const element = buildComponent(
+                { Item: { value: 'x', unit: 'kg' } },
+                { showConfidence: true }
+            );
+            // Three keys / wrong shape, so it stays an ordinary group
+            expect(getValueInputs(element)).toHaveLength(2);
+            expect(queryAll(element, '.confidence-badge')).toHaveLength(0);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // validateTypes
+    // -----------------------------------------------------------------
+
+    describe('validateTypes', () => {
+        function isInvalid(input) {
+            return input.classList.contains('field-invalid');
+        }
+
+        it('is off by default, so a bad number is kept silently as a string', () => {
+            const element = buildComponent(SAMPLE);
+            fireChange(getValueInputs(element)[3], 'forty-six');
+            expect(element.isValid).toBe(true);
+            expect(element.getJson().Age).toBe('forty-six');
+        });
+
+        it('flags a number field that no longer holds a number', async () => {
+            const element = buildComponent(SAMPLE, { validateTypes: true });
+            const ageInput = getValueInputs(element)[3];
+
+            fireChange(ageInput, 'forty-six');
+            await flush();
+            expect(isInvalid(ageInput)).toBe(true);
+            expect(element.isValid).toBe(false);
+            expect(
+                element.shadowRoot.querySelector('.field-error').textContent
+            ).toBe('Enter a number.');
+
+            fireChange(ageInput, '46');
+            await flush();
+            expect(isInvalid(getValueInputs(element)[3])).toBe(false);
+            expect(element.isValid).toBe(true);
+        });
+
+        it('flags a boolean field that no longer holds true or false', async () => {
+            const element = buildComponent(
+                { Active: true },
+                { validateTypes: true }
+            );
+            const input = getValueInputs(element)[0];
+
+            fireChange(input, 'yes');
+            await flush();
+            expect(isInvalid(input)).toBe(true);
+            expect(
+                element.shadowRoot.querySelector('.field-error').textContent
+            ).toBe('Enter true or false.');
+
+            fireChange(input, 'false');
+            await flush();
+            expect(element.isValid).toBe(true);
+            expect(element.getJson().Active).toBe(false);
+        });
+
+        it('accepts any text in text fields and in fields that loaded empty', async () => {
+            const element = buildComponent(
+                { Note: 'hello', Missing: null },
+                { validateTypes: true }
+            );
+            const inputs = getValueInputs(element);
+            fireChange(inputs[0], '12345');
+            fireChange(inputs[1], 'now filled in');
+            await flush();
+            expect(element.isValid).toBe(true);
+        });
+
+        it('reports validity on the jsonchange event', () => {
+            const element = buildComponent(SAMPLE, { validateTypes: true });
+            const handler = jest.fn();
+            element.addEventListener('jsonchange', handler);
+
+            fireChange(getValueInputs(element)[3], 'forty-six');
+            expect(handler.mock.calls[0][0].detail.valid).toBe(false);
+
+            fireChange(getValueInputs(element)[3], '46');
+            expect(handler.mock.calls[1][0].detail.valid).toBe(true);
+        });
+
+        it('shows the invalid cue instead of the edited cue', async () => {
+            const element = buildComponent(SAMPLE, { validateTypes: true });
+            const ageInput = getValueInputs(element)[3];
+            fireChange(ageInput, 'forty-six');
+            await flush();
+            expect(isInvalid(ageInput)).toBe(true);
+            expect(isModified(ageInput)).toBe(false);
+        });
+
+        it('validates fields already on screen when switched on late', async () => {
+            const element = buildComponent(SAMPLE);
+            fireChange(getValueInputs(element)[3], 'forty-six');
+            await flush();
+            expect(element.isValid).toBe(true);
+
+            element.validateTypes = true;
+            await flush();
+            expect(element.isValid).toBe(false);
+            expect(isInvalid(getValueInputs(element)[3])).toBe(true);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // Features are independent
+    // -----------------------------------------------------------------
+
+    it('accepts every flag as the string Flow and App Builder pass', () => {
+        const element = buildComponent(SAMPLE, {
+            editStructure: 'true',
+            collapsible: 'true',
+            searchable: 'true',
+            showConfidence: 'true',
+            validateTypes: 'true'
+        });
+        expect(element.editStructure).toBe(true);
+        expect(element.collapsible).toBe(true);
+        expect(element.searchable).toBe(true);
+        expect(element.showConfidence).toBe(true);
+        expect(element.validateTypes).toBe(true);
+    });
+
+    it('renders no toolbar at all when every feature is off', () => {
+        const element = buildComponent(SAMPLE);
         expect(
-            element.shadowRoot.querySelector('.empty-state')
-        ).not.toBeNull();
+            element.shadowRoot.querySelector('.json-form-toolbar')
+        ).toBeNull();
     });
 });

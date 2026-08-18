@@ -51,10 +51,7 @@ private class IdpContextResolverTest {
       docs[0].anchors.get('Case').Id,
       'each document anchors its own Case'
     );
-    Assert.areEqual(
-      second.caseRecord.Id,
-      docs[1].anchors.get('Case').Id
-    );
+    Assert.areEqual(second.caseRecord.Id, docs[1].anchors.get('Case').Id);
     Assert.areEqual(
       first.account.Id,
       docs[0].anchors.get('Account').Id,
@@ -86,9 +83,7 @@ private class IdpContextResolverTest {
     IdpContextResolver.resolveAll(
       docs,
       requests(
-        new Map<String, List<String>>{
-          'Case' => new List<String>{ 'Subject' }
-        }
+        new Map<String, List<String>>{ 'Case' => new List<String>{ 'Subject' } }
       )
     );
     Test.stopTest();
@@ -174,9 +169,7 @@ private class IdpContextResolverTest {
     IdpContextResolver.resolveAll(
       docs,
       requests(
-        new Map<String, List<String>>{
-          'Case' => new List<String>{ 'Subject' }
-        }
+        new Map<String, List<String>>{ 'Case' => new List<String>{ 'Subject' } }
       )
     );
     Test.stopTest();

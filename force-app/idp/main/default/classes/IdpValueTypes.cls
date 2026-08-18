@@ -235,20 +235,10 @@ public inherited sharing class IdpValueTypes {
         return exact(raw);
       }
       String text = String.valueOf(raw).trim().toLowerCase();
-      if (
-        text == 'true' ||
-        text == 'yes' ||
-        text == 'y' ||
-        text == '1'
-      ) {
+      if (text == 'true' || text == 'yes' || text == 'y' || text == '1') {
         return exact(true);
       }
-      if (
-        text == 'false' ||
-        text == 'no' ||
-        text == 'n' ||
-        text == '0'
-      ) {
+      if (text == 'false' || text == 'no' || text == 'n' || text == '0') {
         return exact(false);
       }
       return failed('"' + raw + '" is not a boolean value.');
@@ -474,8 +464,7 @@ public inherited sharing class IdpValueTypes {
         reading.error = 'several possible decimal separators.';
         return reading;
       }
-      reading.normalized = digits.remove(thousandsSep)
-        .replace(decimalSep, '.');
+      reading.normalized = digits.remove(thousandsSep).replace(decimalSep, '.');
       return reading; // both separators present — deterministic
     }
 
@@ -576,24 +565,99 @@ public inherited sharing class IdpValueTypes {
   }
 
   private static final Set<String> ISO_CURRENCIES = new Set<String>{
-    'USD', 'EUR', 'GBP', 'ZAR', 'JPY', 'CNY', 'CHF', 'CAD', 'AUD', 'NZD',
-    'INR', 'BRL', 'MXN', 'SGD', 'HKD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK',
-    'HUF', 'RON', 'TRY', 'UAH', 'ILS', 'AED', 'SAR', 'QAR', 'KWD', 'BHD',
-    'OMR', 'EGP', 'MAD', 'NGN', 'GHS', 'KES', 'TZS', 'UGX', 'ZMW', 'BWP',
-    'NAD', 'MZN', 'MWK', 'LSL', 'SZL', 'ETB', 'XOF', 'XAF', 'KRW', 'THB',
-    'VND', 'IDR', 'MYR', 'PHP', 'TWD', 'PKR', 'BDT', 'LKR', 'ARS', 'CLP',
-    'COP', 'PEN'
+    'USD',
+    'EUR',
+    'GBP',
+    'ZAR',
+    'JPY',
+    'CNY',
+    'CHF',
+    'CAD',
+    'AUD',
+    'NZD',
+    'INR',
+    'BRL',
+    'MXN',
+    'SGD',
+    'HKD',
+    'SEK',
+    'NOK',
+    'DKK',
+    'PLN',
+    'CZK',
+    'HUF',
+    'RON',
+    'TRY',
+    'UAH',
+    'ILS',
+    'AED',
+    'SAR',
+    'QAR',
+    'KWD',
+    'BHD',
+    'OMR',
+    'EGP',
+    'MAD',
+    'NGN',
+    'GHS',
+    'KES',
+    'TZS',
+    'UGX',
+    'ZMW',
+    'BWP',
+    'NAD',
+    'MZN',
+    'MWK',
+    'LSL',
+    'SZL',
+    'ETB',
+    'XOF',
+    'XAF',
+    'KRW',
+    'THB',
+    'VND',
+    'IDR',
+    'MYR',
+    'PHP',
+    'TWD',
+    'PKR',
+    'BDT',
+    'LKR',
+    'ARS',
+    'CLP',
+    'COP',
+    'PEN'
   };
 
   /** Longest symbols first, so R$ (real) is tried before R (rand). $, ¥
    *  and kr are ambiguous across currencies and intentionally absent. */
   private static final List<String> SYMBOL_ORDER = new List<String>{
-    'R$', '€', '£', '₹', '₩', '₦', '₪', '฿', '₫', '₴', '₺', 'R'
+    'R$',
+    '€',
+    '£',
+    '₹',
+    '₩',
+    '₦',
+    '₪',
+    '฿',
+    '₫',
+    '₴',
+    '₺',
+    'R'
   };
   private static final Map<String, String> SYMBOL_CURRENCIES = new Map<String, String>{
-    'R$' => 'BRL', '€' => 'EUR', '£' => 'GBP', '₹' => 'INR', '₩' => 'KRW',
-    '₦' => 'NGN', '₪' => 'ILS', '฿' => 'THB', '₫' => 'VND', '₴' => 'UAH',
-    '₺' => 'TRY', 'R' => 'ZAR'
+    'R$' => 'BRL',
+    '€' => 'EUR',
+    '£' => 'GBP',
+    '₹' => 'INR',
+    '₩' => 'KRW',
+    '₦' => 'NGN',
+    '₪' => 'ILS',
+    '฿' => 'THB',
+    '₫' => 'VND',
+    '₴' => 'UAH',
+    '₺' => 'TRY',
+    'R' => 'ZAR'
   };
 
   /** True when the code is a known ISO 4217 currency — load-time config
@@ -719,12 +783,32 @@ public inherited sharing class IdpValueTypes {
   /** Rendering stays English: MMM/MMMM output is the same in every
    *  locale, only reading is localised. */
   private static final List<String> MONTH_SHORT = new List<String>{
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
   };
   private static final List<String> MONTH_FULL = new List<String>{
-    'January', 'February', 'March', 'April', 'May', 'June', 'July',
-    'August', 'September', 'October', 'November', 'December'
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December'
   };
 
   /** Pattern tokens in reading order plus the regex they compile to. */
@@ -949,9 +1033,7 @@ public inherited sharing class IdpValueTypes {
       );
       if (String.isNotBlank(cfg.timezone)) {
         TimeZone zone = TimeZone.getTimeZone(cfg.timezone);
-        return exact(
-          wallAsGmt.addSeconds(-zone.getOffset(wallAsGmt) / 1000)
-        );
+        return exact(wallAsGmt.addSeconds(-zone.getOffset(wallAsGmt) / 1000));
       }
       return inferred(
         wallAsGmt,
@@ -1031,7 +1113,8 @@ public inherited sharing class IdpValueTypes {
         return failed('"' + text + '" is too short to be a phone number.');
       }
       if (hasPlus) {
-        return digits.length() >= 8 && digits.length() <= 15
+        return digits.length() >= 8 &&
+          digits.length() <= 15
           ? exact('+' + digits)
           : failed('"' + text + '" is not a plausible international number.');
       }
@@ -1051,9 +1134,7 @@ public inherited sharing class IdpValueTypes {
         }
         return inferred(
           '+' + dial + digits,
-          'The number was assumed to be national for region ' +
-            cfg.region +
-            '.'
+          'The number was assumed to be national for region ' + cfg.region + '.'
         );
       }
       return inferred(
@@ -1207,16 +1288,16 @@ public inherited sharing class IdpValueTypes {
     public ParseResult parse(Object raw, Config cfg) {
       String text = String.valueOf(raw).trim();
       if (String.isBlank(cfg.formatsRaw)) {
-        return failed(
-          'Value type ' + cfg.name + ' has no pattern in Formats.'
-        );
+        return failed('Value type ' + cfg.name + ' has no pattern in Formats.');
       }
       Matcher matcher;
       try {
         matcher = Pattern.compile(cfg.formatsRaw).matcher(text);
       } catch (Exception e) {
         return failed(
-          'Value type ' + cfg.name + ' has an invalid pattern: ' +
+          'Value type ' +
+            cfg.name +
+            ' has an invalid pattern: ' +
             e.getMessage()
         );
       }

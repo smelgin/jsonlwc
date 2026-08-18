@@ -117,9 +117,9 @@ describe('c-file-json-review', () => {
             await flushPromises();
 
             // Viewer iframe present but never posts "ready".
-            expect(element.shadowRoot.querySelector('.preview-frame').src).toContain(
-                'viewer.html'
-            );
+            expect(
+                element.shadowRoot.querySelector('.preview-frame').src
+            ).toContain('viewer.html');
 
             jest.runOnlyPendingTimers();
             await flushPromises();
@@ -294,9 +294,7 @@ describe('c-file-json-review', () => {
         window.dispatchEvent(
             new MouseEvent('pointermove', { clientX: 300, bubbles: true })
         );
-        window.dispatchEvent(
-            new MouseEvent('pointerup', { bubbles: true })
-        );
+        window.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }));
         await flushPromises();
 
         const leftPane = element.shadowRoot.querySelector('.left-pane');

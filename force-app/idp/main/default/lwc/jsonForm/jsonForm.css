@@ -8,6 +8,24 @@
     min-width: 0;
 }
 
+/*
+ * The row's outer line. The label/value grid keeps its own two columns so
+ * rows line up exactly as they did before the optional chevron, confidence
+ * badge and add/delete buttons existed; those sit outside the grid and are
+ * only rendered when their feature is switched on.
+ */
+.row-line {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-width: 0;
+}
+
+.row-line > .row-grid {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .row-grid {
     display: grid;
     grid-template-columns: minmax(8rem, 18rem) minmax(8rem, 1fr);
@@ -60,6 +78,116 @@
         #ebf7ee
     );
     --sds-c-input-sizing-border: 2px;
+}
+
+/*
+ * Red outline for a value that no longer parses as the type it was loaded
+ * as. Same styling-hook technique as .field-modified above; an invalid field
+ * never carries the green class as well, so the two cannot fight.
+ */
+.field-invalid {
+    --slds-c-input-color-border: var(--slds-g-color-error-base-40, #ba0517);
+    --slds-c-input-color-border-focus: var(
+        --slds-g-color-error-base-40,
+        #ba0517
+    );
+    --slds-c-input-color-background: var(
+        --slds-g-color-error-container-1,
+        #fef1f1
+    );
+    --slds-c-input-sizing-border: 2px;
+    --sds-c-input-color-border: var(--slds-g-color-error-base-40, #ba0517);
+    --sds-c-input-color-border-focus: var(
+        --slds-g-color-error-base-40,
+        #ba0517
+    );
+    --sds-c-input-color-background: var(
+        --slds-g-color-error-container-1,
+        #fef1f1
+    );
+    --sds-c-input-sizing-border: 2px;
+}
+
+.field-error {
+    color: var(--slds-g-color-error-base-40, #ba0517);
+    font-size: 0.75rem;
+    padding: 0.125rem 0.75rem 0;
+}
+
+/* Toolbar: search, expand/collapse, add-to-root */
+
+.json-form-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    padding-bottom: 0.25rem;
+}
+
+.search-input {
+    flex: 1 1 12rem;
+    min-width: 0;
+}
+
+.toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-left: auto;
+}
+
+/* Confidence badge */
+
+.confidence-badge {
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1;
+    padding: 0.25rem 0.4rem;
+    border-radius: 0.25rem;
+    color: var(--slds-g-color-success-base-30, #1b5b30);
+    background: var(--slds-g-color-success-container-1, #ebf7ee);
+}
+
+.confidence-badge_low {
+    color: var(--slds-g-color-error-base-30, #8e030f);
+    background: var(--slds-g-color-error-container-1, #fef1f1);
+}
+
+/* Add / delete */
+
+.add-form {
+    display: flex;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.25rem 0 0.5rem 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--slds-g-color-border-base-1, #c9c9c9);
+    background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.add-form-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.add-error {
+    flex: 1 0 100%;
+    color: var(--slds-g-color-error-base-40, #ba0517);
+    font-size: 0.75rem;
+}
+
+.confirm-delete {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.25rem 0 0.5rem 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-left: 3px solid var(--slds-g-color-error-base-40, #ba0517);
+    background: var(--slds-g-color-error-container-1, #fef1f1);
+    font-size: 0.8125rem;
 }
 
 .empty-state {

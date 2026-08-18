@@ -569,8 +569,7 @@ public inherited sharing class IdpContextResolver {
       }
       String lookup = IdpSchemaCache.findLookupTo(objectName, target);
       if (
-        lookup != null &&
-        described.get(lookup).getDescribe().isAccessible()
+        lookup != null && described.get(lookup).getDescribe().isAccessible()
       ) {
         selected.add(lookup);
       }

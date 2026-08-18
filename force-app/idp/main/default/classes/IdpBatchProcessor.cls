@@ -258,9 +258,7 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     Schema.SObjectField field = IdpSchemaCache.field(objectName, fieldName);
     if (field == null || !field.getDescribe().isAccessible()) {
       throw new BatchException(
-        'JSON Source Field ' +
-          qualified +
-          ' does not exist or is not readable.'
+        'JSON Source Field ' + qualified + ' does not exist or is not readable.'
       );
     }
     return qualified;

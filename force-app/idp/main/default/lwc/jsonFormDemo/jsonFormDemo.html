@@ -12,12 +12,63 @@
                     {parseError}
                 </p>
             </template>
-            <lightning-button
-                label="Load JSON"
-                variant="brand"
-                onclick={handleLoad}
-                class="slds-var-m-top_small"
-            ></lightning-button>
+            <div class="slds-var-m-top_small button-row">
+                <lightning-button
+                    label="Load JSON"
+                    variant="brand"
+                    onclick={handleLoad}
+                ></lightning-button>
+                <lightning-button
+                    label="Load confidence sample"
+                    onclick={handleLoadConfidenceSample}
+                ></lightning-button>
+            </div>
+
+            <fieldset class="slds-var-m-top_medium feature-toggles">
+                <legend class="slds-text-title_caps">Features</legend>
+                <lightning-input
+                    type="checkbox"
+                    label="Edit field names"
+                    data-flag="editLabels"
+                    checked={editLabels}
+                    onchange={handleToggle}
+                ></lightning-input>
+                <lightning-input
+                    type="checkbox"
+                    label="Add / delete fields"
+                    data-flag="editStructure"
+                    checked={editStructure}
+                    onchange={handleToggle}
+                ></lightning-input>
+                <lightning-input
+                    type="checkbox"
+                    label="Collapsible groups"
+                    data-flag="collapsible"
+                    checked={collapsible}
+                    onchange={handleToggle}
+                ></lightning-input>
+                <lightning-input
+                    type="checkbox"
+                    label="Search box"
+                    data-flag="searchable"
+                    checked={searchable}
+                    onchange={handleToggle}
+                ></lightning-input>
+                <lightning-input
+                    type="checkbox"
+                    label="Show confidence"
+                    data-flag="showConfidence"
+                    checked={showConfidence}
+                    onchange={handleToggle}
+                ></lightning-input>
+                <lightning-input
+                    type="checkbox"
+                    label="Validate types"
+                    data-flag="validateTypes"
+                    checked={validateTypes}
+                    onchange={handleToggle}
+                ></lightning-input>
+            </fieldset>
 
             <template lwc:if={loadedJson}>
                 <h2
@@ -27,7 +78,12 @@
                 </h2>
                 <c-json-form
                     json-data={loadedJson}
-                    edit-labels="true"
+                    edit-labels={editLabels}
+                    edit-structure={editStructure}
+                    collapsible={collapsible}
+                    searchable={searchable}
+                    show-confidence={showConfidence}
+                    validate-types={validateTypes}
                     onjsonchange={handleJsonChange}
                 ></c-json-form>
             </template>

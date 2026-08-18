@@ -15,16 +15,16 @@ The seed data is rigged so the check fails in three instructive ways.
 
 ## What it demonstrates
 
-| Feature                        | Where to look                                                                                       |
-| ------------------------------ | --------------------------------------------------------------------------------------------------- |
-| Compliance mode                | Two Fixed sections, nine rules, zero DML from the engine itself.                                    |
-| Set-level defaults             | The mapping set declares `Default_Mode__c = Compliance` **and** its own `Finding_Handler__c`, so the caller configures nothing. |
-| Per-rule `Mode__c`             | Every rule additionally pins `Mode__c = Compliance`, so this set can never write even if run in Extraction mode. |
+| Feature                        | Where to look                                                                                                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Compliance mode                | Two Fixed sections, nine rules, zero DML from the engine itself.                                                                                                                        |
+| Set-level defaults             | The mapping set declares `Default_Mode__c = Compliance` **and** its own `Finding_Handler__c`, so the caller configures nothing.                                                         |
+| Per-rule `Mode__c`             | Every rule additionally pins `Mode__c = Compliance`, so this set can never write even if run in Extraction mode.                                                                        |
 | Both-sides comparison          | `KALAHARI FREIGHT SERVICES` matches the stored `Kalahari Freight Services`; `"R 2 400 000.00"` matches the stored `2400000.00` — both sides go through the value type's canonical form. |
-| Three-state verdicts           | `LO_Money_ZA` has a one-cent Compare Tolerance: a rounding difference is **Near**, not a Mismatch. |
-| Blank counts as a mismatch     | The empty `Credit_Risk_Grade__c` cannot confirm the document, so it is reported.                    |
-| `IIdpFindingHandler`           | `LoanOfferMismatchHandler` stamps the Case and raises a high-priority Task.                         |
-| Mismatches are data, not error | `result.success` stays `true`; `result.compliant` goes `false`.                                     |
+| Three-state verdicts           | `LO_Money_ZA` has a one-cent Compare Tolerance: a rounding difference is **Near**, not a Mismatch.                                                                                      |
+| Blank counts as a mismatch     | The empty `Credit_Risk_Grade__c` cannot confirm the document, so it is reported.                                                                                                        |
+| `IIdpFindingHandler`           | `LoanOfferMismatchHandler` stamps the Case and raises a high-priority Task.                                                                                                             |
+| Mismatches are data, not error | `result.success` stays `true`; `result.compliant` goes `false`.                                                                                                                         |
 
 ## The document and the JSON
 
@@ -80,17 +80,17 @@ Pinning it per rule makes that mistake impossible.
 
 ### The nine comparisons, and why three fail
 
-| Field                                 | Document                  | Seeded record             | Result                                               |
-| ------------------------------------- | ------------------------- | ------------------------- | ---------------------------------------------------- |
-| `Account.Name`                        | KALAHARI FREIGHT SERVICES | Kalahari Freight Services | ✅ case and spacing are normalized                   |
-| `Account.Credit_Risk_Grade__c`        | `BB`                      | _(blank)_                 | ❌ a blank field confirms nothing                    |
-| `Account.Verified_Annual_Turnover__c` | `R 14 750 000.00`         | `14750000.00`             | ✅ compared as numbers                               |
-| `Case.Offer_Reference__c`             | `LN-2026-093315`          | `LN-2026-093315`          | ✅                                                   |
-| `Case.Loan_Amount__c`                 | `R 2 400 000.00`          | `2400000.00`              | ✅ currency noise stripped                           |
-| `Case.Interest_Rate_Offered__c`       | `12.05`                   | `11.25`                   | ❌ **the terms really do differ**                    |
-| `Case.Loan_Term_Months__c`            | `60`                      | `60`                      | ✅                                                   |
-| `Case.Repayment_Amount__c`            | `R 53 480.19`             | `51902.44`                | ❌ **follows from the rate**                         |
-| `Case.Offer_Expiry_Date__c`           | `31/08/2026`              | `2026-08-31`              | ✅ parsed by the value type, then compared as dates  |
+| Field                                 | Document                  | Seeded record             | Result                                              |
+| ------------------------------------- | ------------------------- | ------------------------- | --------------------------------------------------- |
+| `Account.Name`                        | KALAHARI FREIGHT SERVICES | Kalahari Freight Services | ✅ case and spacing are normalized                  |
+| `Account.Credit_Risk_Grade__c`        | `BB`                      | _(blank)_                 | ❌ a blank field confirms nothing                   |
+| `Account.Verified_Annual_Turnover__c` | `R 14 750 000.00`         | `14750000.00`             | ✅ compared as numbers                              |
+| `Case.Offer_Reference__c`             | `LN-2026-093315`          | `LN-2026-093315`          | ✅                                                  |
+| `Case.Loan_Amount__c`                 | `R 2 400 000.00`          | `2400000.00`              | ✅ currency noise stripped                          |
+| `Case.Interest_Rate_Offered__c`       | `12.05`                   | `11.25`                   | ❌ **the terms really do differ**                   |
+| `Case.Loan_Term_Months__c`            | `60`                      | `60`                      | ✅                                                  |
+| `Case.Repayment_Amount__c`            | `R 53 480.19`             | `51902.44`                | ❌ **follows from the rate**                        |
+| `Case.Offer_Expiry_Date__c`           | `31/08/2026`              | `2026-08-31`              | ✅ parsed by the value type, then compared as dates |
 
 The first, third, fifth and last rows are the point of the comparison rules:
 OCR output never matches stored formatting exactly, and a checker that flagged
@@ -106,9 +106,9 @@ the one-method contract:
 
 ```apex
 public interface IIdpFindingHandler {
-  void handle(IdpResult.RunReport report);
-  // report: mappingSetName, mode, and every document's full Result —
-  // mismatches, near matches, errors, row context
+    void handle(IdpResult.RunReport report);
+    // report: mappingSetName, mode, and every document's full Result —
+    // mismatches, near matches, errors, row context
 }
 ```
 

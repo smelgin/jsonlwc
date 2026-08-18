@@ -9,3 +9,6 @@
 .vscode
 
 coverage/
+# SFDX metadata XML is hand-/tooling-formatted; the prettier XML plugin
+# reflows attributes and long text nodes, mangling *-meta.xml. Keep it out.
+**/*.xml

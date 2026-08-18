@@ -95,7 +95,13 @@ private class IdpMappingEngineTest {
         section('Customer', 'Account')
       },
       new List<IdpConfigLoader.RawRule>{
-        rule('R1_Name', 'Case_Details', 'applicant.name', 'Case', 'SuppliedName'),
+        rule(
+          'R1_Name',
+          'Case_Details',
+          'applicant.name',
+          'Case',
+          'SuppliedName'
+        ),
         rule(
           'R2_Description',
           'Case_Details',
@@ -103,17 +109,20 @@ private class IdpMappingEngineTest {
           'Case',
           'Description'
         ),
-        rule('R3_Missing', 'Case_Details', 'applicant.missing', 'Case', 'SuppliedEmail'),
+        rule(
+          'R3_Missing',
+          'Case_Details',
+          'applicant.missing',
+          'Case',
+          'SuppliedEmail'
+        ),
         phoneRule('R4_Phone', 'Only if blank')
       },
       new Map<String, IdpValueTypes.Config>()
     );
   }
 
-  private static IdpConfigLoader.RawRule phoneRule(
-    String name,
-    String policy
-  ) {
+  private static IdpConfigLoader.RawRule phoneRule(String name, String policy) {
     IdpConfigLoader.RawRule raw = rule(
       name,
       'Customer',
@@ -140,7 +149,10 @@ private class IdpMappingEngineTest {
     );
     Test.stopTest();
 
-    Assert.isTrue(result.success, 'findings: ' + JSON.serialize(result.findings));
+    Assert.isTrue(
+      result.success,
+      'findings: ' + JSON.serialize(result.findings)
+    );
     Assert.isTrue(result.compliant);
     Assert.areEqual(2, result.fieldsApplied, 'name + description');
     Assert.areEqual(1, result.updatedRecordIds.size(), 'only the Case');
@@ -171,7 +183,10 @@ private class IdpMappingEngineTest {
     );
     Test.stopTest();
 
-    Assert.isTrue(result.success, 'findings: ' + JSON.serialize(result.findings));
+    Assert.isTrue(
+      result.success,
+      'findings: ' + JSON.serialize(result.findings)
+    );
     Assert.areEqual(
       '0821234567',
       [SELECT Phone FROM Account WHERE Id = :data.account.Id].Phone
@@ -408,11 +423,14 @@ private class IdpMappingEngineTest {
     Assert.isTrue(result.success);
     Assert.isTrue(
       result.compliant,
-      'formats differ, the number does not: ' +
-        JSON.serialize(result.findings)
+      'formats differ, the number does not: ' + JSON.serialize(result.findings)
     );
     Assert.areEqual(1, result.fieldsCompared);
-    Assert.areEqual(0, result.updatedRecordIds.size(), 'compliance never writes');
+    Assert.areEqual(
+      0,
+      result.updatedRecordIds.size(),
+      'compliance never writes'
+    );
   }
 
   @IsTest
@@ -586,9 +604,18 @@ private class IdpMappingEngineTest {
       data.contentDocumentId,
       invoiceJson(
         new List<Map<String, Object>>{
-          new Map<String, Object>{ 'Quantity' => 3, 'Description' => 'Widgets' },
-          new Map<String, Object>{ 'Quantity' => 5, 'Description' => 'Sprockets' },
-          new Map<String, Object>{ 'Quantity' => 9, 'Description' => 'Ghost row' }
+          new Map<String, Object>{
+            'Quantity' => 3,
+            'Description' => 'Widgets'
+          },
+          new Map<String, Object>{
+            'Quantity' => 5,
+            'Description' => 'Sprockets'
+          },
+          new Map<String, Object>{
+            'Quantity' => 9,
+            'Description' => 'Ghost row'
+          }
         }
       ),
       null
@@ -712,7 +739,7 @@ private class IdpMappingEngineTest {
     Assert.isTrue(
       queriesUsed <= 5,
       'links + cases + accounts (+ describe-free) should stay grouped; used ' +
-        queriesUsed
+      queriesUsed
     );
     Assert.areEqual(1, dmlUsed, 'one partial-success update for the whole run');
   }
@@ -764,11 +791,7 @@ private class IdpMappingEngineTest {
   static void unknownModeAndUnknownSetAreErrors() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
     installEstateConfig();
-    IdpResult.Result badMode = runOne(
-      data.contentDocumentId,
-      '{}',
-      'Sideways'
-    );
+    IdpResult.Result badMode = runOne(data.contentDocumentId, '{}', 'Sideways');
     Assert.areEqual(
       1,
       badMode.findingsWith(IdpResult.CODE_INVALID_MODE).size()
@@ -784,10 +807,7 @@ private class IdpMappingEngineTest {
       null
     )[0];
     Assert.isFalse(badSet.success);
-    Assert.areEqual(
-      1,
-      badSet.findingsWith(IdpResult.CODE_CONFIG_ISSUE).size()
-    );
+    Assert.areEqual(1, badSet.findingsWith(IdpResult.CODE_CONFIG_ISSUE).size());
   }
 
   // ─────────────────────── invocable surface ──────────────────────
@@ -866,8 +886,20 @@ private class IdpMappingEngineTest {
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
       new List<IdpConfigLoader.RawRule>{
-        rule('R1_Bad', 'Case_Details', 'applicant.name', 'Case', 'No_Such_Field__c'),
-        rule('R2_Good', 'Case_Details', 'applicant.name', 'Case', 'SuppliedName')
+        rule(
+          'R1_Bad',
+          'Case_Details',
+          'applicant.name',
+          'Case',
+          'No_Such_Field__c'
+        ),
+        rule(
+          'R2_Good',
+          'Case_Details',
+          'applicant.name',
+          'Case',
+          'SuppliedName'
+        )
       },
       new Map<String, IdpValueTypes.Config>()
     );
@@ -922,7 +954,7 @@ private class IdpMappingEngineTest {
     Assert.areEqual(
       1234567,
       [SELECT AnnualRevenue FROM Account WHERE Id = :data.account.Id]
-      .AnnualRevenue.intValue()
+        .AnnualRevenue.intValue()
     );
   }
 
@@ -932,8 +964,20 @@ private class IdpMappingEngineTest {
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
       new List<IdpConfigLoader.RawRule>{
-        rule('R1_Email', 'Case_Details', 'applicant.email', 'Case', 'SuppliedEmail'),
-        rule('R2_Name', 'Case_Details', 'applicant.name', 'Case', 'SuppliedName')
+        rule(
+          'R1_Email',
+          'Case_Details',
+          'applicant.email',
+          'Case',
+          'SuppliedEmail'
+        ),
+        rule(
+          'R2_Name',
+          'Case_Details',
+          'applicant.name',
+          'Case',
+          'SuppliedName'
+        )
       },
       new Map<String, IdpValueTypes.Config>()
     );
@@ -1000,11 +1044,7 @@ private class IdpMappingEngineTest {
   @IsTest
   static void reportAndGuardPlumbing() {
     IdpResult.Result result = new IdpResult.Result();
-    result.add(
-      IdpResult.CODE_VALUE_MISMATCH,
-      IdpResult.SEV_WARNING,
-      'differs'
-    );
+    result.add(IdpResult.CODE_VALUE_MISMATCH, IdpResult.SEV_WARNING, 'differs');
     IdpResult.RunReport report = new IdpResult.RunReport();
     report.results.add(result);
     Assert.areEqual(
@@ -1017,7 +1057,7 @@ private class IdpMappingEngineTest {
     Assert.isTrue(IdpLimitsGuard.hasDmlHeadroom());
     Assert.isTrue(
       IdpResult.rank(IdpResult.Grade.EXACT) <
-        IdpResult.rank(IdpResult.Grade.AMBIGUOUS)
+      IdpResult.rank(IdpResult.Grade.AMBIGUOUS)
     );
   }
 }

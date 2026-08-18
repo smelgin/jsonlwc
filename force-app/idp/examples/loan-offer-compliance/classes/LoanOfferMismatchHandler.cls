@@ -46,9 +46,7 @@ public inherited sharing class LoanOfferMismatchHandler implements IIdpFindingHa
       );
 
       Id caseId = firstRecordOfType(mismatches, Case.SObjectType);
-      Id whatId = caseId != null
-        ? caseId
-        : Id.valueOf(mismatches[0].recordId);
+      Id whatId = caseId != null ? caseId : Id.valueOf(mismatches[0].recordId);
       String narrative = narrative(report.mappingSetName, mismatches, nears);
 
       tasks.add(
