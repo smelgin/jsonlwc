@@ -39,18 +39,20 @@ private class IdpBatchProcessorTest {
     IdpConfigLoader.RawRule nameRule = new IdpConfigLoader.RawRule();
     nameRule.name = 'B1_Name';
     nameRule.label = 'Name';
-    nameRule.sectionName = 'Details';
     nameRule.jsonPath = 'applicant.name';
-    nameRule.targetObject = targetObject;
     nameRule.targetField = targetField;
     nameRule.overwritePolicy = 'Always';
+    detail.rules.add(nameRule);
 
     IdpConfigLoader.cache.put(
       SET_NAME,
       IdpConfigLoader.assemble(
         rawSet,
-        new List<IdpConfigLoader.RawSection>{ detail },
-        new List<IdpConfigLoader.RawRule>{ nameRule },
+        JSON.serialize(
+          new Map<String, Object>{
+            'sections' => new List<IdpConfigLoader.RawSection>{ detail }
+          }
+        ),
         new Map<String, IdpValueTypes.Config>()
       )
     );

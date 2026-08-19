@@ -26,7 +26,17 @@ private class IdpMappingEngineTest {
     return raw;
   }
 
-  private static IdpConfigLoader.RawRule rule(
+  /**
+   * A rule plus the section it belongs to. Rules live nested inside their
+   * section in the real config; this wrapper lets each test keep listing
+   * them flatly, which reads better when a case is about one rule.
+   */
+  private class Spec {
+    private String sectionName;
+    private IdpConfigLoader.RawRule rule;
+  }
+
+  private static Spec rule(
     String name,
     String sectionName,
     String jsonPath,
@@ -36,25 +46,40 @@ private class IdpMappingEngineTest {
     IdpConfigLoader.RawRule raw = new IdpConfigLoader.RawRule();
     raw.name = name;
     raw.label = name;
-    raw.sectionName = sectionName;
     raw.jsonPath = jsonPath;
-    raw.targetObject = targetObject;
     raw.targetField = targetField;
     raw.overwritePolicy = 'Always';
-    return raw;
+    Spec spec = new Spec();
+    spec.sectionName = sectionName;
+    spec.rule = raw;
+    return spec;
   }
 
   private static void install(
     List<IdpConfigLoader.RawSection> sections,
-    List<IdpConfigLoader.RawRule> rules,
+    List<Spec> rules,
     Map<String, IdpValueTypes.Config> valueTypes
   ) {
+    Map<String, IdpConfigLoader.RawSection> byName = new Map<String, IdpConfigLoader.RawSection>();
+    for (IdpConfigLoader.RawSection section : sections) {
+      byName.put(section.name, section);
+    }
+    for (Spec spec : rules) {
+      IdpConfigLoader.RawSection section = byName.get(spec.sectionName);
+      if (section != null) {
+        section.rules.add(spec.rule);
+      }
+    }
     IdpConfigLoader.RawSet rawSet = new IdpConfigLoader.RawSet();
     rawSet.name = SET_NAME;
     rawSet.label = SET_NAME;
     IdpConfigLoader.cache.put(
       SET_NAME,
-      IdpConfigLoader.assemble(rawSet, sections, rules, valueTypes)
+      IdpConfigLoader.assemble(
+        rawSet,
+        JSON.serialize(new Map<String, Object>{ 'sections' => sections }),
+        valueTypes
+      )
     );
   }
 
@@ -94,7 +119,7 @@ private class IdpMappingEngineTest {
         section('Case_Details', 'Case'),
         section('Customer', 'Account')
       },
-      new List<IdpConfigLoader.RawRule>{
+      new List<Spec>{
         rule(
           'R1_Name',
           'Case_Details',
@@ -122,15 +147,9 @@ private class IdpMappingEngineTest {
     );
   }
 
-  private static IdpConfigLoader.RawRule phoneRule(String name, String policy) {
-    IdpConfigLoader.RawRule raw = rule(
-      name,
-      'Customer',
-      'applicant.phone',
-      'Account',
-      'Phone'
-    );
-    raw.overwritePolicy = policy;
+  private static Spec phoneRule(String name, String policy) {
+    Spec raw = rule(name, 'Customer', 'applicant.phone', 'Account', 'Phone');
+    raw.rule.overwritePolicy = policy;
     return raw;
   }
 
@@ -228,7 +247,7 @@ private class IdpMappingEngineTest {
       new List<IdpConfigLoader.RawSection>{
         section('Nowhere', 'Contact') // no Contact is reachable
       },
-      new List<IdpConfigLoader.RawRule>{
+      new List<Spec>{
         rule('R1', 'Nowhere', 'applicant.name', 'Contact', 'LastName')
       },
       new Map<String, IdpValueTypes.Config>()
@@ -254,17 +273,17 @@ private class IdpMappingEngineTest {
   @IsTest
   static void requiredPathMissingIsAnError() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
-    IdpConfigLoader.RawRule required = rule(
+    Spec required = rule(
       'R1',
       'Case_Details',
       'applicant.idNumber',
       'Case',
       'SuppliedName'
     );
-    required.required = true;
+    required.rule.required = true;
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
-      new List<IdpConfigLoader.RawRule>{ required },
+      new List<Spec>{ required },
       new Map<String, IdpValueTypes.Config>()
     );
 
@@ -288,17 +307,17 @@ private class IdpMappingEngineTest {
     dateType.kind = IdpValueTypes.KIND_DATE;
     dateType.formats = new List<String>{ 'dd/MM/yyyy', 'MM/dd/yyyy' };
 
-    IdpConfigLoader.RawRule dateRule = rule(
+    Spec dateRule = rule(
       'R1',
       'Case_Details',
       'signedDate',
       'Case',
       'Description'
     );
-    dateRule.valueTypeName = 'Date_Both';
+    dateRule.rule.valueTypeName = 'Date_Both';
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
-      new List<IdpConfigLoader.RawRule>{ dateRule },
+      new List<Spec>{ dateRule },
       new Map<String, IdpValueTypes.Config>{ 'Date_Both' => dateType }
     );
 
@@ -322,18 +341,18 @@ private class IdpMappingEngineTest {
     money.name = 'Money_Test';
     money.kind = IdpValueTypes.KIND_NUMBER;
 
-    IdpConfigLoader.RawRule strict = rule(
+    Spec strict = rule(
       'R1',
       'Customer',
       'turnover',
       'Account',
       'AnnualRevenue'
     );
-    strict.valueTypeName = 'Money_Test';
-    strict.minGrade = 'Exact';
+    strict.rule.valueTypeName = 'Money_Test';
+    strict.rule.minGrade = 'Exact';
     install(
       new List<IdpConfigLoader.RawSection>{ section('Customer', 'Account') },
-      new List<IdpConfigLoader.RawRule>{ strict },
+      new List<Spec>{ strict },
       new Map<String, IdpValueTypes.Config>{ 'Money_Test' => money }
     );
 
@@ -352,17 +371,17 @@ private class IdpMappingEngineTest {
   @IsTest
   static void confidenceEnvelopeGatesLowConfidenceValues() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
-    IdpConfigLoader.RawRule gated = rule(
+    Spec gated = rule(
       'R1',
       'Case_Details',
       'applicant.name',
       'Case',
       'SuppliedName'
     );
-    gated.minConfidence = 0.8;
+    gated.rule.minConfidence = 0.8;
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
-      new List<IdpConfigLoader.RawRule>{ gated },
+      new List<Spec>{ gated },
       new Map<String, IdpValueTypes.Config>()
     );
 
@@ -404,11 +423,11 @@ private class IdpMappingEngineTest {
     phoneZa.kind = IdpValueTypes.KIND_PHONE;
     phoneZa.region = 'ZA';
 
-    IdpConfigLoader.RawRule phone = phoneRule('R1_Phone', 'Always');
-    phone.valueTypeName = 'Phone_ZA';
+    Spec phone = phoneRule('R1_Phone', 'Always');
+    phone.rule.valueTypeName = 'Phone_ZA';
     install(
       new List<IdpConfigLoader.RawSection>{ section('Customer', 'Account') },
-      new List<IdpConfigLoader.RawRule>{ phone },
+      new List<Spec>{ phone },
       new Map<String, IdpValueTypes.Config>{ 'Phone_ZA' => phoneZa }
     );
 
@@ -476,24 +495,24 @@ private class IdpMappingEngineTest {
   @IsTest
   static void perRuleModeMixesExtractionAndCompliance() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
-    IdpConfigLoader.RawRule extract = rule(
+    Spec extract = rule(
       'R1_Extract',
       'Case_Details',
       'estate.description',
       'Case',
       'Description'
     );
-    IdpConfigLoader.RawRule verify = rule(
+    Spec verify = rule(
       'R2_Verify',
       'Case_Details',
       'applicant.name',
       'Case',
       'SuppliedName'
     );
-    verify.mode = 'Compliance';
+    verify.rule.mode = 'Compliance';
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
-      new List<IdpConfigLoader.RawRule>{ extract, verify },
+      new List<Spec>{ extract, verify },
       new Map<String, IdpValueTypes.Config>()
     );
 
@@ -568,7 +587,7 @@ private class IdpMappingEngineTest {
     lines.matchValue = 'INV-{json:Invoice}-{row:number}';
     install(
       new List<IdpConfigLoader.RawSection>{ lines },
-      new List<IdpConfigLoader.RawRule>{
+      new List<Spec>{
         rule('L1_Quantity', 'Lines', 'Quantity', 'Asset', 'Quantity'),
         rule('L2_Name', 'Lines', 'Description', 'Asset', 'Name')
       },
@@ -659,9 +678,7 @@ private class IdpMappingEngineTest {
     lines.matchField = 'SerialNumber';
     install(
       new List<IdpConfigLoader.RawSection>{ lines },
-      new List<IdpConfigLoader.RawRule>{
-        rule('L1', 'Lines', 'Quantity', 'Asset', 'Quantity')
-      },
+      new List<Spec>{ rule('L1', 'Lines', 'Quantity', 'Asset', 'Quantity') },
       new Map<String, IdpValueTypes.Config>()
     );
 
@@ -881,11 +898,53 @@ private class IdpMappingEngineTest {
   }
 
   @IsTest
+  static void aFieldThatDisappearsAfterLoadIsStillReported() {
+    // The loader screens field names, so config can no longer produce an
+    // unknown field. The evaluator's guard still matters for the case the
+    // loader cannot cover: a field deleted between load and evaluation.
+    // Reaching it means building the config by hand, past the loader.
+    IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
+
+    IdpConfigLoader.RuleConfig ghost = new IdpConfigLoader.RuleConfig();
+    ghost.name = 'R1_Ghost';
+    ghost.label = 'Ghost';
+    ghost.jsonPath = 'applicant.name';
+    ghost.targetObject = 'Case';
+    ghost.targetField = 'Vanished_Field__c';
+    ghost.overwritePolicy = 'Always';
+
+    IdpConfigLoader.SectionConfig section = new IdpConfigLoader.SectionConfig();
+    section.name = 'Case_Details';
+    section.label = 'Case Details';
+    section.targetObject = 'Case';
+    section.rules.add(ghost);
+
+    IdpConfigLoader.SetConfig config = new IdpConfigLoader.SetConfig();
+    config.found = true;
+    config.name = SET_NAME;
+    config.label = SET_NAME;
+    config.sections.add(section);
+    IdpConfigLoader.cache.put(SET_NAME, config);
+
+    IdpResult.Result result = runOne(
+      data.contentDocumentId,
+      estateJson('Jane', '1'),
+      null
+    );
+    Assert.areEqual(
+      1,
+      result.findingsWith(IdpResult.CODE_UNKNOWN_FIELD).size(),
+      'the engine reports it rather than failing the document'
+    );
+    Assert.areEqual(0, result.fieldsApplied);
+  }
+
+  @IsTest
   static void unknownFieldsAreReportedPerRule() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
-      new List<IdpConfigLoader.RawRule>{
+      new List<Spec>{
         rule(
           'R1_Bad',
           'Case_Details',
@@ -909,9 +968,16 @@ private class IdpMappingEngineTest {
       estateJson('Jane', '1'),
       null
     );
+    // The loader now checks field names against the schema, so a bad name
+    // is rejected once when the config loads rather than once per document.
     Assert.areEqual(
       1,
-      result.findingsWith(IdpResult.CODE_UNKNOWN_FIELD).size()
+      result.findingsWith(IdpResult.CODE_CONFIG_ISSUE).size(),
+      'the unknown field is reported as a configuration problem'
+    );
+    Assert.isTrue(
+      result.findingsWith(IdpResult.CODE_CONFIG_ISSUE)[0]
+        .message.contains('No_Such_Field__c')
     );
     Assert.areEqual(1, result.fieldsApplied, 'the good rule still ran');
   }
@@ -927,17 +993,17 @@ private class IdpMappingEngineTest {
     zarMoney.kind = IdpValueTypes.KIND_NUMBER;
     zarMoney.currencyCode = 'ZAR';
 
-    IdpConfigLoader.RawRule turnover = rule(
+    Spec turnover = rule(
       'R1_Turnover',
       'Customer',
       'turnover',
       'Account',
       'AnnualRevenue'
     );
-    turnover.valueTypeName = 'Money_ZAR';
+    turnover.rule.valueTypeName = 'Money_ZAR';
     install(
       new List<IdpConfigLoader.RawSection>{ section('Customer', 'Account') },
-      new List<IdpConfigLoader.RawRule>{ turnover },
+      new List<Spec>{ turnover },
       new Map<String, IdpValueTypes.Config>{ 'Money_ZAR' => zarMoney }
     );
 
@@ -963,7 +1029,7 @@ private class IdpMappingEngineTest {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
     install(
       new List<IdpConfigLoader.RawSection>{ section('Case_Details', 'Case') },
-      new List<IdpConfigLoader.RawRule>{
+      new List<Spec>{
         rule(
           'R1_Email',
           'Case_Details',

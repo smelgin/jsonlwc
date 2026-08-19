@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+    <flexiPage>IDP_Configuration</flexiPage>
+    <label>IDP Configuration</label>
+    <motif>Custom53: Bank</motif>
+    <description>Edits the mapping rules of each IDP document type.</description>
+</CustomTab>

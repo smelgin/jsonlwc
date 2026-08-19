@@ -1,8 +1,11 @@
 /**
- * Unit tests for config assembly and validation, at the Raw* DTO level —
- * custom metadata cannot be inserted in tests, and the query→raw mapping
- * is mechanical. What matters is that misconfiguration degrades to issues
- * while the rest of the set still runs.
+ * Unit tests for config assembly and validation. Two levels are covered:
+ * the Raw* DTO level, where misconfiguration must degrade to issues while
+ * the rest of the set still runs, and the JSON level, where a hand-edited
+ * Definition must parse — or fail loudly enough that an admin can fix it.
+ *
+ * Custom metadata cannot be inserted in tests, so the set record itself is
+ * hand-built; the query→raw mapping is mechanical.
  */
 @IsTest
 private class IdpConfigLoaderTest {
@@ -29,28 +32,28 @@ private class IdpConfigLoaderTest {
 
   private static IdpConfigLoader.RawRule rawRule(
     String name,
-    String sectionName,
     String jsonPath,
-    String targetObject,
     String targetField
   ) {
     IdpConfigLoader.RawRule raw = new IdpConfigLoader.RawRule();
     raw.name = name;
     raw.label = name;
-    raw.sectionName = sectionName;
     raw.jsonPath = jsonPath;
-    raw.targetObject = targetObject;
     raw.targetField = targetField;
     return raw;
   }
 
+  /** Assembles from Raw sections, skipping the JSON round trip. */
   private static IdpConfigLoader.SetConfig assemble(
     IdpConfigLoader.RawSet mappingSet,
     List<IdpConfigLoader.RawSection> sections,
-    List<IdpConfigLoader.RawRule> rules,
     Map<String, IdpValueTypes.Config> valueTypes
   ) {
-    return IdpConfigLoader.assemble(mappingSet, sections, rules, valueTypes);
+    return IdpConfigLoader.assemble(
+      mappingSet,
+      JSON.serialize(new Map<String, Object>{ 'sections' => sections }),
+      valueTypes
+    );
   }
 
   @IsTest
@@ -58,7 +61,6 @@ private class IdpConfigLoaderTest {
     IdpConfigLoader.SetConfig config = assemble(
       null,
       new List<IdpConfigLoader.RawSection>(),
-      new List<IdpConfigLoader.RawRule>(),
       new Map<String, IdpValueTypes.Config>()
     );
     Assert.isFalse(config.found);
@@ -68,14 +70,12 @@ private class IdpConfigLoaderTest {
 
   @IsTest
   static void assemblesValidConfig() {
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(rawRule('Name_Rule', 'applicant.name', 'SuppliedName'));
+
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{
-        rawRule('Name_Rule', 'Header', 'applicant.name', 'Case', 'SuppliedName')
-      },
+      new List<IdpConfigLoader.RawSection>{ header },
       new Map<String, IdpValueTypes.Config>()
     );
     Assert.isTrue(config.found);
@@ -92,38 +92,124 @@ private class IdpConfigLoaderTest {
   }
 
   @IsTest
-  static void objectMismatchSkipsTheRule() {
+  static void unknownObjectSkipsTheSection() {
+    IdpConfigLoader.RawSection bad = rawSection('Ghost', 'Fixed', 'No_Such__c');
+    bad.rules.add(rawRule('Orphan', 'x', 'Name'));
+    IdpConfigLoader.RawSection good = rawSection('Header', 'Fixed', 'Case');
+    good.rules.add(rawRule('Good_Rule', 'y', 'Description'));
+
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{
-        rawRule('Bad_Rule', 'Header', 'x', 'Account', 'Phone'),
-        rawRule('Good_Rule', 'Header', 'y', 'Case', 'Description')
-      },
+      new List<IdpConfigLoader.RawSection>{ bad, good },
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(1, config.sections.size(), 'one section survives');
+    Assert.areEqual('Header', config.sections[0].name);
+    Assert.areEqual(1, config.issues.size());
+    Assert.isTrue(
+      config.issues[0].message.contains('No_Such__c'),
+      'the schema check replaces the old EntityDefinition relationship'
+    );
+  }
+
+  @IsTest
+  static void unknownFieldSkipsTheRule() {
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(rawRule('Bad_Rule', 'x', 'Not_A_Field__c'));
+    header.rules.add(rawRule('Good_Rule', 'y', 'Description'));
+
+    IdpConfigLoader.SetConfig config = assemble(
+      rawSet(),
+      new List<IdpConfigLoader.RawSection>{ header },
       new Map<String, IdpValueTypes.Config>()
     );
     Assert.areEqual(1, config.sections[0].rules.size(), 'one rule survives');
     Assert.areEqual('Good_Rule', config.sections[0].rules[0].name);
     Assert.areEqual(1, config.issues.size());
-    Assert.isTrue(config.issues[0].message.contains('Bad_Rule'));
+    Assert.isTrue(config.issues[0].message.contains('Not_A_Field__c'));
+  }
+
+  @IsTest
+  static void acceptsObjectQualifiedFieldNames() {
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(rawRule('Qualified', 'x', 'Case.SuppliedEmail'));
+
+    IdpConfigLoader.SetConfig config = assemble(
+      rawSet(),
+      new List<IdpConfigLoader.RawSection>{ header },
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(0, config.issues.size(), 'issues: ' + config.issues);
+    Assert.areEqual(
+      'SuppliedEmail',
+      config.sections[0].rules[0].targetField,
+      'the object prefix is stripped for every downstream consumer'
+    );
   }
 
   @IsTest
   static void incompleteRepeatingSectionIsSkippedWithItsRules() {
+    IdpConfigLoader.RawSection lines = rawSection(
+      'Lines',
+      'Repeating',
+      'Asset'
+    );
+    lines.rules.add(rawRule('Line_Rule', 'Quantity', 'Quantity'));
+
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Lines', 'Repeating', 'Asset') // no row path/match config
-      },
-      new List<IdpConfigLoader.RawRule>{
-        rawRule('Line_Rule', 'Lines', 'Quantity', 'Asset', 'Quantity')
-      },
+      new List<IdpConfigLoader.RawSection>{ lines }, // no row path/match config
       new Map<String, IdpValueTypes.Config>()
     );
     Assert.areEqual(0, config.sections.size());
-    Assert.areEqual(2, config.issues.size(), 'section skip + orphaned rule');
+    Assert.areEqual(1, config.issues.size(), 'the rules go with the section');
+  }
+
+  @IsTest
+  static void repeatingSectionWithUnknownMatchFieldIsSkipped() {
+    IdpConfigLoader.RawSection lines = rawSection(
+      'Lines',
+      'Repeating',
+      'Asset'
+    );
+    lines.rowPath = 'Details';
+    lines.matchField = 'Not_A_Field__c';
+    lines.matchValue = '{row:number}';
+
+    IdpConfigLoader.SetConfig config = assemble(
+      rawSet(),
+      new List<IdpConfigLoader.RawSection>{ lines },
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(0, config.sections.size());
+    Assert.isTrue(config.issues[0].message.contains('Not_A_Field__c'));
+  }
+
+  @IsTest
+  static void inactiveSectionsAndRulesAreSkipped() {
+    IdpConfigLoader.RawSection off = rawSection('Off', 'Fixed', 'Case');
+    off.active = false;
+    off.rules.add(rawRule('Never', 'x', 'Description'));
+
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    IdpConfigLoader.RawRule disabled = rawRule('Disabled', 'y', 'Subject');
+    disabled.active = false;
+    header.rules.add(disabled);
+    header.rules.add(rawRule('Live', 'z', 'Description'));
+
+    IdpConfigLoader.SetConfig config = assemble(
+      rawSet(),
+      new List<IdpConfigLoader.RawSection>{ off, header },
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(1, config.sections.size());
+    Assert.areEqual(1, config.sections[0].rules.size());
+    Assert.areEqual('Live', config.sections[0].rules[0].name);
+    Assert.areEqual(
+      0,
+      config.issues.size(),
+      'deliberately disabling something is not a problem to report'
+    );
   }
 
   @IsTest
@@ -137,10 +223,10 @@ private class IdpConfigLoaderTest {
     lines.matchField = 'SerialNumber';
     lines.matchValue = '{row:number}';
     lines.parentSection = 'Nowhere';
+
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
       new List<IdpConfigLoader.RawSection>{ lines },
-      new List<IdpConfigLoader.RawRule>(),
       new Map<String, IdpValueTypes.Config>()
     );
     Assert.isNull(config.sections[0].parentSectionName);
@@ -149,20 +235,14 @@ private class IdpConfigLoaderTest {
 
   @IsTest
   static void unknownValueTypeSkipsTheRule() {
-    IdpConfigLoader.RawRule rule = rawRule(
-      'Typed_Rule',
-      'Header',
-      'x',
-      'Case',
-      'Description'
-    );
+    IdpConfigLoader.RawRule rule = rawRule('Typed_Rule', 'x', 'Description');
     rule.valueTypeName = 'No_Such_Type';
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(rule);
+
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{ rule },
+      new List<IdpConfigLoader.RawSection>{ header },
       new Map<String, IdpValueTypes.Config>()
     );
     Assert.areEqual(0, config.sections[0].rules.size());
@@ -175,20 +255,15 @@ private class IdpConfigLoaderTest {
     custom.name = 'Broken_Custom';
     custom.kind = IdpValueTypes.KIND_CUSTOM;
     custom.handlerClass = 'DoesNotExistAnywhere';
-    IdpConfigLoader.RawRule rule = rawRule(
-      'Custom_Rule',
-      'Header',
-      'x',
-      'Case',
-      'Description'
-    );
+
+    IdpConfigLoader.RawRule rule = rawRule('Custom_Rule', 'x', 'Description');
     rule.valueTypeName = 'Broken_Custom';
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(rule);
+
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{ rule },
+      new List<IdpConfigLoader.RawSection>{ header },
       new Map<String, IdpValueTypes.Config>{ 'Broken_Custom' => custom }
     );
     Assert.areEqual(0, config.sections[0].rules.size());
@@ -207,29 +282,22 @@ private class IdpConfigLoaderTest {
     phone.kind = IdpValueTypes.KIND_PHONE;
     phone.region = 'XX';
 
-    IdpConfigLoader.RawRule regexRule = rawRule(
-      'Regex_Rule',
-      'Header',
-      'a',
-      'Case',
-      'Subject'
-    );
+    IdpConfigLoader.RawRule regexRule = rawRule('Regex_Rule', 'a', 'Subject');
     regexRule.valueTypeName = 'Bad_Regex';
     IdpConfigLoader.RawRule phoneRule = rawRule(
       'Phone_Rule',
-      'Header',
       'b',
-      'Case',
       'SuppliedPhone'
     );
     phoneRule.valueTypeName = 'Bad_Region';
 
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(regexRule);
+    header.rules.add(phoneRule);
+
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{ regexRule, phoneRule },
+      new List<IdpConfigLoader.RawSection>{ header },
       new Map<String, IdpValueTypes.Config>{
         'Bad_Regex' => regex,
         'Bad_Region' => phone
@@ -250,21 +318,14 @@ private class IdpConfigLoaderTest {
     unseeded.kind = IdpValueTypes.KIND_NUMBER;
     unseeded.locale = 'zz-ZZ';
 
-    IdpConfigLoader.RawRule rule = rawRule(
-      'Locale_Rule',
-      'Header',
-      'a',
-      'Case',
-      'Subject'
-    );
+    IdpConfigLoader.RawRule rule = rawRule('Locale_Rule', 'a', 'Subject');
     rule.valueTypeName = 'Bad_Locale';
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(rule);
 
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{ rule },
+      new List<IdpConfigLoader.RawSection>{ header },
       new Map<String, IdpValueTypes.Config>{ 'Bad_Locale' => unseeded }
     );
     Assert.areEqual(1, config.issues.size());
@@ -281,76 +342,57 @@ private class IdpConfigLoaderTest {
 
   @IsTest
   static void reportsMonthNamesALanguageCannotRead() {
-    IdpValueTypes.Config vietnamese = new IdpValueTypes.Config();
-    vietnamese.name = 'VN_Long_Date';
-    vietnamese.kind = IdpValueTypes.KIND_DATE;
-    vietnamese.locale = 'vi-VN';
-    vietnamese.formats = new List<String>{ 'dd MMMM yyyy' };
+    // ZA is seeded so the locale is known, but no "zz" language declares
+    // month names — exactly the half-configured case worth reporting.
+    IdpValueTypes.Config monthless = new IdpValueTypes.Config();
+    monthless.name = 'Unknown_Long_Date';
+    monthless.kind = IdpValueTypes.KIND_DATE;
+    monthless.locale = 'zz-ZA';
+    monthless.formats = new List<String>{ 'dd MMMM yyyy' };
 
-    IdpConfigLoader.RawRule rule = rawRule(
-      'Date_Rule',
-      'Header',
-      'a',
-      'Case',
-      'Subject'
-    );
-    rule.valueTypeName = 'VN_Long_Date';
+    IdpConfigLoader.RawRule rule = rawRule('Date_Rule', 'a', 'Subject');
+    rule.valueTypeName = 'Unknown_Long_Date';
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(rule);
 
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{ rule },
-      new Map<String, IdpValueTypes.Config>{ 'VN_Long_Date' => vietnamese }
+      new List<IdpConfigLoader.RawSection>{ header },
+      new Map<String, IdpValueTypes.Config>{ 'Unknown_Long_Date' => monthless }
     );
     Assert.areEqual(1, config.issues.size());
     Assert.isTrue(config.issues[0].message.contains('Month Names'));
 
     // A language that does declare them says nothing.
-    vietnamese.name = 'DE_Long_Date';
-    vietnamese.locale = 'de-DE';
-    rule.valueTypeName = 'DE_Long_Date';
-    IdpConfigLoader.SetConfig german = assemble(
+    monthless.name = 'SW_Long_Date';
+    monthless.locale = 'sw-KE';
+    rule.valueTypeName = 'SW_Long_Date';
+    IdpConfigLoader.SetConfig swahili = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{ rule },
-      new Map<String, IdpValueTypes.Config>{ 'DE_Long_Date' => vietnamese }
+      new List<IdpConfigLoader.RawSection>{ header },
+      new Map<String, IdpValueTypes.Config>{ 'SW_Long_Date' => monthless }
     );
-    Assert.areEqual(0, german.issues.size());
+    Assert.areEqual(0, swahili.issues.size());
   }
 
   @IsTest
   static void parsesGradeModeAndPolicyFields() {
-    IdpConfigLoader.RawRule strict = rawRule(
-      'Strict_Rule',
-      'Header',
-      'x',
-      'Case',
-      'Description'
-    );
+    IdpConfigLoader.RawRule strict = rawRule('Strict_Rule', 'x', 'Description');
     strict.minGrade = 'Exact';
     strict.mode = 'Compliance';
     strict.required = true;
     strict.minConfidence = 0.9;
 
-    IdpConfigLoader.RawRule badMode = rawRule(
-      'Bad_Mode',
-      'Header',
-      'y',
-      'Case',
-      'Subject'
-    );
+    IdpConfigLoader.RawRule badMode = rawRule('Bad_Mode', 'y', 'Subject');
     badMode.mode = 'Sideways';
+
+    IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
+    header.rules.add(strict);
+    header.rules.add(badMode);
 
     IdpConfigLoader.SetConfig config = assemble(
       rawSet(),
-      new List<IdpConfigLoader.RawSection>{
-        rawSection('Header', 'Fixed', 'Case')
-      },
-      new List<IdpConfigLoader.RawRule>{ strict, badMode },
+      new List<IdpConfigLoader.RawSection>{ header },
       new Map<String, IdpValueTypes.Config>()
     );
     Assert.areEqual(1, config.sections[0].rules.size());
@@ -361,6 +403,98 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(0.9, rule.minConfidence);
     Assert.isTrue(config.issues[0].message.contains('Sideways'));
   }
+
+  // ───────────────────────── JSON definition ──────────────────────
+
+  @IsTest
+  static void parsesAHandWrittenDefinition() {
+    String definition =
+      '{"sections":[{"name":"Header","label":"Header","sectionType":"Fixed",' +
+      '"targetObject":"Case","rules":[{"name":"Email","jsonPath":"applicant.email",' +
+      '"targetField":"SuppliedEmail","overwritePolicy":"Always","required":true}]}]}';
+
+    IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
+      rawSet(),
+      definition,
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(0, config.issues.size(), 'issues: ' + config.issues);
+    IdpConfigLoader.RuleConfig rule = config.sections[0].rules[0];
+    Assert.areEqual('SuppliedEmail', rule.targetField);
+    Assert.areEqual('Always', rule.overwritePolicy);
+    Assert.isTrue(rule.required);
+  }
+
+  @IsTest
+  static void unreadableDefinitionIsReportedNotThrown() {
+    IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
+      rawSet(),
+      '{"sections": [ {"name": "Header",, ] }',
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.isTrue(
+      config.found,
+      'the set exists even when its JSON does not parse'
+    );
+    Assert.areEqual(0, config.sections.size());
+    Assert.areEqual(1, config.issues.size());
+    Assert.areEqual(IdpResult.SEV_ERROR, config.issues[0].severity);
+    Assert.isTrue(
+      config.issues[0].message.contains('IDP_CONFIGURATION.md'),
+      'the message points the admin at the format'
+    );
+  }
+
+  @IsTest
+  static void misspelledKeyIsReportedNotSilentlyIgnored() {
+    // "jsonPaths" is not a key. JSON.deserialize would ignore it and leave
+    // a rule that maps nothing, so the loader screens keys first — this is
+    // the check that turns an admin's typo into a message.
+    IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
+      rawSet(),
+      '{"sections":[{"name":"Header","targetObject":"Case","rules":' +
+      '[{"name":"R","jsonPaths":"a","targetField":"Subject"}]}]}',
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(1, config.issues.size());
+    Assert.areEqual(IdpResult.SEV_ERROR, config.issues[0].severity);
+    Assert.isTrue(
+      config.issues[0].message.contains('jsonPaths'),
+      'the admin is told which key, and on which rule: ' +
+      config.issues[0].message
+    );
+    Assert.areEqual(
+      0,
+      config.sections.size(),
+      'nothing loads, because a partly-understood definition is not honest'
+    );
+  }
+
+  @IsTest
+  static void unknownSectionKeyIsAlsoReported() {
+    IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
+      rawSet(),
+      '{"sections":[{"name":"Header","targetObjekt":"Case","rules":[]}]}',
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(1, config.issues.size());
+    Assert.isTrue(config.issues[0].message.contains('targetObjekt'));
+  }
+
+  @IsTest
+  static void emptyDefinitionIsAWarning() {
+    IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
+      rawSet(),
+      null,
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.isTrue(config.found);
+    Assert.areEqual(0, config.sections.size());
+    Assert.areEqual(1, config.issues.size());
+    Assert.areEqual(IdpResult.SEV_WARNING, config.issues[0].severity);
+  }
+
+  // ─────────────────────────── value types ────────────────────────
 
   @IsTest
   static void mapsValueTypeRecordToConfig() {
@@ -379,5 +513,33 @@ private class IdpConfigLoaderTest {
     );
     Assert.areEqual('dd MMMM yyyy|dd/MM/yyyy', cfg.formatsRaw);
     Assert.areEqual(1960, cfg.pivotYear);
+    Assert.areEqual(0, cfg.mapEntries.size());
+  }
+
+  @IsTest
+  static void parsesValueMapEntries() {
+    List<IdpValueTypes.MapEntry> entries = IdpConfigLoader.parseMapEntries(
+      '{"entries":[' +
+        '{"fromText":"Pty Ltd","toValue":"Private Company"},' +
+        '{"fromText":"(?i)cc","toValue":"Close Corporation","matchStyle":"Regex"},' +
+        '{"fromText":"Old","toValue":"Gone","active":false}]}'
+    );
+    Assert.areEqual(2, entries.size(), 'the inactive entry is dropped');
+    Assert.areEqual(
+      'Normalized',
+      entries[0].matchStyle,
+      'an unstated style keeps the MapEntry default'
+    );
+    Assert.areEqual('Regex', entries[1].matchStyle);
+  }
+
+  @IsTest
+  static void brokenValueMapYieldsNoEntries() {
+    Assert.areEqual(
+      0,
+      IdpConfigLoader.parseMapEntries('{"entries":[').size(),
+      'a broken dictionary maps nothing rather than mapping wrongly'
+    );
+    Assert.areEqual(0, IdpConfigLoader.parseMapEntries(null).size());
   }
 }

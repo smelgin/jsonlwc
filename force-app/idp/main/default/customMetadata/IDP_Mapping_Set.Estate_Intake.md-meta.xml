@@ -26,4 +26,56 @@
         <field>Active__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
+    <values>
+        <field>Definition__c</field>
+        <value xsi:type="xsd:string">{
+  "sections": [
+    {
+      "name": "Estate_Intake_Account",
+      "label": "Estate Intake: Account",
+      "sectionType": "Fixed",
+      "targetObject": "Account",
+      "rules": [
+        {
+          "name": "Estate_Intake_Applicant_Phone",
+          "label": "Estate Intake: Applicant Phone",
+          "jsonPath": "applicant.phone",
+          "targetField": "Phone",
+          "valueTypeName": "Phone_Generic",
+          "overwritePolicy": "Only if blank"
+        }
+      ]
+    },
+    {
+      "name": "Estate_Intake_Case",
+      "label": "Estate Intake: Case",
+      "sectionType": "Fixed",
+      "targetObject": "Case",
+      "rules": [
+        {
+          "name": "Estate_Intake_Applicant_Email",
+          "label": "Estate Intake: Applicant Email",
+          "jsonPath": "applicant.email",
+          "targetField": "SuppliedEmail",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Estate_Intake_Applicant_Name",
+          "label": "Estate Intake: Applicant Name",
+          "jsonPath": "applicant.name",
+          "targetField": "SuppliedName",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Estate_Intake_Description",
+          "label": "Estate Intake: Description",
+          "jsonPath": "estate.description",
+          "targetField": "Description",
+          "overwritePolicy": "Always"
+        }
+      ]
+    }
+  ]
+}</value>
+    </values>
 </CustomMetadata>

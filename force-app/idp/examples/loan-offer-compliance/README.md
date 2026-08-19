@@ -19,7 +19,7 @@ The seed data is rigged so the check fails in three instructive ways.
 | ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Compliance mode                | Two Fixed sections, nine rules, zero DML from the engine itself.                                                                                                                        |
 | Set-level defaults             | The mapping set declares `Default_Mode__c = Compliance` **and** its own `Finding_Handler__c`, so the caller configures nothing.                                                         |
-| Per-rule `Mode__c`             | Every rule additionally pins `Mode__c = Compliance`, so this set can never write even if run in Extraction mode.                                                                        |
+| Per-rule `mode`                | Every rule additionally pins `mode` of `Compliance`, so this set can never write even if run in Extraction mode.                                                                        |
 | Both-sides comparison          | `KALAHARI FREIGHT SERVICES` matches the stored `Kalahari Freight Services`; `"R 2 400 000.00"` matches the stored `2400000.00` — both sides go through the value type's canonical form. |
 | Three-state verdicts           | `LO_Money_ZA` has a one-cent Compare Tolerance: a rounding difference is **Near**, not a Mismatch.                                                                                      |
 | Blank counts as a mismatch     | The empty `Credit_Risk_Grade__c` cannot confirm the document, so it is reported.                                                                                                        |
@@ -60,7 +60,7 @@ No repeating section: an offer letter is a single set of terms.
 
 ### Rules
 
-| Section    | `JSON_Path__c`                    | Compared against                      | Value Type    |
+| Section    | `jsonPath`                        | Compared against                      | Value Type    |
 | ---------- | --------------------------------- | ------------------------------------- | ------------- |
 | `Borrower` | `borrower.registeredName`         | `Account.Name`                        |               |
 | `Borrower` | `borrower.creditRiskGrade`        | `Account.Credit_Risk_Grade__c`        |               |
@@ -72,7 +72,7 @@ No repeating section: an offer letter is a single set of terms.
 | `Offer`    | `offer.monthlyRepayment`          | `Case.Repayment_Amount__c`            | `LO_Money_ZA` |
 | `Offer`    | `offer.expiryDate`                | `Case.Offer_Expiry_Date__c`           | `LO_Date_ZA`  |
 
-Every one of them sets `Mode__c = Compliance` rather than leaving it blank to
+Every one of them sets `mode` of `Compliance` rather than leaving it blank to
 inherit the run's mode. That is deliberate: a mapping set that exists to
 _verify_ a legal document should not become a mapping set that _overwrites_
 the approved terms because somebody left the Mode picklist on its default.
@@ -234,7 +234,7 @@ sf data query --query "SELECT Subject, Priority, ActivityDate, Description FROM 
   comes back **Near** instead of Mismatch (`LO_Money_ZA`'s tolerance), listed
   for context but not blocking: rounding is not a changed term.
 - Set **Mode** to `Extraction` and run. Nothing is written anyway, because
-  every rule pins `Mode__c = Compliance`. Blank one rule's `Mode__c` and try
+  every rule pins `mode` of `Compliance`. Blank one rule's `mode` and try
   again to see the difference.
 - Set the **Finding Handler Class** property to a class that does not
   implement the interface. The engine reports a `HANDLER_FAILED` finding

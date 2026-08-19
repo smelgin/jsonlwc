@@ -21,27 +21,27 @@ or none.
 
 ### What each one adds
 
-| Engine feature                                       | 1   | 2   | 3   | 4   |
-| ---------------------------------------------------- | --- | --- | --- | --- |
-| Fixed sections                                       | ✅  | ✅  | ✅  | ✅  |
-| Repeating sections (`Row_Path__c`, `Match_Value__c`) |     | ✅  |     |     |
-| `Parent_Section__c` row scoping                      |     | ✅  |     |     |
-| `Record_Filter__c` / `unmatchedRowKeys`              |     | ✅  |     |     |
-| `Overwrite_Policy__c = Only if blank`                | ✅  |     |     |     |
-| Date value types (ordered format lists)              | ✅  | ✅  | ✅  | ✅  |
-| Money value type / Compare Tolerance (Near)          | ✅  | ✅  | ✅  |     |
-| Phone value type (E.164 canonicalization)            | ✅  |     |     |     |
-| Value map (document text → picklist value)           | ✅  |     |     |     |
-| Regex value type                                     |     |     |     | ✅  |
-| `Required__c` rules                                  | ✅  |     |     | ✅  |
-| Preview mode (planned old → new before saving)       | ✅  | ✅  |     | ✅  |
-| Batch reprocessing (`JSON_Source_Field__c`)          |     | ✅  |     |     |
-| Restricted picklist validation                       | ✅  | ✅  |     | ✅  |
-| Compliance comparison rules                          |     |     | ✅  |     |
-| Per-rule `Mode__c` override / set-level defaults     |     |     | ✅  |     |
-| `IIdpFindingHandler`                                 |     |     | ✅  |     |
-| Child-hop resolution to a custom object              |     |     |     | ✅  |
-| Two sections sharing one target object               |     |     |     | ✅  |
+| Engine feature                                 | 1   | 2   | 3   | 4   |
+| ---------------------------------------------- | --- | --- | --- | --- |
+| Fixed sections                                 | ✅  | ✅  | ✅  | ✅  |
+| Repeating sections (`rowPath`, `matchValue`)   |     | ✅  |     |     |
+| `parentSection` row scoping                    |     | ✅  |     |     |
+| `recordFilter` / `unmatchedRowKeys`            |     | ✅  |     |     |
+| `overwritePolicy` of `Only if blank`           | ✅  |     |     |     |
+| Date value types (ordered format lists)        | ✅  | ✅  | ✅  | ✅  |
+| Money value type / Compare Tolerance (Near)    | ✅  | ✅  | ✅  |     |
+| Phone value type (E.164 canonicalization)      | ✅  |     |     |     |
+| Value map (document text → picklist value)     | ✅  |     |     |     |
+| Regex value type                               |     |     |     | ✅  |
+| `required` rules                               | ✅  |     |     | ✅  |
+| Preview mode (planned old → new before saving) | ✅  | ✅  |     | ✅  |
+| Batch reprocessing (`JSON_Source_Field__c`)    |     | ✅  |     |     |
+| Restricted picklist validation                 | ✅  | ✅  |     | ✅  |
+| Compliance comparison rules                    |     |     | ✅  |     |
+| Per-rule `mode` override / set-level defaults  |     |     | ✅  |     |
+| `IIdpFindingHandler`                           |     |     | ✅  |     |
+| Child-hop resolution to a custom object        |     |     |     | ✅  |
+| Two sections sharing one target object         |     |     |     | ✅  |
 
 If you are reading these in order, example 1 is the one to start with — it is
 the whole engine minus the features the others add. Example 4 is the one to
@@ -52,7 +52,7 @@ read if your data does not live on the object the file is filed against.
 ```
 <example>/
   README.md          what it is, what it demonstrates, how to deploy and run it
-  customMetadata/    the IDP_Mapping_Set/Section/Rule/Value_Type records
+  customMetadata/    the IDP_Mapping_Set (with its Definition JSON) and IDP_Value_Type records
   objects/           the custom fields it adds
   permissionsets/    field (and class) access, so the engine can actually write
   classes/           Apex, where the example needs it (example 3 only)

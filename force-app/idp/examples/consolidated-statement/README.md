@@ -15,11 +15,11 @@ would serve four hundred without a change.
 
 | Feature                    | Where to look                                                                                                            |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Repeating sections         | `Holdings` walks `Row_Path__c = holdings` and applies its rules once per row.                                            |
+| Repeating sections         | `Holdings` walks `rowPath` of `holdings` and applies its rules once per row.                                             |
 | Row-relative paths         | Rules on `Holdings` read `currentBalance`, not `holdings[0].currentBalance`.                                             |
-| Row matching               | `Match_Value__c = {row:accountNumber}` is looked up against `Asset.Product_Account_Number__c`.                           |
-| `Parent_Section__c`        | Rows are constrained to the statement's own Account, so a key cannot reach another customer's products.                  |
-| `Record_Filter__c`         | `Account_Status__c != 'Closed'` protects closed products; the closed row comes back in `unmatchedRowKeys`.               |
+| Row matching               | `matchValue` of `{row:accountNumber}` is looked up against `Asset.Product_Account_Number__c`.                            |
+| `parentSection`            | Rows are constrained to the statement's own Account, so a key cannot reach another customer's products.                  |
+| `recordFilter`             | `Account_Status__c != 'Closed'` protects closed products; the closed row comes back in `unmatchedRowKeys`.               |
 | Rows are never created     | A statement line with no matching record is reported, not inserted.                                                      |
 | Fixed and repeating in one | The `Statement` header section writes the period end and total to the Account in the same call.                          |
 | **Batch reprocessing**     | The statement JSON stored on `Account.Statement_JSON__c` reprocesses with `IdpBatchProcessor` — no user, no file needed. |
@@ -50,19 +50,19 @@ Mapping set: **`Consolidated_Statement`**
 
 ### Sections ([`customMetadata/`](customMetadata))
 
-| Field               | `Statement` | `Holdings`                      |
-| ------------------- | ----------- | ------------------------------- |
-| `Section_Type__c`   | Fixed       | **Repeating**                   |
-| `Target_Object__c`  | `Account`   | `Asset`                         |
-| `Row_Path__c`       | —           | `holdings`                      |
-| `Match_Field__c`    | —           | `Product_Account_Number__c`     |
-| `Match_Value__c`    | —           | `{row:accountNumber}`           |
-| `Record_Filter__c`  | —           | `Account_Status__c != 'Closed'` |
-| `Parent_Section__c` | —           | `Statement`                     |
+| Field              | `Statement` | `Holdings`                      |
+| ------------------ | ----------- | ------------------------------- |
+| `sectionType`      | Fixed       | **Repeating**                   |
+| `Target_Object__c` | `Account`   | `Asset`                         |
+| `rowPath`          | —           | `holdings`                      |
+| `matchField`       | —           | `Product_Account_Number__c`     |
+| `matchValue`       | —           | `{row:accountNumber}`           |
+| `recordFilter`     | —           | `Account_Status__c != 'Closed'` |
+| `parentSection`    | —           | `Statement`                     |
 
 ### Rules
 
-| Section     | `JSON_Path__c`                       | Target field                            | Value Type   |
+| Section     | `jsonPath`                           | Target field                            | Value Type   |
 | ----------- | ------------------------------------ | --------------------------------------- | ------------ |
 | `Statement` | `statement.periodEnd`                | `Account.Statement_Period_End__c`       | `CS_Date_ZA` |
 | `Statement` | `statement.totalRelationshipBalance` | `Account.Total_Relationship_Balance__c` | `CS_Money`   |
@@ -96,7 +96,7 @@ document row  { "accountNumber": "62110044721", … }
                          AND (Account_Status__c != 'Closed')
 ```
 
-The `AccountId` condition comes from `Parent_Section__c = Statement`: the
+The `AccountId` condition comes from `parentSection` of `Statement`: the
 `Statement` section resolves to the Account the file is linked to, and the
 engine discovers `Asset.AccountId` as the lookup back to it. All four keys are
 matched in **one query**, and all matched rows are saved in **one DML** — a
@@ -110,7 +110,7 @@ two-line statement and a two-hundred-line one cost the same.
   External Id), `Current_Balance__c`, `Available_Balance__c`,
   `Interest_Rate__c` (Percent), `Account_Status__c` (restricted picklist)
 
-`Match_Field__c` does _not_ have to be an External Id — rows are matched with a
+`matchField` does _not_ have to be an External Id — rows are matched with a
 plain SOQL query, so any queryable field works. It is one here only because an
 account number genuinely is an external key.
 
@@ -184,7 +184,7 @@ unmatchedRowKeys: ["77012004466"]
 ```
 
 That last one is the vehicle finance line. It is on the statement and it does
-exist in Salesforce, but `Record_Filter__c` excludes closed products, so the
+exist in Salesforce, but `recordFilter` excludes closed products, so the
 engine reports it instead of touching it. An unmatched key is **data, not an
 error** — `result.success` stays `true`. In a real deployment it is exactly
 the signal you would route to an exception queue.
@@ -205,7 +205,7 @@ The credit card should have moved to `In Arrears` with a balance of
 
 ## Things worth trying
 
-- Clear `Record_Filter__c` on the `Holdings` section and re-run. All four rows
+- Clear `recordFilter` on the `Holdings` section of the set's Definition and re-run. All four rows
   match and `unmatchedRowKeys` comes back empty.
 - Duplicate a `holdings` entry in the JSON. The second copy renders the same
   Match Value, so it is skipped and reported rather than silently overwriting

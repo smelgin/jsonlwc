@@ -26,4 +26,124 @@
         <field>Active__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
+    <values>
+        <field>Definition__c</field>
+        <value xsi:type="xsd:string">{
+  "sections": [
+    {
+      "name": "Account_Opening_Application",
+      "label": "Account Opening: Application",
+      "sectionType": "Fixed",
+      "targetObject": "Case",
+      "rules": [
+        {
+          "name": "Account_Opening_Request_Branch",
+          "label": "Account Opening: Branch Code",
+          "jsonPath": "application.branchCode",
+          "targetField": "Branch_Code__c",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Request_Notes",
+          "label": "Account Opening: Notes",
+          "jsonPath": "application.notes",
+          "targetField": "Description",
+          "overwritePolicy": "Only if blank"
+        },
+        {
+          "name": "Account_Opening_Request_Product",
+          "label": "Account Opening: Product Applied For",
+          "jsonPath": "application.product",
+          "targetField": "Product_Applied_For__c",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Request_Reference",
+          "label": "Account Opening: Application Reference",
+          "jsonPath": "application.reference",
+          "targetField": "Application_Reference__c",
+          "overwritePolicy": "Always",
+          "required": true
+        },
+        {
+          "name": "Account_Opening_Request_Signed_Date",
+          "label": "Account Opening: Date Signed",
+          "jsonPath": "application.signedDate",
+          "targetField": "Application_Signed_Date__c",
+          "valueTypeName": "AO_Date_ZA",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Signatory_Email",
+          "label": "Account Opening: Signatory Email",
+          "jsonPath": "signatory.email",
+          "targetField": "SuppliedEmail",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Signatory_Name",
+          "label": "Account Opening: Signatory Name",
+          "jsonPath": "signatory.fullName",
+          "targetField": "SuppliedName",
+          "overwritePolicy": "Always"
+        }
+      ]
+    },
+    {
+      "name": "Account_Opening_Customer",
+      "label": "Account Opening: Customer",
+      "sectionType": "Fixed",
+      "targetObject": "Account",
+      "rules": [
+        {
+          "name": "Account_Opening_Entity_Incorporated",
+          "label": "Account Opening: Date Incorporated",
+          "jsonPath": "business.dateIncorporated",
+          "targetField": "Date_Incorporated__c",
+          "valueTypeName": "AO_Date_ZA",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Entity_Phone",
+          "label": "Account Opening: Telephone",
+          "jsonPath": "business.phone",
+          "targetField": "Phone",
+          "valueTypeName": "AO_Phone_ZA",
+          "overwritePolicy": "Only if blank"
+        },
+        {
+          "name": "Account_Opening_Entity_Registration_No",
+          "label": "Account Opening: Registration Number",
+          "jsonPath": "business.registrationNumber",
+          "targetField": "Registration_Number__c",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Entity_Tax_Reference",
+          "label": "Account Opening: Tax Reference",
+          "jsonPath": "business.taxReference",
+          "targetField": "Tax_Reference_Number__c",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Entity_Turnover",
+          "label": "Account Opening: Annual Turnover",
+          "jsonPath": "business.annualTurnover",
+          "targetField": "Annual_Turnover__c",
+          "valueTypeName": "AO_Money",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Account_Opening_Entity_Type",
+          "label": "Account Opening: Entity Type",
+          "jsonPath": "business.entityType",
+          "targetField": "Entity_Type__c",
+          "valueTypeName": "AO_Entity_Type_Map",
+          "overwritePolicy": "Always"
+        }
+      ]
+    }
+  ]
+}</value>
+    </values>
 </CustomMetadata>

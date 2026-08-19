@@ -26,4 +26,95 @@
         <field>Active__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
+    <values>
+        <field>Definition__c</field>
+        <value xsi:type="xsd:string">{
+  "sections": [
+    {
+      "name": "Letters_Appointment",
+      "label": "Letters: Appointment",
+      "sectionType": "Fixed",
+      "targetObject": "Estate_Case__c",
+      "rules": [
+        {
+          "name": "Letters_Capacity",
+          "label": "Letters: Appointment Capacity",
+          "jsonPath": "executor.capacity",
+          "targetField": "Appointment_Capacity__c",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Letters_Estate_Number",
+          "label": "Letters: Estate Number",
+          "jsonPath": "letters.estateNumber",
+          "targetField": "Estate_Number__c",
+          "overwritePolicy": "Always",
+          "required": true
+        },
+        {
+          "name": "Letters_Executor_ID",
+          "label": "Letters: Executor ID Number",
+          "jsonPath": "executor.identityNumber",
+          "targetField": "Executor_ID_Number__c",
+          "valueTypeName": "LX_SA_ID",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Letters_Executor_Name",
+          "label": "Letters: Executor Full Name",
+          "jsonPath": "executor.fullName",
+          "targetField": "Executor_Full_Name__c",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Letters_Issued_Date",
+          "label": "Letters: Issued Date",
+          "jsonPath": "letters.issuedDate",
+          "targetField": "Letters_Issued_Date__c",
+          "valueTypeName": "LX_Date_ZA",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Letters_Masters_Office",
+          "label": "Letters: Master's Office",
+          "jsonPath": "letters.mastersOffice",
+          "targetField": "Masters_Office__c",
+          "overwritePolicy": "Always"
+        }
+      ]
+    },
+    {
+      "name": "Letters_Deceased",
+      "label": "Letters: Deceased",
+      "sectionType": "Fixed",
+      "targetObject": "Estate_Case__c",
+      "rules": [
+        {
+          "name": "Letters_Date_Of_Death",
+          "label": "Letters: Date of Death",
+          "jsonPath": "deceased.dateOfDeath",
+          "targetField": "Date_Of_Death__c",
+          "valueTypeName": "LX_Date_ZA",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Letters_Deceased_ID",
+          "label": "Letters: Deceased ID Number",
+          "jsonPath": "deceased.identityNumber",
+          "targetField": "Deceased_ID_Number__c",
+          "valueTypeName": "LX_SA_ID",
+          "overwritePolicy": "Always"
+        },
+        {
+          "name": "Letters_Deceased_Name",
+          "label": "Letters: Deceased Full Name",
+          "jsonPath": "deceased.fullName",
+          "targetField": "Deceased_Full_Name__c",
+          "overwritePolicy": "Always"
+        }
+      ]
+    }
+  ]
+}</value>
+    </values>
 </CustomMetadata>

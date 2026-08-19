@@ -26,4 +26,94 @@
         <field>Active__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>
+    <values>
+        <field>Definition__c</field>
+        <value xsi:type="xsd:string">{
+  "sections": [
+    {
+      "name": "Loan_Offer_Borrower",
+      "label": "Loan Offer: Borrower",
+      "sectionType": "Fixed",
+      "targetObject": "Account",
+      "rules": [
+        {
+          "name": "Loan_Offer_Borrower_Name",
+          "label": "Loan Offer: Borrower Name",
+          "jsonPath": "borrower.registeredName",
+          "targetField": "Name",
+          "mode": "Compliance"
+        },
+        {
+          "name": "Loan_Offer_Borrower_Risk_Grade",
+          "label": "Loan Offer: Credit Risk Grade",
+          "jsonPath": "borrower.creditRiskGrade",
+          "targetField": "Credit_Risk_Grade__c",
+          "mode": "Compliance"
+        },
+        {
+          "name": "Loan_Offer_Borrower_Turnover",
+          "label": "Loan Offer: Verified Annual Turnover",
+          "jsonPath": "borrower.verifiedAnnualTurnover",
+          "targetField": "Verified_Annual_Turnover__c",
+          "valueTypeName": "LO_Money_ZA",
+          "mode": "Compliance"
+        }
+      ]
+    },
+    {
+      "name": "Loan_Offer_Terms",
+      "label": "Loan Offer: Offer",
+      "sectionType": "Fixed",
+      "targetObject": "Case",
+      "rules": [
+        {
+          "name": "Loan_Offer_Expiry_Date",
+          "label": "Loan Offer: Expiry Date",
+          "jsonPath": "offer.expiryDate",
+          "targetField": "Offer_Expiry_Date__c",
+          "valueTypeName": "LO_Date_ZA",
+          "mode": "Compliance"
+        },
+        {
+          "name": "Loan_Offer_Interest_Rate",
+          "label": "Loan Offer: Interest Rate",
+          "jsonPath": "offer.interestRate",
+          "targetField": "Interest_Rate_Offered__c",
+          "mode": "Compliance"
+        },
+        {
+          "name": "Loan_Offer_Monthly_Repayment",
+          "label": "Loan Offer: Monthly Repayment",
+          "jsonPath": "offer.monthlyRepayment",
+          "targetField": "Repayment_Amount__c",
+          "valueTypeName": "LO_Money_ZA",
+          "mode": "Compliance"
+        },
+        {
+          "name": "Loan_Offer_Principal",
+          "label": "Loan Offer: Principal Amount",
+          "jsonPath": "offer.principalAmount",
+          "targetField": "Loan_Amount__c",
+          "valueTypeName": "LO_Money_ZA",
+          "mode": "Compliance"
+        },
+        {
+          "name": "Loan_Offer_Reference",
+          "label": "Loan Offer: Offer Reference",
+          "jsonPath": "offer.reference",
+          "targetField": "Offer_Reference__c",
+          "mode": "Compliance"
+        },
+        {
+          "name": "Loan_Offer_Term_Months",
+          "label": "Loan Offer: Term in Months",
+          "jsonPath": "offer.termMonths",
+          "targetField": "Loan_Term_Months__c",
+          "mode": "Compliance"
+        }
+      ]
+    }
+  ]
+}</value>
+    </values>
 </CustomMetadata>

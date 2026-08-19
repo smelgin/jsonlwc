@@ -54,4 +54,41 @@
         <field>Custom_Options__c</field>
         <value xsi:nil="true" />
     </values>
+    <values>
+        <field>Value_Map_Entries__c</field>
+        <value xsi:type="xsd:string">{
+  "entries": [
+    {
+      "fromText": "Partnership",
+      "toValue": "Partnership",
+      "matchStyle": "Normalized"
+    },
+    {
+      "fromText": "Private Company",
+      "toValue": "Private Company",
+      "matchStyle": "Normalized"
+    },
+    {
+      "fromText": "(?i)\\(?pty\\.?\\)?\\s*ltd\\.?|proprietary\\s+limited",
+      "toValue": "Private Company",
+      "matchStyle": "Regex"
+    },
+    {
+      "fromText": "Public Company",
+      "toValue": "Public Company",
+      "matchStyle": "Normalized"
+    },
+    {
+      "fromText": "(?i)sole\\s+prop(rietor)?",
+      "toValue": "Sole Proprietor",
+      "matchStyle": "Regex"
+    },
+    {
+      "fromText": "Trust",
+      "toValue": "Trust",
+      "matchStyle": "Normalized"
+    }
+  ]
+}</value>
+    </values>
 </CustomMetadata>

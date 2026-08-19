@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Value_Map_Entries__c</fullName>
+    <label>Value Map Entries</label>
+    <type>LongTextArea</type>
+    <length>32768</length>
+    <visibleLines>15</visibleLines>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>Kind = ValueMap only: the document-text to stored-value dictionary, as JSON: {"entries":[{"fromText":"Pty Ltd","toValue":"Private Company","matchStyle":"Exact"}]}. See IDP_CONFIGURATION.md.</description>
+</CustomField>

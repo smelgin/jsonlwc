@@ -18,14 +18,14 @@ private class IdpLocaleDataTest {
       'case and whitespace tolerant'
     );
     Assert.areEqual(
-      '46',
-      IdpLocaleData.dialCodeFor('SE'),
+      '254',
+      IdpLocaleData.dialCodeFor('KE'),
       'a country the hardcoded Apex set never listed'
     );
     Assert.isNull(IdpLocaleData.dialCodeFor('XX'));
     Assert.isNull(IdpLocaleData.dialCodeFor(null));
     Assert.isNull(IdpLocaleData.dialCodeFor('  '));
-    Assert.isTrue(IdpLocaleData.isKnownCountry('BR'));
+    Assert.isTrue(IdpLocaleData.isKnownCountry('TZ'));
     Assert.isFalse(IdpLocaleData.isKnownCountry('XX'));
   }
 
@@ -38,7 +38,7 @@ private class IdpLocaleDataTest {
       IdpLocaleData.decimalSeparatorFor('en-ZA'),
       'South Africa\'s comma beats English\'s dot'
     );
-    Assert.areEqual('.', IdpLocaleData.decimalSeparatorFor('en-US'));
+    Assert.areEqual('.', IdpLocaleData.decimalSeparatorFor('en-KE'));
     Assert.areEqual(
       ',',
       IdpLocaleData.decimalSeparatorFor('en_ZA'),
@@ -46,13 +46,13 @@ private class IdpLocaleDataTest {
     );
     Assert.areEqual(
       ',',
-      IdpLocaleData.decimalSeparatorFor('de'),
+      IdpLocaleData.decimalSeparatorFor('af'),
       'no country subtag falls through to the language'
     );
     Assert.areEqual(
       '.',
-      IdpLocaleData.decimalSeparatorFor('de-CH'),
-      'Swiss German prints dot decimals; the country decides'
+      IdpLocaleData.decimalSeparatorFor('af-KE'),
+      'Afrikaans prints comma decimals, but Kenya prints dots and wins'
     );
     Assert.isNull(IdpLocaleData.decimalSeparatorFor('zz-ZZ'));
     Assert.isNull(IdpLocaleData.decimalSeparatorFor(null));
@@ -60,9 +60,9 @@ private class IdpLocaleDataTest {
 
   @IsTest
   static void reportsWhetherALocaleIsSeeded() {
-    Assert.isTrue(IdpLocaleData.isKnownLocale('pt-BR'));
+    Assert.isTrue(IdpLocaleData.isKnownLocale('pt-ZA'));
     Assert.isTrue(
-      IdpLocaleData.isKnownLocale('de'),
+      IdpLocaleData.isKnownLocale('sw'),
       'language alone is enough'
     );
     Assert.isTrue(
@@ -80,26 +80,24 @@ private class IdpLocaleDataTest {
     Assert.areEqual(3, IdpLocaleData.monthNumberFor('March', 'en'));
     Assert.areEqual(3, IdpLocaleData.monthNumberFor('MARCH', 'en'));
     Assert.areEqual(3, IdpLocaleData.monthNumberFor('Mar', 'en'));
-    Assert.areEqual(3, IdpLocaleData.monthNumberFor('März', 'de'));
+    Assert.areEqual(2, IdpLocaleData.monthNumberFor('février', 'fr'));
     Assert.areEqual(
-      3,
-      IdpLocaleData.monthNumberFor('Marz', 'de-DE'),
-      'accents are folded away, so an OCR that lost the umlaut still reads'
+      2,
+      IdpLocaleData.monthNumberFor('fevrier', 'fr-ZA'),
+      'accents are folded away, so an OCR that lost them still reads'
     );
     Assert.areEqual(
-      3,
-      IdpLocaleData.monthNumberFor('Mrz', 'de'),
-      'an abbreviation that is not a prefix has to be listed, and is'
-    );
-    Assert.areEqual(
-      3,
-      IdpLocaleData.monthNumberFor('Mrz.', 'de'),
+      2,
+      IdpLocaleData.monthNumberFor('Fev.', 'fr'),
       'a trailing abbreviation dot is dropped'
     );
-    Assert.areEqual(1, IdpLocaleData.monthNumberFor('januari', 'nl'));
-    Assert.areEqual(9, IdpLocaleData.monthNumberFor('września', 'pl'));
-    Assert.areEqual(1, IdpLocaleData.monthNumberFor('Ιανουαρίου', 'el'));
-    Assert.areEqual(5, IdpLocaleData.monthNumberFor('мая', 'ru'));
+    Assert.areEqual(3, IdpLocaleData.monthNumberFor('Maart', 'af'));
+    Assert.areEqual(3, IdpLocaleData.monthNumberFor('Machi', 'sw'));
+    Assert.areEqual(
+      12,
+      IdpLocaleData.monthNumberFor('Des', 'sw'),
+      'Swahili Desemba, seeded for the East African markets'
+    );
   }
 
   @IsTest
@@ -108,7 +106,7 @@ private class IdpLocaleDataTest {
     // two letters, not three.
     Assert.areEqual(3, IdpLocaleData.monthNumberFor('março', 'pt'));
     Assert.areEqual(3, IdpLocaleData.monthNumberFor('mar', 'pt'));
-    Assert.areEqual(5, IdpLocaleData.monthNumberFor('maio', 'pt-BR'));
+    Assert.areEqual(5, IdpLocaleData.monthNumberFor('maio', 'pt-ZA'));
     Assert.areEqual(5, IdpLocaleData.monthNumberFor('mai', 'pt'));
     Assert.isNull(
       IdpLocaleData.monthNumberFor('ma', 'pt'),
@@ -124,12 +122,21 @@ private class IdpLocaleDataTest {
     );
     Assert.areEqual(6, IdpLocaleData.monthNumberFor('juin', 'fr'));
     Assert.areEqual(7, IdpLocaleData.monthNumberFor('juil', 'fr'));
+    // A whole name that is also a prefix of a longer one: no seeded
+    // language has that shape, so inject a language that does.
+    IdpLocaleData.Language cz = new IdpLocaleData.Language();
+    cz.months = IdpLocaleData.compileMonths(
+      'leden|únor|březen|duben|květen|červen|červenec|srpen|září|říjen|listopad|prosinec'
+    );
+    IdpLocaleData.languageCache = new Map<String, IdpLocaleData.Language>{
+      'cs' => cz
+    };
     Assert.areEqual(
       6,
       IdpLocaleData.monthNumberFor('červen', 'cs'),
       'červen is a whole name and a prefix of červenec; the whole name wins'
     );
-    Assert.areEqual(7, IdpLocaleData.monthNumberFor('července', 'cs'));
+    Assert.areEqual(7, IdpLocaleData.monthNumberFor('červenec', 'cs'));
   }
 
   @IsTest
@@ -140,15 +147,26 @@ private class IdpLocaleDataTest {
       'an unseeded language still reads English'
     );
     Assert.areEqual(3, IdpLocaleData.monthNumberFor('March', null));
+    // Every seeded language currently declares months, so the
+    // seeded-but-monthless case is injected rather than assumed.
+    IdpLocaleData.Language numeric = new IdpLocaleData.Language();
+    numeric.decimalSeparator = ',';
+    IdpLocaleData.languageCache = new Map<String, IdpLocaleData.Language>{
+      'vi' => numeric
+    };
     Assert.isTrue(
       IdpLocaleData.isKnownLocale('vi'),
-      'Vietnamese is seeded for its decimal separator'
+      'a language seeded only for its decimal separator is still known'
     );
     Assert.isFalse(
       IdpLocaleData.readsMonthNames('vi'),
-      'but it names its months numerically, so it declares none'
+      'but naming its months numerically, it declares none'
     );
-    Assert.isTrue(IdpLocaleData.readsMonthNames('de'));
+    Assert.areEqual(
+      3,
+      IdpLocaleData.monthNumberFor('March', 'vi'),
+      'and it still falls back to English'
+    );
     Assert.isNull(IdpLocaleData.monthNumberFor('', 'en'));
     Assert.isNull(IdpLocaleData.monthNumberFor('Nonsuch', 'en'));
   }
@@ -237,7 +255,7 @@ private class IdpLocaleDataTest {
     IdpLocaleData.languageCache = new Map<String, IdpLocaleData.Language>();
     Assert.areEqual(
       3,
-      IdpLocaleData.monthNumberFor('March', 'de'),
+      IdpLocaleData.monthNumberFor('March', 'fr'),
       'the compiled-in English fallback keeps ISO dates working'
     );
     Assert.isNull(IdpLocaleData.dialCodeFor('ZA'));

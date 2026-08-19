@@ -12,8 +12,8 @@ estates administrator reviews that JSON in `fileJsonReview`, and pressing
 the whole estate hangs off.
 
 This is **Data Extraction** mode with two **Fixed** sections and no repeating
-band. Nothing here is code: the behaviour is one `IDP_Mapping_Set__mdt`, two
-`IDP_Section__mdt`, nine `IDP_Mapping_Rule__mdt` records and two value types.
+band. Nothing here is code: the behaviour is one `IDP_Mapping_Set__mdt` whose
+Definition declares two sections and nine rules, plus two value types.
 
 > **The document is a specimen.** The PDF is a generated stand-in marked
 > SPECIMEN top and bottom, with fictitious names and identity numbers. It is a
@@ -75,7 +75,7 @@ Mapping set: **`Letters_Of_Executorship`**
 
 ### Rules
 
-| Section       | `JSON_Path__c`            | Target field (`Estate_Case__c`) | Policy            | Value Type   |
+| Section       | `jsonPath`                | Target field (`Estate_Case__c`) | Policy            | Value Type   |
 | ------------- | ------------------------- | ------------------------------- | ----------------- | ------------ |
 | `Appointment` | `letters.estateNumber`    | `Estate_Number__c`              | Always (Required) |              |
 | `Appointment` | `letters.issuedDate`      | `Letters_Issued_Date__c`        | Always            | `LX_Date_ZA` |

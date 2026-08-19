@@ -43,6 +43,7 @@ user at all.
 - [Ten Benefits and Capabilities](#ten-benefits-and-capabilities)
 - [Components](#components)
 - [Configuring a mapping set](#configuring-a-mapping-set)
+- [Configuring rules — **IDP_CONFIGURATION.md**](IDP_CONFIGURATION.md)
 - [Value types](#value-types)
 - [Compliance: three-state, both sides canonicalized](#compliance-three-state-both-sides-canonicalized)
 - [Sections: fixed and repeating regions](#sections-fixed-and-repeating-regions)
@@ -103,10 +104,7 @@ user at all.
 | Component                                          | Type           | Role                                                                                                        |
 | -------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------- |
 | `IDP_Mapping_Set__mdt`                             | CMDT           | One use case: default mode, batch JSON source, default finding handler. Sections attach to it.              |
-| `IDP_Section__mdt`                                 | CMDT           | A Fixed (one record) or Repeating (one record per row) region of the document.                              |
-| `IDP_Mapping_Rule__mdt`                            | CMDT           | One JSON path → one field, through an optional value type, with per-rule gates.                             |
 | `IDP_Value_Type__mdt`                              | CMDT           | How one semantic kind of value (money, phone, date, …) is parsed, compared and rendered.                    |
-| `IDP_Value_Map_Entry__mdt`                         | CMDT           | One document-text → stored-value pair of a ValueMap-kind value type.                                        |
 | `IDP_Country__mdt`                                 | CMDT           | One ISO country: dial code and decimal separator. DeveloperName is the country code.                        |
 | `IDP_Language__mdt`                                | CMDT           | One ISO language: month names and decimal separator. DeveloperName is the language code.                    |
 | `IdpMappingEngine`                                 | Apex           | Orchestrator. `run(List<DocumentWork>, setName, mode, handler)` → `List<IdpResult.Result>`.                 |
@@ -121,15 +119,25 @@ user at all.
 | `IdpLocaleData`                                    | Apex           | Dial codes, decimal separators and month names, read from the two tables above and cached per transaction.  |
 | `IdpMappingInvocable`                              | Apex           | `Apply IDP Mapping Set` action for Flows — genuinely bulk: 50 interviews share one engine run.              |
 | `IdpMappingController`                             | Apex           | `apply` / `preview` / `previewValue` for LWCs.                                                              |
+| `IdpConfiguratorController`                        | Apex           | List, read, validate and save mapping set Definitions for the configurator.                                 |
 | `IdpBatchProcessor`                                | Apex           | Batchable over records holding stored JSON (`JSON_Source_Field__c`).                                        |
 | `IIdpFindingHandler`                               | Apex interface | Custom reaction to a run's findings; `IdpComplianceTaskHandler` is the bundled sample.                      |
 | `IdpLimitsGuard`                                   | Apex           | Defers documents cleanly when governor headroom runs out.                                                   |
 | `fileJsonReviewMappingDemo`                        | LWC            | Example host wiring `fileJsonReview` to the engine, with the Preview step.                                  |
+| `idpConfigurator`                                  | LWC            | Form editor for each document type's sections and rules, with a raw-JSON tab. Saving deploys metadata.      |
 
-All CMDT references are **metadata relationships** — sections point at real
-`EntityDefinition` records, rules pick their `Target_Field__c` from a
-`FieldDefinition` picker filtered by the object, rules point at section
-records. A typo'd object or field name cannot deploy, and renames follow.
+Sections and rules are **JSON inside the set**, in `Definition__c`, rather
+than records of their own. A long text area is charged a flat 255 characters
+against the org's custom metadata allocation however much it holds, where the
+same content as records cost roughly 22,000 characters per document type — and
+that allocation is shared across every business unit in the org.
+
+The trade is that object and field names are no longer `EntityDefinition` and
+`FieldDefinition` relationships, so a typo can be saved. `IdpConfigLoader`
+checks every name against the real schema when it loads and reports what it
+cannot find, so a typo surfaces on the configurator's Check button or on the
+first run rather than never. See
+[**IDP_CONFIGURATION.md**](IDP_CONFIGURATION.md) for the format and every key.
 
 ## Configuring a mapping set
 
@@ -141,42 +149,56 @@ records. A typo'd object or field name cannot deploy, and renames follow.
 | `JSON_Source_Field__c`      | `Object.Field` of the long-text field holding raw JSON for batch runs, e.g. `Document__c.Extracted_JSON__c`. |
 | `Processed_Marker_Field__c` | Datetime field on the same object; makes the batch idempotent (see Batch below).                             |
 | `Finding_Handler__c`        | Default `IIdpFindingHandler` class; a caller-supplied name overrides it.                                     |
+| `Definition__c`             | The sections and rules, as JSON. See [IDP_CONFIGURATION.md](IDP_CONFIGURATION.md).                           |
 | `Active__c`                 | Untick to disable the whole set.                                                                             |
 
 The engine is called with the set's **DeveloperName**.
 
-### `IDP_Section__mdt` — a region of the document
+### Sections and rules — the set's `Definition__c`
 
 Every rule belongs to a section (the v1 standalone-rule shape is gone — a
-single record is just a Fixed section).
+single record is just a Fixed section), and both live as JSON on the set:
 
-| Field               | Meaning                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------- |
-| `Mapping_Set__c`    | The parent set (relationship).                                                               |
-| `Section_Type__c`   | `Fixed` (one record) or `Repeating` (one record per row).                                    |
-| `Target_Object__c`  | EntityDefinition relationship; attached rules inherit it.                                    |
-| `Row_Path__c`       | Repeating only: JSON path to the array of rows.                                              |
-| `Match_Field__c`    | Repeating only: FieldDefinition of the field a row is identified by (any queryable field).   |
-| `Match_Value__c`    | Repeating only: template producing each row's key (tokens below).                            |
-| `Record_Filter__c`  | Optional extra WHERE fragment. Supersedes a rule's `Anchor_Filter__c`.                       |
-| `Parent_Section__c` | Section whose record constrains this one's rows. Blank discovers the parent from the schema. |
-| `Active__c`         | Disables the section and every rule on it.                                                   |
+```json
+{
+    "sections": [
+        {
+            "name": "Estate_Intake_Case",
+            "label": "Estate Intake: Case",
+            "sectionType": "Fixed",
+            "targetObject": "Case",
+            "rules": [
+                {
+                    "name": "Estate_Intake_Applicant_Email",
+                    "jsonPath": "applicant.email",
+                    "targetField": "SuppliedEmail",
+                    "overwritePolicy": "Always"
+                }
+            ]
+        }
+    ]
+}
+```
 
-### `IDP_Mapping_Rule__mdt` — one field
+A section carries `name`, `label`, `sectionType` (`Fixed` or `Repeating`),
+`targetObject`, `recordFilter`, `parentSection`, `active`, and for repeating
+sections `rowPath`, `matchField` and `matchValue`. A rule carries `name`,
+`label`, `jsonPath`, `targetField`, `valueTypeName`, `mode`,
+`overwritePolicy`, `minGrade`, `minConfidence`, `required`, `anchorFilter`
+and `active`.
 
-| Field                                  | Meaning                                                                                                                                                                                  |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Section__c`                           | The section (relationship, required).                                                                                                                                                    |
-| `JSON_Path__c`                         | Dot path, `[n]` for indexes. Relative to the row inside a Repeating section.                                                                                                             |
-| `Target_Object__c` / `Target_Field__c` | Entity/FieldDefinition pair. The object must match the section's; the loader reports a config issue otherwise.                                                                           |
-| `Value_Type__c`                        | Optional relationship to an `IDP_Value_Type__mdt`. Blank auto-derives a **strict** type from the field: Number for numeric fields, ISO Date for dates, Phone for phones, Text otherwise. |
-| `Mode__c`                              | Per-rule override (`Extraction`/`Compliance`), so one set can extract some fields while verifying others.                                                                                |
-| `Overwrite_Policy__c`                  | `Always` or `Only if blank`. Extraction only.                                                                                                                                            |
-| `Min_Grade__c`                         | Lowest parse grade allowed to write: `Exact` blocks heuristic parses; the default `Inferred` blocks only Ambiguous.                                                                      |
-| `Min_Confidence__c`                    | 0–1 gate against the JSON's confidence envelopes (below).                                                                                                                                |
-| `Required__c`                          | A document lacking this path produces an error finding instead of a silent skip.                                                                                                         |
-| `Anchor_Filter__c`                     | Optional filter narrowing which record the target resolves to.                                                                                                                           |
-| `Active__c`                            | Untick to disable the rule.                                                                                                                                                              |
+**[IDP_CONFIGURATION.md](IDP_CONFIGURATION.md) is the manual** — what each key
+means, what is required, worked examples, and what happens when a value is
+wrong. Admins rarely see this JSON: the **IDP Configuration** page (App
+Launcher, or the `idpConfigurator` LWC on any page) edits it as a form with
+object and field pickers, and keeps the raw text on an Advanced tab. Either
+way a draft is validated through `IdpConfigLoader` before it can be saved.
+
+Unknown keys are screened before the typed parse, so a misspelled `jsonPaths`
+stops the document type from loading — naming the key and the rule — instead
+of silently mapping nothing. That screening is deliberate: `JSON.deserialize`
+on its own ignores a key it does not recognize, which is the worst available
+outcome for hand-edited configuration.
 
 ## Value types
 
@@ -199,12 +221,12 @@ public interface IValueType {
 
 Every parse carries a grade the engine acts on:
 
-| Grade       | Meaning                                           | Default behaviour                                       |
-| ----------- | ------------------------------------------------- | ------------------------------------------------------- |
-| `Exact`     | Deterministic reading.                            | Writes.                                                 |
-| `Inferred`  | A documented heuristic decided (note says which). | Writes, unless the rule demands `Min_Grade__c = Exact`. |
-| `Ambiguous` | More than one legitimate reading (`03/04/2024`).  | **Never writes** — reported with every interpretation.  |
-| `Failed`    | No reading at all.                                | Error finding.                                          |
+| Grade       | Meaning                                           | Default behaviour                                      |
+| ----------- | ------------------------------------------------- | ------------------------------------------------------ |
+| `Exact`     | Deterministic reading.                            | Writes.                                                |
+| `Inferred`  | A documented heuristic decided (note says which). | Writes, unless the rule demands `minGrade` of `Exact`. |
+| `Ambiguous` | More than one legitimate reading (`03/04/2024`).  | **Never writes** — reported with every interpretation. |
+| `Failed`    | No reading at all.                                | Error finding.                                         |
 
 This is the successor to v1's silent regex-stripping, which read
 `ZAR 100,00` as `10000`. v2 parses that as exactly `100` — and where a value
@@ -220,7 +242,7 @@ genuinely cannot be decided, it says so instead of picking.
 | `Datetime` | ISO 8601. An explicit offset is Exact; a naive timestamp is read in `Timezone__c` (Exact) or as GMT (Inferred, flagged).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | `Timezone__c`, `Compare_Tolerance__c` (minutes)                                               |
 | `Boolean`  | true/yes/y/1, false/no/n/0.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | —                                                                                             |
 | `Phone`    | Canonical E.164: `+27 82 123 4567`, `0027…` and — with `Region__c = ZA` — `082 123 4567` all become `+27821234567`. Renders `e164` (default), `national` or `digits`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | `Region__c`, `Output_Format__c`                                                               |
-| `ValueMap` | Admin dictionary: `IDP_Value_Map_Entry__mdt` records translate document wording into stored values ("Pty Ltd" → `Private Company`), matched Exact, Normalized or Regex. Unmapped input fails loudly.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | its map entries                                                                               |
+| `ValueMap` | Admin dictionary: the value type's `Value_Map_Entries__c` JSON translates document wording into stored values ("Pty Ltd" → `Private Company`), matched Exact, Normalized or Regex. Unmapped input fails loudly.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | its map entries                                                                               |
 | `Regex`    | Extracts the first capturing group of the pattern in `Formats__c` (used unsplit, so `\|` alternations work).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | `Formats__c`                                                                                  |
 | `Custom`   | Your Apex class implementing `IValueType`, named in `Handler_Class__c`, resolved with `Type.forName`. `Custom_Options__c` JSON is passed through.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | `Handler_Class__c`, `Custom_Options__c`                                                       |
 
@@ -352,7 +374,7 @@ being _fiddly_.
 An IDP service that reports per-field OCR confidence can wrap any node as
 `{"value": "Jane", "confidence": 0.93}`. The envelope is transparent to JSON
 paths; the innermost confidence travels with the value, and a rule's
-`Min_Confidence__c` turns it into a gate — below the threshold the value is
+`minConfidence` turns it into a gate — below the threshold the value is
 reported (`LOW_CONFIDENCE`) instead of written.
 
 ## Compliance: three-state, both sides canonicalized
@@ -370,7 +392,7 @@ the verdict has three states:
 - **Mismatch** — a `VALUE_MISMATCH` finding; clears `Result.compliant`.
 
 A blank stored field cannot confirm the document, so it is a mismatch. A JSON
-path missing from the document is skipped (unless the rule is `Required__c`).
+path missing from the document is skipped (unless the rule is `required`).
 Mismatches are data, not failures: `Result.success` stays true.
 
 ### Finding handlers
@@ -395,19 +417,19 @@ the hosting Flow or LWC can react whether or not a handler is configured.
 ## Sections: fixed and repeating regions
 
 A **Fixed** section writes one record. A **Repeating** section iterates the
-array at `Row_Path__c` and reads each rule's `JSON_Path__c` relative to the
+array at `rowPath` and reads each rule's `jsonPath` relative to the
 current row, so the rule count stays constant no matter how many rows the
 document has.
 
 ### Match values
 
-`Match_Value__c` builds the key each row is looked up by. Tokens:
+`matchValue` builds the key each row is looked up by. Tokens:
 `{json:path}` reads from the document root, `{row:path}` from the current
 row, `{row:index}` is the 0-based position and `{row:number}` the 1-based
 one. Whole numbers render without a decimal point, so line 2 is `2`, never
 `2.0`.
 
-`Match_Field__c` does **not** have to be an External Id — rows are matched
+`matchField` does **not** have to be an External Id — rows are matched
 with a SOQL query, so any queryable field works.
 
 ### What repeating sections do and do not do
@@ -420,7 +442,7 @@ silently overwriting the first.
 
 Where a lookup from the row object to a resolved record exists, rows are
 constrained to it, so a key that is only unique within one account cannot
-reach another account's rows; `Parent_Section__c` picks that record
+reach another account's rows; `parentSection` picks that record
 explicitly instead of letting the schema decide.
 
 Cost does not grow with rows **or documents**: one query per repeating
@@ -431,7 +453,7 @@ invoice.
 
 ## Reachable objects
 
-`Target_Object__c` accepts any object, standard or custom. Nothing is
+`targetObject` accepts any object, standard or custom. Nothing is
 hard-coded: `IdpContextResolver` works out the path from each document to
 each target at run time, for all documents at once —
 
@@ -454,7 +476,7 @@ finding, not a failed run.
 
 ### Anchor filters
 
-`Anchor_Filter__c` / `Record_Filter__c` narrow which record anchors:
+`anchorFilter` / `recordFilter` narrow which record anchors:
 
 ```
 Status__c = 'Active' AND Policy_Number__c = {json:policy.number}
@@ -478,7 +500,7 @@ JSON path, section, row, raw/extracted/stored values, grade, confidence):
 | `CONFIG_ISSUE`                                                            | Warn/Err | A rule or section was disabled by validation; the set ran without it.  |
 | `JSON_INVALID`, `INVALID_INPUT`, `INVALID_MODE`                           | Error    | The document or call could not be processed.                           |
 | `UNREACHABLE_TARGET`, `UNKNOWN_FIELD`                                     | Error    | Schema problems, reported per section / rule.                          |
-| `REQUIRED_MISSING`                                                        | Error    | A `Required__c` path is absent from the document.                      |
+| `REQUIRED_MISSING`                                                        | Error    | A `required` path is absent from the document.                         |
 | `PARSE_FAILED` / `PARSE_AMBIGUOUS` / `BELOW_MIN_GRADE` / `LOW_CONFIDENCE` | Err/Warn | The value could not be used; the finding says exactly why.             |
 | `PICKLIST_INVALID`                                                        | Error    | Not an active value of a restricted picklist.                          |
 | `CURRENCY_MISMATCH`                                                       | Error    | The document's currency disagrees with the record's `CurrencyIsoCode`. |
@@ -605,12 +627,12 @@ Four runnable examples live in
 own mapping set, value types, custom fields, permission set, seed data,
 sample PDF and deployment commands:
 
-| Example                                                                               | Mode       | Adds                                                                        |
-| ------------------------------------------------------------------------------------- | ---------- | --------------------------------------------------------------------------- |
-| [Business Account Opening](force-app/idp/examples/business-account-opening/README.md) | Extraction | Fixed sections, `Only if blank`, date/money/phone value types, a value map  |
-| [Consolidated Statement](force-app/idp/examples/consolidated-statement/README.md)     | Extraction | A repeating detail band, `Parent_Section__c`, `Record_Filter__c`, **batch** |
-| [Loan Offer Compliance](force-app/idp/examples/loan-offer-compliance/README.md)       | Compliance | Set-level defaults, Near verdicts, a custom `IIdpFindingHandler`            |
-| [Letters of Executorship](force-app/idp/examples/letters-of-executorship/README.md)   | Extraction | A custom object via child hop, Regex value type, `Required__c`              |
+| Example                                                                               | Mode       | Adds                                                                       |
+| ------------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------- |
+| [Business Account Opening](force-app/idp/examples/business-account-opening/README.md) | Extraction | Fixed sections, `Only if blank`, date/money/phone value types, a value map |
+| [Consolidated Statement](force-app/idp/examples/consolidated-statement/README.md)     | Extraction | A repeating detail band, `parentSection`, `recordFilter`, **batch**        |
+| [Loan Offer Compliance](force-app/idp/examples/loan-offer-compliance/README.md)       | Compliance | Set-level defaults, Near verdicts, a custom `IIdpFindingHandler`           |
+| [Letters of Executorship](force-app/idp/examples/letters-of-executorship/README.md)   | Extraction | A custom object via child hop, Regex value type, `required`                |
 
 They sit outside the package directory, so they only reach an org when you
 deploy one by name.

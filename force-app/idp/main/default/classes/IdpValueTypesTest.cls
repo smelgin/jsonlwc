@@ -348,22 +348,22 @@ private class IdpValueTypesTest {
 
   @IsTest
   static void readsMonthNamesInTheDocumentsLanguage() {
-    IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_DATE);
-    de.formats = new List<String>{ 'd. MMMM yyyy', 'dd MMM yyyy' };
-    de.locale = 'de-DE';
+    IdpValueTypes.Config af = cfg(IdpValueTypes.KIND_DATE);
+    af.formats = new List<String>{ 'd. MMMM yyyy', 'dd MMM yyyy' };
+    af.locale = 'af-ZA';
     Assert.areEqual(
       Date.newInstance(2024, 3, 15),
-      parse(IdpValueTypes.KIND_DATE, '15. März 2024', de).value,
+      parse(IdpValueTypes.KIND_DATE, '15. Maart 2024', af).value,
       'the language comes from the value type, never from the running user'
     );
     Assert.areEqual(
       Date.newInstance(2024, 12, 1),
-      parse(IdpValueTypes.KIND_DATE, '01 Dez 2024', de).value
+      parse(IdpValueTypes.KIND_DATE, '01 Des 2024', af).value
     );
 
     IdpValueTypes.Config pt = cfg(IdpValueTypes.KIND_DATE);
     pt.formats = new List<String>{ 'dd MMMM yyyy' };
-    pt.locale = 'pt-BR';
+    pt.locale = 'pt-ZA';
     Assert.areEqual(
       Date.newInstance(2024, 3, 15),
       parse(IdpValueTypes.KIND_DATE, '15 março 2024', pt).value
@@ -374,21 +374,13 @@ private class IdpValueTypesTest {
       'março and maio are the pair a two-letter prefix would have confused'
     );
 
-    IdpValueTypes.Config es = cfg(IdpValueTypes.KIND_DATE);
-    es.formats = new List<String>{ 'd \'de\' MMMM \'de\' yyyy' };
-    es.locale = 'es-ES';
+    IdpValueTypes.Config ptLong = cfg(IdpValueTypes.KIND_DATE);
+    ptLong.formats = new List<String>{ 'd \'de\' MMMM \'de\' yyyy' };
+    ptLong.locale = 'pt';
     Assert.areEqual(
       Date.newInstance(2024, 3, 15),
-      parse(IdpValueTypes.KIND_DATE, '15 de marzo de 2024', es).value,
+      parse(IdpValueTypes.KIND_DATE, '15 de março de 2024', ptLong).value,
       'quoted literals keep the "de" of a Romance long date out of the tokens'
-    );
-
-    IdpValueTypes.Config af = cfg(IdpValueTypes.KIND_DATE);
-    af.formats = new List<String>{ 'dd MMMM yyyy' };
-    af.locale = 'af-ZA';
-    Assert.areEqual(
-      Date.newInstance(2024, 3, 15),
-      parse(IdpValueTypes.KIND_DATE, '15 Maart 2024', af).value
     );
   }
 
@@ -407,13 +399,13 @@ private class IdpValueTypesTest {
       parse(IdpValueTypes.KIND_DATE, '15 juin 2024', fr).value
     );
 
-    IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_DATE);
-    de.formats = new List<String>{ 'dd MMMM yyyy' };
-    de.locale = 'de';
+    IdpValueTypes.Config af = cfg(IdpValueTypes.KIND_DATE);
+    af.formats = new List<String>{ 'dd MMMM yyyy' };
+    af.locale = 'af';
     Assert.areEqual(
       IdpResult.Grade.FAILED,
-      parse(IdpValueTypes.KIND_DATE, '15 March 2024', de).grade,
-      'a German value type does not quietly accept English months'
+      parse(IdpValueTypes.KIND_DATE, '15 March 2024', af).grade,
+      'an Afrikaans value type does not quietly accept English months'
     );
   }
 
@@ -421,7 +413,7 @@ private class IdpValueTypesTest {
   static void rendersMonthNamesInEnglishWhateverTheLocale() {
     IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_DATE);
     IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_DATE);
-    de.locale = 'de-DE';
+    de.locale = 'af-ZA';
     de.outputFormat = 'dd MMMM yyyy';
     Assert.areEqual(
       '15 March 2024',
@@ -540,12 +532,12 @@ private class IdpValueTypesTest {
 
   @IsTest
   static void canonicalizesPhonesForAnyRegionInMetadata() {
-    IdpValueTypes.Config se = cfg(IdpValueTypes.KIND_PHONE);
-    se.region = 'SE';
+    IdpValueTypes.Config ke = cfg(IdpValueTypes.KIND_PHONE);
+    ke.region = 'KE';
     Assert.areEqual(
-      '+46701234567',
-      parse(IdpValueTypes.KIND_PHONE, '070 123 45 67', se).value,
-      'Sweden was never in the hardcoded dial-code set; the record is enough'
+      '+254701234567',
+      parse(IdpValueTypes.KIND_PHONE, '070 123 45 67', ke).value,
+      'Kenya was never in the hardcoded dial-code set; the record is enough'
     );
 
     IdpValueTypes.Config unseeded = cfg(IdpValueTypes.KIND_PHONE);
@@ -565,29 +557,33 @@ private class IdpValueTypesTest {
 
   @IsTest
   static void readsDecimalSeparatorsForAnyLocaleInMetadata() {
-    IdpValueTypes.Config de = cfg(IdpValueTypes.KIND_NUMBER);
-    de.locale = 'de-DE';
-    IdpValueTypes.ParseResult german = parse(
+    IdpValueTypes.Config za = cfg(IdpValueTypes.KIND_NUMBER);
+    za.locale = 'af-ZA';
+    IdpValueTypes.ParseResult southAfrican = parse(
       IdpValueTypes.KIND_NUMBER,
       '1.234',
-      de
+      za
     );
-    Assert.areEqual(1234, german.value, 'German dot groups thousands');
-    Assert.areEqual(IdpResult.Grade.EXACT, german.grade);
+    Assert.areEqual(
+      1234,
+      southAfrican.value,
+      'South Africa prints comma decimals, so the dot groups thousands'
+    );
+    Assert.areEqual(IdpResult.Grade.EXACT, southAfrican.grade);
 
-    IdpValueTypes.Config ch = cfg(IdpValueTypes.KIND_NUMBER);
-    ch.locale = 'de-CH';
-    IdpValueTypes.ParseResult swiss = parse(
+    IdpValueTypes.Config ke = cfg(IdpValueTypes.KIND_NUMBER);
+    ke.locale = 'af-KE';
+    IdpValueTypes.ParseResult kenyan = parse(
       IdpValueTypes.KIND_NUMBER,
       '1.234',
-      ch
+      ke
     );
     Assert.areEqual(
       1.234,
-      swiss.value,
-      'same language, other country: Switzerland reads the dot as decimal'
+      kenyan.value,
+      'same language, other country: Kenya reads the dot as decimal'
     );
-    Assert.areEqual(IdpResult.Grade.EXACT, swiss.grade);
+    Assert.areEqual(IdpResult.Grade.EXACT, kenyan.grade);
   }
 
   @IsTest

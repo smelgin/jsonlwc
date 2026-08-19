@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Definition__c</fullName>
+    <label>Definition</label>
+    <type>LongTextArea</type>
+    <length>131072</length>
+    <visibleLines>25</visibleLines>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>The set&apos;s sections and their rules, as JSON: {"sections":[{...,"rules":[...]}]}. Edited through the IDP Configurator LWC or by hand; see IDP_CONFIGURATION.md for the format. Long text areas cost a flat 255 characters against the org&apos;s custom metadata allocation regardless of content, which is why sections and rules live here rather than as their own records.</description>
+</CustomField>

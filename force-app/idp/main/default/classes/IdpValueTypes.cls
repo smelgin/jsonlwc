@@ -1205,7 +1205,7 @@ public inherited sharing class IdpValueTypes {
   // ────────────────────────── ValueMap ────────────────────────────
 
   /**
-   * Admin-editable dictionary: IDP_Value_Map_Entry__mdt records translate
+   * Admin-editable dictionary: the value type's Value_Map_Entries__c JSON translates
    * what the document says into what the org stores ("Pty Ltd" → "Private
    * Company"). Unmapped input FAILs with a clear message rather than
    * writing free text into a controlled field.

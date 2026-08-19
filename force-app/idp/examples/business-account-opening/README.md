@@ -7,8 +7,8 @@ onto the customer's Account and onto the Case tracking the application.
 
 This is the simplest shape the mapping engine takes: **Data Extraction** mode,
 two **Fixed** sections, no repeating band. Nothing here is code — the whole
-behaviour is one `IDP_Mapping_Set__mdt`, two `IDP_Section__mdt`, thirteen
-`IDP_Mapping_Rule__mdt` records and four value types.
+behaviour is one `IDP_Mapping_Set__mdt` whose Definition declares two sections
+and thirteen rules, plus four value types.
 
 ## What it demonstrates
 
@@ -43,7 +43,7 @@ behaviour is one `IDP_Mapping_Set__mdt`, two `IDP_Section__mdt`, thirteen
 Note that the JSON is grouped by _what the document says_ (application,
 business, signatory) while the sections are grouped by _where it goes_ (Case,
 Account). The two do not have to line up: a Fixed section only decides the
-target object, and each rule's `JSON_Path__c` is read from the document root.
+target object, and each rule's `jsonPath` is read from the document root.
 That is why the signatory's name and email sit in the `Application` section —
 they belong on the Case.
 
@@ -63,7 +63,7 @@ Mapping set: **`Account_Opening_Intake`**
 Sections are `Account_Opening_Customer` and `Account_Opening_Application`
 (their record DeveloperNames), shortened here:
 
-| Section       | `JSON_Path__c`                | Target field                      | Policy            | Value Type           |
+| Section       | `jsonPath`                    | Target field                      | Policy            | Value Type           |
 | ------------- | ----------------------------- | --------------------------------- | ----------------- | -------------------- |
 | `Customer`    | `business.registrationNumber` | `Account.Registration_Number__c`  | Always            |                      |
 | `Customer`    | `business.taxReference`       | `Account.Tax_Reference_Number__c` | Always            |                      |
@@ -163,7 +163,7 @@ until you press **Confirm & Save**. The toast then reports
 
 Twelve, not thirteen: `Case.Description` is skipped because it already holds
 the branch note, and `Account.Phone` is written because it was blank. That
-asymmetry is `Overwrite_Policy__c` doing its job.
+asymmetry is `overwritePolicy` doing its job.
 
 The same thing works from a Screen Flow — host `fileJsonReview`, then call the
 **Apply IDP Mapping Set** action with the same four values. See
