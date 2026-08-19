@@ -108,21 +108,35 @@ export default class IdpConfigurator extends LightningElement {
         this.stopPolling();
     }
 
+    /**
+     * The pickers are a convenience and the document types are the point,
+     * so they are settled independently: an org whose schema query fails
+     * still gets a usable editor, with the dropdowns degraded rather than
+     * a blank page.
+     */
     async bootstrap() {
         this.loading = true;
         try {
-            const [vocabulary, sets] = await Promise.all([
+            const [vocabulary, sets] = await Promise.allSettled([
                 pickers(),
                 listSets()
             ]);
-            this.objectOptions = vocabulary.objects;
-            this.valueTypeOptions = [
-                { label: 'Derive from the field', value: '' },
-                ...vocabulary.valueTypes
-            ];
-            this.sets = sets;
-            if (sets.length) {
-                await this.open(sets[0].name);
+            if (vocabulary.status === 'fulfilled') {
+                this.objectOptions = vocabulary.value.objects;
+                this.valueTypeOptions = [
+                    { label: 'Derive from the field', value: '' },
+                    ...vocabulary.value.valueTypes
+                ];
+            } else {
+                this.error = this.messageOf(vocabulary.reason);
+            }
+            if (sets.status === 'rejected') {
+                this.error = this.messageOf(sets.reason);
+                return;
+            }
+            this.sets = sets.value;
+            if (sets.value.length) {
+                await this.open(sets.value[0].name);
             }
         } catch (e) {
             this.error = this.messageOf(e);

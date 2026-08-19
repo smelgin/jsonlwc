@@ -206,21 +206,52 @@ public with sharing class IdpConfiguratorController {
    *
    * Objects come from EntityDefinition rather than getGlobalDescribe(),
    * which this codebase avoids — see IdpSchemaCache.
+   *
+   * EntityDefinition hands back at most one batch and does not support
+   * queryMore(), so a plain `LIMIT 2000` throws the moment an org has
+   * more than BATCH customizable objects — which a full Financial
+   * Services Cloud org comfortably does. Hence the keyset walk below:
+   * each pass asks for names after the last one seen, so every query is
+   * a single batch and no paging is ever attempted.
    */
+  private static final Integer BATCH = 200;
+  private static final Integer MAX_OBJECTS = 3000;
+
   @AuraEnabled(cacheable=true)
   public static PickerData pickers() {
     PickerData data = new PickerData();
-    for (EntityDefinition entity : [
-      SELECT QualifiedApiName, Label
-      FROM EntityDefinition
-      WHERE IsCustomizable = TRUE AND IsQueryable = TRUE
-      ORDER BY QualifiedApiName
-      LIMIT 2000
-    ]) {
-      Option option = new Option();
-      option.value = entity.QualifiedApiName;
-      option.label = entity.Label + ' (' + entity.QualifiedApiName + ')';
-      data.objects.add(option);
+    String after = '';
+    // EntityDefinition can return several rows sharing one QualifiedApiName,
+    // so the picker deduplicates: an admin choosing a target object should
+    // see each name once.
+    Set<String> named = new Set<String>();
+    while (data.objects.size() < MAX_OBJECTS) {
+      List<EntityDefinition> page = [
+        SELECT QualifiedApiName, Label
+        FROM EntityDefinition
+        WHERE
+          IsCustomizable = TRUE
+          AND IsQueryable = TRUE
+          AND QualifiedApiName > :after
+        ORDER BY QualifiedApiName
+        LIMIT :BATCH
+      ];
+      if (page.isEmpty()) {
+        break;
+      }
+      for (EntityDefinition entity : page) {
+        if (!named.add(entity.QualifiedApiName)) {
+          continue;
+        }
+        Option option = new Option();
+        option.value = entity.QualifiedApiName;
+        option.label = entity.Label + ' (' + entity.QualifiedApiName + ')';
+        data.objects.add(option);
+      }
+      after = page[page.size() - 1].QualifiedApiName;
+      if (page.size() < BATCH) {
+        break;
+      }
     }
     for (IDP_Value_Type__mdt type : [
       SELECT DeveloperName, MasterLabel, Kind__c

@@ -201,14 +201,33 @@ private class IdpConfiguratorControllerTest {
 
   @IsTest
   static void pickersReturnObjectsAndValueTypes() {
+    // EntityDefinition cannot be paged with queryMore(), so pickers() walks
+    // it by keyset. This asserts the walk's two failure modes — a repeated
+    // page, and a page that starts over — neither of which shows up in an
+    // org small enough to fit in one batch.
     IdpConfiguratorController.PickerData data = IdpConfiguratorController.pickers();
     Assert.isFalse(data.objects.isEmpty(), 'the object picker needs a list');
     Boolean sawCase = false;
+    Set<String> seen = new Set<String>();
+    String previous = '';
     for (IdpConfiguratorController.Option option : data.objects) {
       if (option.value == 'Case') {
         sawCase = true;
         Assert.isTrue(option.label.contains('Case'));
       }
+      Assert.isTrue(
+        seen.add(option.value),
+        option.value + ' was listed twice: the keyset walk repeated a page'
+      );
+      // Lowercased because SOQL orders and compares strings without regard
+      // to case, and the keyset walk leans on that: ORDER BY and the `>`
+      // that resumes each page share one collation. Comparing with a
+      // case-sensitive compareTo here would fail on honestly-ordered rows.
+      Assert.isTrue(
+        previous.toLowerCase().compareTo(option.value.toLowerCase()) < 0,
+        'the walk must stay ordered: ' + previous + ' then ' + option.value
+      );
+      previous = option.value;
     }
     Assert.isTrue(sawCase, 'Case is customizable and queryable in every org');
     for (IdpConfiguratorController.Option option : data.valueTypes) {
