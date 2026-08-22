@@ -172,6 +172,13 @@
     gap: 0.25rem;
 }
 
+.convert-warning {
+    flex: 1 0 100%;
+    margin-bottom: 0.25rem;
+    color: var(--slds-g-color-warning-base-20, #8c4b02);
+    font-size: 0.75rem;
+}
+
 .add-error {
     flex: 1 0 100%;
     color: var(--slds-g-color-error-base-40, #ba0517);

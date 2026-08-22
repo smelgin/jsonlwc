@@ -138,6 +138,38 @@ async function addField(element, rowId, name, type) {
     await flush();
 }
 
+/** The value textbox belonging to the row labelled `label`. */
+function valueInputFor(element, label) {
+    const id = rowIdFor(element, label);
+    return queryAll(element, '.value-input').find(
+        (input) => input.dataset.id === id
+    );
+}
+
+function setAddContainer(element, kind) {
+    element.shadowRoot
+        .querySelector('.add-form .add-container')
+        .dispatchEvent(new CustomEvent('change', { detail: { value: kind } }));
+}
+
+/** Opens the add form on the row labelled `label` and confirms it. When the
+ *  row is a leaf this is the JF-13 conversion path. */
+async function addChildTo(element, label, options = {}) {
+    await openAddFormOn(element, rowIdFor(element, label));
+    if (options.container) {
+        setAddContainer(element, options.container);
+        await flush();
+    }
+    if (options.name !== undefined && options.name !== null) {
+        setAddName(element, options.name);
+    }
+    if (options.type) {
+        setAddType(element, options.type);
+    }
+    clickConfirmAdd(element);
+    await flush();
+}
+
 async function search(element, term) {
     const input = element.shadowRoot.querySelector('.search-input');
     input.value = term;
@@ -619,6 +651,154 @@ describe('c-json-form', () => {
             expect(remaining[remaining.length - 1].value).toBe('Wrench');
             expect(isModified(remaining[remaining.length - 1])).toBe(true);
             expect(isModified(remaining[remaining.length - 2])).toBe(false);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // JF-13 - adding a child under a leaf
+    // -----------------------------------------------------------------
+
+    describe('adding children under a leaf', () => {
+        it('offers an add button on every row, not only on branches', () => {
+            const element = buildStructural(SAMPLE);
+            // 5 top-level primitives + Tools + 3 items = 9 rows, all addable
+            expect(queryAll(element, '.add-button')).toHaveLength(9);
+        });
+
+        it('turns a leaf into a group and nests the new field under it', async () => {
+            const element = buildStructural(SAMPLE);
+            const handler = jest.fn();
+            element.addEventListener('jsonchange', handler);
+
+            await addChildTo(element, 'Middle Name', { name: 'Suffix' });
+
+            expect(handler).toHaveBeenCalledTimes(1);
+            const result = element.getJson();
+            expect(result['Middle Name']).toEqual({ Suffix: '' });
+            // Converting is in-place: the key keeps its original position
+            expect(Object.keys(result)).toEqual(Object.keys(SAMPLE));
+        });
+
+        it('can turn a leaf into a list instead, with no name needed', async () => {
+            const element = buildStructural(SAMPLE);
+            await openAddFormOn(element, rowIdFor(element, 'Middle Name'));
+            setAddContainer(element, 'array');
+            await flush();
+            // A list item is positional, so the name box is withdrawn
+            expect(
+                element.shadowRoot.querySelector('.add-form .add-name')
+            ).toBeNull();
+            clickConfirmAdd(element);
+            await flush();
+
+            expect(element.getJson()['Middle Name']).toEqual(['']);
+        });
+
+        it('warns which value the conversion discards', async () => {
+            const element = buildStructural(SAMPLE);
+            await openAddFormOn(element, rowIdFor(element, 'Middle Name'));
+            expect(
+                element.shadowRoot.querySelector('.convert-warning').textContent
+            ).toContain('"Arturo"');
+        });
+
+        it('shows no conversion controls when the target is already a branch', async () => {
+            const element = buildStructural(SAMPLE);
+            await openAddFormOn(element, rowIdFor(element, 'Tools'));
+            expect(
+                element.shadowRoot.querySelector('.convert-warning')
+            ).toBeNull();
+            expect(
+                element.shadowRoot.querySelector('.add-form .add-container')
+            ).toBeNull();
+        });
+
+        it('still requires a name when converting to a group', async () => {
+            const element = buildStructural(SAMPLE);
+            await openAddFormOn(element, rowIdFor(element, 'Middle Name'));
+            clickConfirmAdd(element);
+            await flush();
+
+            expect(
+                element.shadowRoot.querySelector('.add-error').textContent
+            ).toBe('Give the field a name.');
+            // Nothing was converted, so the JSON is untouched
+            expect(element.getJson()).toEqual(SAMPLE);
+        });
+
+        it('keeps the converted field editable and nests deeper on demand', async () => {
+            const element = buildStructural(SAMPLE);
+            await addChildTo(element, 'Middle Name', {
+                name: 'Detail',
+                type: 'object'
+            });
+            // The grandchild goes under the group just created
+            await addChildTo(element, 'Detail', { name: 'Note' });
+
+            expect(element.getJson()['Middle Name']).toEqual({
+                Detail: { Note: '' }
+            });
+        });
+
+        it('preserves the type of a value typed into a converted field', async () => {
+            const element = buildStructural(SAMPLE);
+            await addChildTo(element, 'Age', { name: 'Years', type: 'number' });
+
+            // The child renders in place under Age, not at the end
+            fireChange(valueInputFor(element, 'Years'), '46');
+            expect(element.getJson().Age).toEqual({ Years: 46 });
+        });
+
+        it('converts an array item too', async () => {
+            const element = buildStructural(SAMPLE);
+            await addChildTo(element, 'Item 2', { name: 'Brand' });
+
+            expect(element.getJson().Tools).toEqual([
+                'Hammer',
+                { Brand: '' },
+                'Pliers'
+            ]);
+        });
+
+        it('drops the confidence envelope of the value it discards', async () => {
+            const element = buildComponent(
+                {
+                    Name: { value: 'Carlos', confidence: 0.97 },
+                    Age: { value: 45, confidence: 0.42 }
+                },
+                { editStructure: true, showConfidence: true }
+            );
+            await addChildTo(element, 'Name', { name: 'Given' });
+
+            // Name is now a plain group; Age keeps its envelope untouched
+            expect(element.getJson()).toEqual({
+                Name: { Given: '' },
+                Age: { value: 45, confidence: 0.42 }
+            });
+            expect(queryAll(element, '.confidence-badge')).toHaveLength(1);
+        });
+
+        it('deletes a converted field like any other branch', async () => {
+            const element = buildStructural(SAMPLE);
+            await addChildTo(element, 'Middle Name', { name: 'Suffix' });
+
+            clickDeleteFor(element, 'Middle Name');
+            await flush();
+            // It has contents now, so it asks first
+            expect(
+                element.shadowRoot.querySelector('.confirm-delete')
+            ).not.toBeNull();
+            element.shadowRoot
+                .querySelector('.delete-confirm')
+                .dispatchEvent(new CustomEvent('click'));
+            await flush();
+
+            expect(element.getJson()['Middle Name']).toBeUndefined();
+        });
+
+        it('does nothing when editStructure is off', () => {
+            const element = buildComponent(SAMPLE);
+            expect(queryAll(element, '.add-button')).toHaveLength(0);
         });
     });
 

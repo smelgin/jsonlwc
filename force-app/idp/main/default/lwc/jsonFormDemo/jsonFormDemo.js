@@ -16,6 +16,14 @@ const SAMPLE_CONFIDENCE_JSON = {
     Tools: ['Hammer', 'Handsaw', 'Pliers']
 };
 
+// A single field holding two facts, the case JF-13 exists for: convert
+// "Executor" into a group and split the name and the ID into children.
+const SAMPLE_NESTING_JSON = {
+    'Estate Number': '004521/2024',
+    Executor: 'BONGIWE PAMELA FELICIA MONKWE - 0203210284089 (ID)',
+    Deceased: 'JOHANNES PETRUS VAN DER MERWE - 4501015009087 (ID)'
+};
+
 export default class JsonFormDemo extends LightningElement {
     sourceJson = JSON.stringify(SAMPLE_JSON, null, 3);
     loadedJson;
@@ -39,6 +47,12 @@ export default class JsonFormDemo extends LightningElement {
     }
 
     handleLoad() {
+        this.loadSource();
+    }
+
+    handleLoadNestingSample() {
+        this.sourceJson = JSON.stringify(SAMPLE_NESTING_JSON, null, 3);
+        this.editStructure = true;
         this.loadSource();
     }
 

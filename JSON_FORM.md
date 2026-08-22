@@ -43,7 +43,9 @@ It is also the right-hand pane of the document previewer; see **[DOC_PREVIEWER.m
 
 #### `edit-structure` — adding and deleting
 
-Adds an **Add field** button to the toolbar and to every group and list, and a delete button to every row. Adding asks for a name (objects only — list items are positional) and a type: Text, Number, True/false, Empty, Group or List. Names that are blank or already taken by a sibling are rejected with a message. A new field is outlined in green from birth, since nothing about it came from the document. Deleting a leaf happens immediately; deleting a group or list that has contents asks first. Deleting a list item renumbers the survivors.
+Adds an **Add field** button to the toolbar and to **every row**, and a delete button to every row. Adding asks for a name (objects only — list items are positional) and a type: Text, Number, True/false, Empty, Group or List. Names that are blank or already taken by a sibling are rejected with a message. A new field is outlined in green from birth, since nothing about it came from the document. Deleting a leaf happens immediately; deleting a group or list that has contents asks first. Deleting a list item renumbers the survivors.
+
+**Adding under a leaf** converts that field into a container first. Pick whether it becomes a **Group** or a **List**; the field keeps its id, its key and its position in the JSON, so it is the same field now holding structure instead of a scalar. The value it held is discarded — the form warns first, quoting the value, so it can be copied before converting — and any `{value, confidence}` envelope goes with it, since the envelope measured a value that no longer exists. This is how a single extracted string like `"BONGIWE PAMELA FELICIA MONKWE - 0203210284089 (ID)"` gets split into a group of named parts. Nesting deeper is then just adding again.
 
 #### `collapsible` — collapse and expand
 
@@ -112,7 +114,7 @@ To try it: deploy, then add **JSON Form Demo** to any Lightning App/Home/Record 
 
 ```sh
 npm install                # dev tooling (Jest, ESLint, Prettier)
-npm run test:unit          # run the LWC Jest tests (76 tests)
+npm run test:unit          # run the LWC Jest tests (88 tests)
 sf org login web -a myorg  # authorize an org
 sf project deploy start -o myorg   # deploy
 ```

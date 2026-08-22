@@ -160,8 +160,8 @@
                                 icon-name="utility:add"
                                 variant="bare"
                                 size="small"
-                                alternative-text="Add field"
-                                title="Add field"
+                                alternative-text={row.addTitle}
+                                title={row.addTitle}
                                 data-id={row.id}
                                 class="add-button"
                                 onclick={handleAddClick}
@@ -205,6 +205,18 @@
 
                     <template lwc:if={row.isAdding}>
                         <div class="add-form">
+                            <template lwc:if={row.addIsConversion}>
+                                <p class="convert-warning">
+                                    {row.addConversionMessage}
+                                </p>
+                                <lightning-combobox
+                                    label="Turn this field into"
+                                    value={row.addContainerKind}
+                                    options={containerOptions}
+                                    onchange={handleAddContainerChange}
+                                    class="add-container"
+                                ></lightning-combobox>
+                            </template>
                             <template lwc:if={row.addNeedsName}>
                                 <lightning-input
                                     type="text"

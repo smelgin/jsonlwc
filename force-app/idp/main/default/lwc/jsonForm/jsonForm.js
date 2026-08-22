@@ -25,6 +25,12 @@ const TYPE_OPTIONS = [
     { label: 'List', value: KIND_ARRAY }
 ];
 
+/** What a leaf becomes when a child is added under it (JF-13). */
+const CONTAINER_OPTIONS = [
+    { label: 'Group', value: KIND_OBJECT },
+    { label: 'List', value: KIND_ARRAY }
+];
+
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.8;
 
 /** Flow and App Builder hand booleans over as the strings "true"/"false". */
@@ -59,6 +65,7 @@ function toBoolean(value) {
 export default class JsonForm extends LightningElement {
     rows = [];
     typeOptions = TYPE_OPTIONS;
+    containerOptions = CONTAINER_OPTIONS;
 
     _root;
     _scalar;
@@ -78,6 +85,7 @@ export default class JsonForm extends LightningElement {
     _addTargetId;
     _addName = '';
     _addType = TYPE_TEXT;
+    _addContainerKind = KIND_OBJECT;
     _addError;
     _confirmDeleteId;
 
@@ -441,6 +449,9 @@ export default class JsonForm extends LightningElement {
 
     makeRow(node, index, level) {
         const isBranch = node.kind !== KIND_LEAF;
+        // JF-13: a leaf can take a child too, by becoming a container first.
+        const converting = !isBranch;
+        const containerKind = converting ? this._addContainerKind : node.kind;
         const row = {
             id: node.id,
             label: this.labelOf(node, index),
@@ -457,11 +468,17 @@ export default class JsonForm extends LightningElement {
             toggleTitle: node.collapsed ? 'Expand' : 'Collapse',
             // Structure
             showDelete: this._editStructure,
-            showAdd: this._editStructure && isBranch,
+            showAdd: this._editStructure,
+            addTitle: this.addTitleFor(node),
             isConfirmingDelete: this._confirmDeleteId === node.id,
             confirmMessage: this.confirmMessageFor(node),
             isAdding: this._addTargetId === node.id,
-            addNeedsName: node.kind === KIND_OBJECT,
+            addIsConversion: converting,
+            addConversionMessage: converting
+                ? this.conversionMessageFor(node)
+                : undefined,
+            addContainerKind: this._addContainerKind,
+            addNeedsName: containerKind === KIND_OBJECT,
             addName: this._addName,
             addType: this._addType,
             addError: this._addError
@@ -469,6 +486,23 @@ export default class JsonForm extends LightningElement {
         this.decorate(row, node);
         this._rowsById.set(node.id, row);
         return row;
+    }
+
+    addTitleFor(node) {
+        if (node.kind === KIND_ARRAY) {
+            return 'Add item';
+        }
+        return node.kind === KIND_OBJECT ? 'Add field' : 'Add child field';
+    }
+
+    /** Warning shown before a leaf is turned into a container. The value it
+     *  holds is named outright, because adding the child discards it. */
+    conversionMessageFor(node) {
+        const held =
+            node.text === '' || node.text === undefined
+                ? 'its empty value'
+                : `"${node.text}"`;
+        return `This field holds a value. Adding a child turns it into a container and discards ${held}.`;
     }
 
     badgeFor(node) {
@@ -498,6 +532,7 @@ export default class JsonForm extends LightningElement {
     decorate(row, node) {
         const labelEdited =
             node.isNew ||
+            node.converted ||
             (node.baselineKey !== null &&
                 node.baselineKey !== undefined &&
                 node.key !== node.baselineKey);
@@ -793,6 +828,7 @@ export default class JsonForm extends LightningElement {
         this._addTargetId = nodeId;
         this._addName = '';
         this._addType = TYPE_TEXT;
+        this._addContainerKind = KIND_OBJECT;
         this._addError = undefined;
         this._confirmDeleteId = undefined;
         this.rebuildRows();
@@ -812,24 +848,37 @@ export default class JsonForm extends LightningElement {
         this._addType = event.detail.value;
     }
 
+    handleAddContainerChange(event) {
+        this._addContainerKind = event.detail.value;
+        // Whether a name is needed depends on this, so the form must redraw.
+        this.rebuildRows();
+    }
+
     handleAddConfirm() {
         const parent = this.nodeFor(this._addTargetId);
         if (!parent) {
             return;
         }
-        const named = parent.kind === KIND_OBJECT;
+        // Adding under a leaf converts it into a container first (JF-13).
+        const converting = parent.kind === KIND_LEAF;
+        const containerKind = converting ? this._addContainerKind : parent.kind;
+        const named = containerKind === KIND_OBJECT;
         const key = (this._addName || '').trim();
         if (named && !key) {
             this._addError = 'Give the field a name.';
             this.rebuildRows();
             return;
         }
-        if (named && this.hasSibling(parent, key)) {
+        // A freshly converted leaf has no children, so it can have no clash.
+        if (named && !converting && this.hasSibling(parent, key)) {
             this._addError = `This group already has a field called "${key}".`;
             this.rebuildRows();
             return;
         }
 
+        if (converting) {
+            this.convertToContainer(parent, containerKind);
+        }
         parent.children.push(
             this.createNode(
                 named ? key : parent.children.length,
@@ -843,6 +892,26 @@ export default class JsonForm extends LightningElement {
         this._addError = undefined;
         this.rebuildRows();
         this.notifyChange();
+    }
+
+    /**
+     * Turns a leaf into an empty group or list in place. The node keeps its
+     * identity — same id, same key, same baseline key — so it is still the
+     * same field, now holding structure instead of a scalar. The scalar and
+     * any confidence envelope that described it are dropped: the envelope
+     * measured a value that no longer exists.
+     */
+    convertToContainer(node, kind) {
+        node.kind = kind;
+        node.children = [];
+        node.collapsed = false;
+        node.converted = true;
+        node.value = undefined;
+        node.text = undefined;
+        node.baselineText = undefined;
+        node.valueType = undefined;
+        node.envelope = undefined;
+        node.error = undefined;
     }
 
     /** A brand-new node: no baselines, so it renders as edited from birth. */

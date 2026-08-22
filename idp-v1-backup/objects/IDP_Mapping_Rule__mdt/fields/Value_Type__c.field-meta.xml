@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Value_Type__c</fullName>
+    <description>How the document value is parsed, compared and rendered. Blank auto-assigns a strict type from the target field: Number for numeric fields, ISO Date for dates, Phone for phones, Text otherwise.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Value Type</label>
+    <referenceTo>IDP_Value_Type__mdt</referenceTo>
+    <relationshipLabel>Rules</relationshipLabel>
+    <relationshipName>Rules</relationshipName>
+    <required>false</required>
+    <type>MetadataRelationship</type>
+    <unique>false</unique>
+</CustomField>

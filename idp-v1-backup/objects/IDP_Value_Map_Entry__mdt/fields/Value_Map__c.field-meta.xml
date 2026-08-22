@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Value_Map__c</fullName>
+    <description>The ValueMap-kind IDP Value Type this entry belongs to.</description>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <label>Value Map</label>
+    <referenceTo>IDP_Value_Type__mdt</referenceTo>
+    <relationshipLabel>Map Entries</relationshipLabel>
+    <relationshipName>Map_Entries</relationshipName>
+    <required>true</required>
+    <type>MetadataRelationship</type>
+    <unique>false</unique>
+</CustomField>

@@ -6,9 +6,16 @@
     "**/.sfdx": true
   },
   "xml.preferences.showSchemaDocumentationType": "none",
+  "salesforce.agentforceVibesAutocomplete.enableAutocompletions": true,
   "workbench.colorCustomizations": {
-    "statusBar.background": "#8c1004",
-    "activityBar.background": "#8c1004"
-  },
-  "salesforce.agentforceVibesAutocomplete.enableAutocompletions": true
+    "statusBar.background": "#0b5cab",
+    "statusBar.foreground": "#ffffff",
+    "statusBar.border": "#1b96ff",
+    "statusBarItem.hoverBackground": "#3779ba",
+    "statusBarItem.remoteBackground": "#0f487f",
+    "statusBarItem.remoteForeground": "#ffffff",
+    "activityBar.activeBorder": "#1b96ff",
+    "activityBarBadge.background": "#1b96ff",
+    "activityBarBadge.foreground": "#181818"
+  }
 }
