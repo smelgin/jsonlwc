@@ -31,6 +31,10 @@ Every capability past editing values is an opt-in `@api` boolean defaulting to `
 | JF-12 | ⬜     | **Virtualise long forms.** Every node renders today. A 2,000-field statement will feel it. Measure before building.                                                                                                                                                                                                                                                                                                                                                      | L    |
 | JF-13 | ✅     | **Add a child node under any node, including leaves** (`editStructure`). Every row gets an add button, not only groups and lists. Adding under a leaf converts it in place into a group or a list — the field keeps its id, key and position, and the scalar it held (plus any confidence envelope describing that scalar) is discarded after an explicit warning naming the value. Nesting deeper is then the ordinary add. | M    |
 
+#### Note — displaying document-level confidence (ENG-9)
+
+The **calculation** of a weighted document-level confidence now lives in the engine as **ENG-9** (it needs per-field config and per-field confidence, both of which the engine has and `jsonForm` deliberately does not). `jsonForm`/`fileJsonReview` only ever *display* the score the engine hands back — a header badge next to the toolbar (`hasToolbar` already exists), shown only when a score is provided. That display is a thin consumer of ENG-9 via the JF-7 `annotations` path (or `fileJsonReview`, which can call Apex directly), and carries no config of its own, so it keeps `jsonForm` dependency-free.
+
 ### Notes
 
 - **Data model.** The component owns a tree of nodes with stable ids and derives the JSON from it, rather than re-deriving rows from the JSON. This is what lets a field's "edited" baseline survive a rename, an insertion, or a deletion that shifts every later array index. Anything touching structure should work with the tree, not with paths.
@@ -72,6 +76,7 @@ Nothing here is implemented yet. The component's API was deliberately left untou
 | ENG-6 | ⬜     | **Fire the finding handler on errors, not only mismatches.** `invokeFindingHandler` only runs when a result is non-compliant, so an extraction run that fails every field notifies nobody. Add an opt-in severity threshold.                                                                                                          | S    |
 | ENG-7 | ⬜     | **Persist a run log.** Findings are returned and then gone. An `IDP_Run_Log__c` (plus a findings child) would give compliance history, reporting and a paper trail per document. Decide retention and volume first.                                                                                                                   | L    |
 | ENG-8 | ⬜     | **Re-run one document from its log.** Depends on ENG-7. `IdpBatchProcessor` already reprocesses from a stored JSON field; this is the single-record, admin-triggered version.                                                                                                                                                         | M    |
+| ENG-9 | ⬜     | **Document-level confidence score.** Weight each "interesting" field on its rule and roll every weighted field confidence up into one score per document. See the design note below. The form side (a header badge) is a display-only consumer — see the note under section 1.                                                              | M    |
 
 #### Design note — ENG-1, Hybrid mode
 
@@ -98,6 +103,19 @@ Nothing here is implemented yet. The component's API was deliberately left untou
 - **Invocation granularity.** Once per run with every matching field, or once per field? Per-field is the obvious API and the dangerous one: a single SOQL inside a handler then scales with row count, which is the property the whole engine was built around. This is the main risk left in the item.
 - **The context object.** Something like `IIdpFieldHandler.handle(FieldContext)` carrying the JSON path and field name, the raw and parsed value, the parse grade and confidence, the target record and object, and the section and row info. A context object rather than loose arguments so the signature survives later additions.
 - **Ordering.** Whether handlers run before or after ordinary extraction rules on the same record, given both now write to it.
+
+#### Design note — ENG-9, document-level confidence
+
+**Why the engine, not `jsonForm`.** The score needs a weight per field (configuration) and a confidence per field (the OCR envelope). The engine already owns both: rules are per-field config on `IDP_Mapping_Rule__mdt`, and `IdpJsonReader.readWithConfidence` already reads the envelope confidence that `Min_Confidence__c` gates on. `jsonForm` is deliberately dependency-free, so the calculation cannot live there.
+
+**Shape when built:**
+
+- **Weight field.** A new `Confidence_Weight__c` (Number, default blank/0) on `IDP_Mapping_Rule__mdt`. Blank/0 means "not interesting" — excluded from the roll-up entirely, so only fields an admin marks contribute.
+- **Where the score lands.** A `documentConfidence` (Decimal, 0–1) on `IdpResult.Result`, computed once per document at the end of a run alongside the existing `compliant` roll-up. Null when no weighted field yielded a confidence, so the UI can distinguish "no score" from "zero".
+- **Formula.** Weighted average: `Σ (weight × confidence) / Σ weight`, over rules with a positive weight whose field both resolved and carried a confidence. Decide once: a weighted field that is missing/blank, or present with no confidence envelope, is **excluded from both sums** (not treated as 0) — a 0 would silently tank the score for a field the document simply did not annotate. Revisit if a "penalise missing" mode is ever wanted.
+- **Repeating sections.** Rules in repeating sections fire once per row. Decide whether each row's field contributes independently (many samples) or is averaged per rule first; the simplest correct default is per-row contribution, since that is what the envelope actually measured.
+- **Confidence normalisation.** Reuse JF-4's convention — accept both fractions (0.93) and percentages (93) — so the engine and the form agree on scale.
+- **Display.** The form/`fileJsonReview` badge is ENG-9's only consumer; see the display note under section 1.
 
 ### 3b. Value types
 
