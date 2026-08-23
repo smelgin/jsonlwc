@@ -22,6 +22,14 @@ public inherited sharing class IdpMappingEngine {
   public static final String MODE_COMPLIANCE = 'Compliance';
   public static final String MODE_PREVIEW = 'Preview';
 
+  // Query-budget model, checked against the limits guard before a run starts.
+  // Flat cost of a run: the ContentDocumentLink query plus one spare.
+  private static final Integer BASE_QUERIES = 2;
+  // Worst case for one anchored object across the resolver's passes: the
+  // root fetch, hub expansion, then a parent and a child hop on each of the
+  // three passes.
+  private static final Integer QUERIES_PER_ANCHOR = 7;
+
   /** One document in, one Result out. Seed either a file
    *  (contentDocumentId) or a record (seedRecordId — the batch path). */
   public class DocumentWork {
@@ -116,7 +124,10 @@ public inherited sharing class IdpMappingEngine {
     Map<String, IdpContextResolver.AnchorSpec> requests = buildAnchorRequests(
       config
     );
-    Integer estimate = 2 + requests.size() * 7 + config.sections.size();
+    Integer estimate =
+      BASE_QUERIES +
+      requests.size() * QUERIES_PER_ANCHOR +
+      config.sections.size();
     if (!IdpLimitsGuard.hasQueryHeadroom(estimate)) {
       for (DocumentWork work : eligible) {
         work.result.deferred = true;
@@ -163,10 +174,8 @@ public inherited sharing class IdpMappingEngine {
     if (!previewing) {
       executor.flush();
     }
-    for (IdpResult.Result result : results) {
-      result.compliant = result.findingsWith(IdpResult.CODE_VALUE_MISMATCH)
-        .isEmpty();
-    }
+    // compliant needs no roll-up here: IdpResult.Result.add() clears it the
+    // moment a VALUE_MISMATCH finding is recorded.
     invokeFindingHandler(findingHandler, config, runMode, results);
     return results;
   }
@@ -242,7 +251,7 @@ public inherited sharing class IdpMappingEngine {
   ) {
     String objectName = section.targetObject;
     String label = 'Section ' + section.name;
-    Schema.SObjectField matchField = IdpSchemaCache.field(
+    Schema.DescribeFieldResult matchField = IdpSchemaCache.fieldDescribe(
       objectName,
       section.matchField
     );
@@ -256,7 +265,7 @@ public inherited sharing class IdpMappingEngine {
     if (allDocRows.isEmpty() || matchField == null) {
       return;
     }
-    String matchFieldName = matchField.getDescribe().getName();
+    String matchFieldName = matchField.getName();
 
     // Group by lookup field (docs without a parent constraint group under
     // null) — one query per group.
@@ -289,14 +298,14 @@ public inherited sharing class IdpMappingEngine {
     IdpConfigLoader.SectionConfig section,
     IdpConfigLoader.SetConfig config,
     DocumentWork work,
-    Schema.SObjectField matchField,
+    Schema.DescribeFieldResult matchField,
     String label
   ) {
     Object raw = IdpJsonReader.read(work.root, section.rowPath);
     if (raw == null) {
       return null;
     }
-    if (matchField == null || !matchField.getDescribe().isAccessible()) {
+    if (matchField == null || !matchField.isAccessible()) {
       IdpResult.Finding finding = work.result.add(
         IdpResult.CODE_CONFIG_ISSUE,
         IdpResult.SEV_ERROR,
@@ -404,18 +413,18 @@ public inherited sharing class IdpMappingEngine {
     if (lookupField != null) {
       selected.add(lookupField);
     }
-    Map<String, Schema.SObjectField> described = IdpSchemaCache.fieldsOf(
-      objectName
-    );
     for (IdpConfigLoader.RuleConfig rule : section.rules) {
-      Schema.SObjectField field = described.get(rule.targetField);
-      if (field != null && field.getDescribe().isAccessible()) {
-        selected.add(field.getDescribe().getName());
+      Schema.DescribeFieldResult describe = IdpSchemaCache.fieldDescribe(
+        objectName,
+        rule.targetField
+      );
+      if (describe != null && describe.isAccessible()) {
+        selected.add(describe.getName());
       }
     }
     if (
       UserInfo.isMultiCurrencyOrganization() &&
-      described.get('CurrencyIsoCode') != null
+      IdpSchemaCache.field(objectName, 'CurrencyIsoCode') != null
     ) {
       selected.add('CurrencyIsoCode'); // for the currency guard
     }

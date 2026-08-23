@@ -32,11 +32,11 @@ public inherited sharing class IdpRuleEvaluator {
     IdpResult.Result result,
     IdpDmlExecutor executor
   ) {
-    Schema.SObjectField field = IdpSchemaCache.field(
+    Schema.DescribeFieldResult describe = IdpSchemaCache.fieldDescribe(
       objectName,
       rule.targetField
     );
-    if (field == null) {
+    if (describe == null) {
       contextualize(
         result.add(
           IdpResult.CODE_UNKNOWN_FIELD,
@@ -50,7 +50,6 @@ public inherited sharing class IdpRuleEvaluator {
       );
       return;
     }
-    Schema.DescribeFieldResult describe = field.getDescribe();
 
     IdpJsonReader.ValueAt read = IdpJsonReader.readWithConfidence(
       scope,

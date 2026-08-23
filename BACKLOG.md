@@ -5,7 +5,7 @@
 >
 > Nothing here is committed work. Items are sized as **S** (a sitting), **M** (a day or so), **L** (a design decision first). "Done" items are kept so the list stays honest about what changed and why.
 
-**Legend** — ✅ done · ⬜ open
+**Legend** — ✅ done · ⬜ open · 🔒 blocked on sign-off
 
 ---
 
@@ -29,11 +29,11 @@ Every capability past editing values is an opt-in `@api` boolean defaulting to `
 | JF-10 | ⬜     | **Undo / reset per field.** A control to restore a single field to its loaded value. The baseline already exists on every node (that is what drives the green outline), so this is mostly UI.                                                                                                                                                                                                                                                                            | S    |
 | JF-11 | ⬜     | **Reorder list items.** Move up / move down, or drag. The node tree makes this a `splice`; the open question is whether reordering is ever meaningful for extracted data.                                                                                                                                                                                                                                                                                                | M    |
 | JF-12 | ⬜     | **Virtualise long forms.** Every node renders today. A 2,000-field statement will feel it. Measure before building.                                                                                                                                                                                                                                                                                                                                                      | L    |
-| JF-13 | ✅     | **Add a child node under any node, including leaves** (`editStructure`). Every row gets an add button, not only groups and lists. Adding under a leaf converts it in place into a group or a list — the field keeps its id, key and position, and the scalar it held (plus any confidence envelope describing that scalar) is discarded after an explicit warning naming the value. Nesting deeper is then the ordinary add. | M    |
+| JF-13 | ✅     | **Add a child node under any node, including leaves** (`editStructure`). Every row gets an add button, not only groups and lists. Adding under a leaf converts it in place into a group or a list — the field keeps its id, key and position, and the scalar it held (plus any confidence envelope describing that scalar) is discarded after an explicit warning naming the value. Nesting deeper is then the ordinary add.                                             | M    |
 
 #### Note — displaying document-level confidence (ENG-9)
 
-The **calculation** of a weighted document-level confidence now lives in the engine as **ENG-9** (it needs per-field config and per-field confidence, both of which the engine has and `jsonForm` deliberately does not). `jsonForm`/`fileJsonReview` only ever *display* the score the engine hands back — a header badge next to the toolbar (`hasToolbar` already exists), shown only when a score is provided. That display is a thin consumer of ENG-9 via the JF-7 `annotations` path (or `fileJsonReview`, which can call Apex directly), and carries no config of its own, so it keeps `jsonForm` dependency-free.
+The **calculation** of a weighted document-level confidence now lives in the engine as **ENG-9** (it needs per-field config and per-field confidence, both of which the engine has and `jsonForm` deliberately does not). `jsonForm`/`fileJsonReview` only ever _display_ the score the engine hands back — a header badge next to the toolbar (`hasToolbar` already exists), shown only when a score is provided. That display is a thin consumer of ENG-9 via the JF-7 `annotations` path (or `fileJsonReview`, which can call Apex directly), and carries no config of its own, so it keeps `jsonForm` dependency-free.
 
 ### Notes
 
@@ -66,17 +66,38 @@ Nothing here is implemented yet. The component's API was deliberately left untou
 
 ### 3a. Engine (Apex)
 
-| #     | Status | Item                                                                                                                                                                                                                                                                                                                                  | Size |
-| ----- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| ENG-1 | ⬜     | **Hybrid mode — per-rule custom Apex handlers.** Mixing extraction and compliance in one set already works via a rule's `mode`; the new part is a third bucket that hands the field to a custom Apex class. Shipped as a `Custom` value on the rule's `mode` plus a `handlerClass`, not as a new run mode. See the design note below. | L    |
-| ENG-2 | ⬜     | **Create rows in repeating sections.** Rows are matched, never created (`IdpMappingEngine.cls`, the `ROW_UNMATCHED` finding). An opt-in insert or upsert per section would let a statement seed new child records instead of silently reporting unmatched keys. Needs a story for required fields and for partial failure.            | L    |
-| ENG-3 | ⬜     | **Create the anchor when it is missing.** A section whose target object has no reachable record reports `UNREACHABLE_TARGET` and is skipped. Optionally create it. Interacts with ENG-2 — decide both together.                                                                                                                       | L    |
-| ENG-4 | ⬜     | **Async path for a single large document.** `IdpMappingController.apply()` is fully synchronous; only `IdpBatchProcessor` is async. A Queueable fallback would stop a large document hitting synchronous limits. `IdpLimitsGuard` already detects the condition and defers — this is what to do about it.                             | M    |
-| ENG-5 | ⬜     | **Partial-DML resilience.** Confirm what `IdpDmlExecutor.flush()` does when one record fails, and offer per-record failure with `DML_FAILED` findings instead of losing the whole run.                                                                                                                                                | M    |
-| ENG-6 | ⬜     | **Fire the finding handler on errors, not only mismatches.** `invokeFindingHandler` only runs when a result is non-compliant, so an extraction run that fails every field notifies nobody. Add an opt-in severity threshold.                                                                                                          | S    |
-| ENG-7 | ⬜     | **Persist a run log.** Findings are returned and then gone. An `IDP_Run_Log__c` (plus a findings child) would give compliance history, reporting and a paper trail per document. Decide retention and volume first.                                                                                                                   | L    |
-| ENG-8 | ⬜     | **Re-run one document from its log.** Depends on ENG-7. `IdpBatchProcessor` already reprocesses from a stored JSON field; this is the single-record, admin-triggered version.                                                                                                                                                         | M    |
-| ENG-9 | ⬜     | **Document-level confidence score.** Weight each "interesting" field on its rule and roll every weighted field confidence up into one score per document. See the design note below. The form side (a header badge) is a display-only consumer — see the note under section 1.                                                              | M    |
+| #      | Status | Item                                                                                                                                                                                                                                                                                                                                     | Size |
+| ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| ENG-1  | ⬜     | **Hybrid mode — per-rule custom Apex handlers.** Mixing extraction and compliance in one set already works via a rule's `mode`; the new part is a third bucket that hands the field to a custom Apex class. Shipped as a `Custom` value on the rule's `mode` plus a `handlerClass`, not as a new run mode. See the design note below.    | L    |
+| ENG-2  | ⬜     | **Create rows in repeating sections.** Rows are matched, never created (`IdpMappingEngine.cls`, the `ROW_UNMATCHED` finding). An opt-in insert or upsert per section would let a statement seed new child records instead of silently reporting unmatched keys. Needs a story for required fields and for partial failure.               | L    |
+| ENG-3  | ⬜     | **Create the anchor when it is missing.** A section whose target object has no reachable record reports `UNREACHABLE_TARGET` and is skipped. Optionally create it. Interacts with ENG-2 — decide both together.                                                                                                                          | L    |
+| ENG-4  | ⬜     | **Async path for a single large document.** `IdpMappingController.apply()` is fully synchronous; only `IdpBatchProcessor` is async. A Queueable fallback would stop a large document hitting synchronous limits. `IdpLimitsGuard` already detects the condition and defers — this is what to do about it.                                | M    |
+| ENG-5  | ⬜     | **Partial-DML resilience.** Confirm what `IdpDmlExecutor.flush()` does when one record fails, and offer per-record failure with `DML_FAILED` findings instead of losing the whole run.                                                                                                                                                   | M    |
+| ENG-6  | ⬜     | **Fire the finding handler on errors, not only mismatches.** `invokeFindingHandler` only runs when a result is non-compliant, so an extraction run that fails every field notifies nobody. Add an opt-in severity threshold.                                                                                                             | S    |
+| ENG-7  | ⬜     | **Persist a run log.** Findings are returned and then gone. An `IDP_Run_Log__c` (plus a findings child) would give compliance history, reporting and a paper trail per document. Decide retention and volume first.                                                                                                                      | L    |
+| ENG-8  | ⬜     | **Re-run one document from its log.** Depends on ENG-7. `IdpBatchProcessor` already reprocesses from a stored JSON field; this is the single-record, admin-triggered version.                                                                                                                                                            | M    |
+| ENG-9  | ⬜     | **Document-level confidence score.** Weight each "interesting" field on its rule and roll every weighted field confidence up into one score per document. See the design note below. The form side (a header badge) is a display-only consumer — see the note under section 1.                                                           | M    |
+| ENG-10 | 🔒     | **Skip repeating sections that have no rules.** `processFixedSection` early-returns on an empty rule list; `processRepeatingSection` does not, so a repeating section with zero active rules still collects rows, renders match keys and spends a row-matching SOQL to map nothing. **Blocked on sign-off — see the design note below.** | S    |
+
+#### Design note — ENG-10, rule-less repeating sections
+
+Raised as item **C1** of [IMPROVEMENTS.md](IMPROVEMENTS.md) during the 2026-08-22 performance review, and deliberately held back from that change set: every other item there was behaviour-preserving and this one is not.
+
+**The proposal.** Add to [`IdpMappingEngine.processRepeatingSection`](force-app/idp/main/default/classes/IdpMappingEngine.cls) the guard its fixed-section counterpart already has:
+
+```apex
+if (section.rules.isEmpty()) {
+  return;
+}
+```
+
+**What it saves.** One SOQL per rule-less repeating section per run, plus the row collection and match-key rendering that precede it.
+
+**What it changes.** That section stops emitting `ROW_UNMATCHED`, `ROW_DUPLICATE_KEY` and `ROW_LOOKUP_FAILED` findings, and stops contributing to `rowsMatched`. If any consumer uses a repeating section with no rules as a pure "do these rows exist in the org" existence check, this silently removes its output — which is exactly the kind of quiet behaviour change the engine's finding model exists to prevent.
+
+**The decision needed:** is a repeating section with zero active rules always a misconfiguration (→ apply the guard, and consider a `CONFIG_ISSUE` warning at load time instead), or a supported existence-check idiom (→ leave as is, and document it)?
+
+**Status:** proposed by Fable, 2026-08-22. Awaiting Sebastian's sign-off.
 
 #### Design note — ENG-1, Hybrid mode
 

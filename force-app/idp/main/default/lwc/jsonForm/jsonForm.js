@@ -70,6 +70,7 @@ export default class JsonForm extends LightningElement {
     _root;
     _scalar;
     _rowsById = new Map();
+    _nodesById = new Map();
     _idCounter = 0;
     _jsonInput;
 
@@ -267,6 +268,7 @@ export default class JsonForm extends LightningElement {
         this._idCounter = 0;
         this._root = undefined;
         this._scalar = undefined;
+        this._nodesById = new Map();
 
         if (parsed !== undefined && parsed !== null) {
             if (typeof parsed === 'object') {
@@ -295,6 +297,7 @@ export default class JsonForm extends LightningElement {
             envelope: undefined,
             error: undefined
         };
+        this._nodesById.set(node.id, node);
 
         // Envelopes can nest; the innermost confidence is the one that counts,
         // matching IdpJsonReader.
@@ -928,6 +931,7 @@ export default class JsonForm extends LightningElement {
             envelope: undefined,
             error: undefined
         };
+        this._nodesById.set(node.id, node);
         if (type === KIND_OBJECT || type === KIND_ARRAY) {
             node.kind = type;
             node.children = [];
@@ -985,6 +989,7 @@ export default class JsonForm extends LightningElement {
             return;
         }
         siblings.splice(at, 1);
+        this.forget(node);
         // Array item keys are positional; re-key the survivors so serialize
         // and the "Item n" labels stay in step.
         if (node.parent.kind === KIND_ARRAY) {
@@ -1002,32 +1007,43 @@ export default class JsonForm extends LightningElement {
     // Plumbing
     // ---------------------------------------------------------------------
 
+    /** Nodes are looked up by id on every keystroke, so they are indexed as
+     *  they are built rather than found by walking the tree each time. */
     nodeFor(id) {
         if (id === undefined || id === null) {
             return undefined;
         }
-        let found;
-        this.eachNode((node) => {
-            if (node.id === id) {
-                found = node;
-            }
-        });
-        return found;
+        return this._nodesById.get(id);
+    }
+
+    /** Drops a detached node and its descendants from the index, so a stale
+     *  id can never resolve to a node that is no longer in the tree. */
+    forget(node) {
+        this._nodesById.delete(node.id);
+        if (node.children) {
+            node.children.forEach((child) => this.forget(child));
+        }
     }
 
     notifyChange() {
+        // One walk of the tree, not three: getJson(), getJsonString() and
+        // jsonOutput would each re-serialize it on every keystroke.
+        const value = this.getJson();
         this.dispatchEvent(
             new CustomEvent('jsonchange', {
                 detail: {
-                    value: this.getJson(),
-                    jsonString: this.getJsonString(),
+                    value,
+                    jsonString: JSON.stringify(value, null, 3),
                     valid: this.isValid
                 }
             })
         );
         // Keep the jsonOutput Flow attribute in sync (no-op outside Flow)
         this.dispatchEvent(
-            new FlowAttributeChangeEvent('jsonOutput', this.jsonOutput)
+            new FlowAttributeChangeEvent(
+                'jsonOutput',
+                value === undefined ? '' : JSON.stringify(value)
+            )
         );
     }
 }

@@ -15,6 +15,7 @@ public inherited sharing class IdpSchemaCache {
 
   private static Map<String, Schema.DescribeSObjectResult> objectDescribes = new Map<String, Schema.DescribeSObjectResult>();
   private static Map<String, Map<String, Schema.SObjectField>> fieldMaps = new Map<String, Map<String, Schema.SObjectField>>();
+  private static Map<String, Schema.DescribeFieldResult> fieldDescribes = new Map<String, Schema.DescribeFieldResult>();
   private static Map<String, String> lookupsByPair = new Map<String, String>();
 
   /** Describe for an object name; null when the object does not exist. */
@@ -54,6 +55,21 @@ public inherited sharing class IdpSchemaCache {
     return fields == null || String.isBlank(fieldName)
       ? null
       : fields.get(fieldName);
+  }
+
+  /** One field's describe; null when object or field does not exist. Each
+   *  getDescribe() builds a fresh result, so callers on the hot path (once
+   *  per rule per record) take the cached one. */
+  public static Schema.DescribeFieldResult fieldDescribe(
+    String objectName,
+    String fieldName
+  ) {
+    String key = keyOf(objectName) + '.' + keyOf(fieldName);
+    if (!fieldDescribes.containsKey(key)) {
+      Schema.SObjectField token = field(objectName, fieldName);
+      fieldDescribes.put(key, token == null ? null : token.getDescribe());
+    }
+    return fieldDescribes.get(key);
   }
 
   /**

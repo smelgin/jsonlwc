@@ -261,13 +261,13 @@ public inherited sharing class IdpLocaleData {
     if (Pattern.matches('[a-z]*', lower)) {
       return lower; // the overwhelmingly common case, untouched
     }
-    String folded = '';
+    List<String> folded = new List<String>();
     for (Integer i = 0; i < lower.length(); i++) {
       String c = lower.substring(i, i + 1);
       String replacement = FOLDING.get(c);
-      folded += replacement == null ? c : replacement;
+      folded.add(replacement == null ? c : replacement);
     }
-    return folded;
+    return String.join(folded, '');
   }
 
   /** base:variants; groups separated by ";". */

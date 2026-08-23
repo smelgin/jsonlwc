@@ -138,18 +138,17 @@ public inherited sharing class IdpConfigLoader {
 
   public static SetConfig load(String mappingSetName) {
     String key = mappingSetName == null ? '' : mappingSetName;
-    if (!cache.containsKey(key)) {
+    SetConfig cached = cache.get(key); // assemble never returns null
+    if (cached == null) {
       RawSet rawSet = querySet(mappingSetName);
-      cache.put(
-        key,
-        assemble(
-          rawSet,
-          rawSet == null ? null : rawSet.definitionJson,
-          new Map<String, IdpValueTypes.Config>()
-        )
+      cached = assemble(
+        rawSet,
+        rawSet == null ? null : rawSet.definitionJson,
+        new Map<String, IdpValueTypes.Config>()
       ); // filled inside assemble
+      cache.put(key, cached);
     }
-    return cache.get(key);
+    return cached;
   }
 
   /**

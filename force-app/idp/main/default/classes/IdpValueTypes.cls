@@ -24,6 +24,21 @@ public inherited sharing class IdpValueTypes {
   public static final String KIND_REGEX = 'Regex';
   public static final String KIND_CUSTOM = 'Custom';
 
+  // Compiled once per transaction rather than per parsed value: a batch over
+  // thousands of rows would otherwise pay Pattern.compile thousands of times.
+  private static final Pattern TRAILING_LETTERS = Pattern.compile(
+    '([A-Za-z]+)\\s*$'
+  );
+  private static final Pattern ISO_CODE_TOKEN = Pattern.compile(
+    '(?<![A-Za-z])([A-Za-z]{3})(?![A-Za-z])'
+  );
+  private static final Pattern OFFSET_SUFFIX = Pattern.compile(
+    '.*([+-]\\d{2}:?\\d{2}|Z)$'
+  );
+  private static final Pattern NAIVE_TIMESTAMP = Pattern.compile(
+    '^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2})(?::(\\d{2}))?$'
+  );
+
   /** One IDP_Value_Type__mdt record in plain Apex. */
   public class Config {
     public String name; // DeveloperName, for messages
@@ -94,6 +109,26 @@ public inherited sharing class IdpValueTypes {
     return value == null
       ? ''
       : value.trim().replaceAll('\\s+', ' ').toLowerCase();
+  }
+
+  /**
+   * The two-state compare the types without a tolerance all share: a blank
+   * stored field cannot confirm the document, and otherwise both sides go
+   * through the type's own canonical form. Number, Date, Datetime and Phone
+   * keep their own tolerance-aware compares.
+   */
+  private static IdpResult.CompareOutcome compareCanonical(
+    IValueType type,
+    Object extracted,
+    Object stored,
+    Config cfg
+  ) {
+    if (stored == null) {
+      return IdpResult.CompareOutcome.MISMATCH;
+    }
+    return type.canonical(extracted, cfg) == type.canonical(stored, cfg)
+      ? IdpResult.CompareOutcome.MATCH
+      : IdpResult.CompareOutcome.MISMATCH;
   }
 
   /**
@@ -214,12 +249,7 @@ public inherited sharing class IdpValueTypes {
       Object stored,
       Config cfg
     ) {
-      if (stored == null) {
-        return IdpResult.CompareOutcome.MISMATCH;
-      }
-      return canonical(extracted, cfg) == canonical(stored, cfg)
-        ? IdpResult.CompareOutcome.MATCH
-        : IdpResult.CompareOutcome.MISMATCH;
+      return compareCanonical(this, extracted, stored, cfg);
     }
 
     public String render(Object canonicalValue, Config cfg) {
@@ -257,12 +287,7 @@ public inherited sharing class IdpValueTypes {
       Object stored,
       Config cfg
     ) {
-      if (stored == null) {
-        return IdpResult.CompareOutcome.MISMATCH;
-      }
-      return canonical(extracted, cfg) == canonical(stored, cfg)
-        ? IdpResult.CompareOutcome.MATCH
-        : IdpResult.CompareOutcome.MISMATCH;
+      return compareCanonical(this, extracted, stored, cfg);
     }
 
     public String render(Object canonicalValue, Config cfg) {
@@ -317,7 +342,7 @@ public inherited sharing class IdpValueTypes {
       }
       // A trailing 2-letter run is a debit/credit marker; 3 letters would
       // be an ISO currency code, stripped below.
-      Matcher letters = Pattern.compile('([A-Za-z]+)\\s*$').matcher(text);
+      Matcher letters = TRAILING_LETTERS.matcher(text);
       if (letters.find()) {
         String run = letters.group(1).toUpperCase();
         if (run == 'DR') {
@@ -527,8 +552,7 @@ public inherited sharing class IdpValueTypes {
    */
   @TestVisible
   private static String detectCurrency(String text) {
-    Matcher iso = Pattern.compile('(?<![A-Za-z])([A-Za-z]{3})(?![A-Za-z])')
-      .matcher(text);
+    Matcher iso = ISO_CODE_TOKEN.matcher(text);
     while (iso.find()) {
       String candidate = iso.group(1).toUpperCase();
       if (ISO_CURRENCIES.contains(candidate)) {
@@ -536,16 +560,9 @@ public inherited sharing class IdpValueTypes {
       }
     }
     for (String symbol : SYMBOL_ORDER) {
-      if (symbol.isAlpha() || symbol == 'R$') {
-        // Alphabetic symbols need a word-ish boundary so "GBR" never
-        // reads as rand.
-        if (
-          Pattern.compile(
-              '(^|[^A-Za-z])' + escapeRegex(symbol) + '([^A-Za-z]|$)'
-            )
-            .matcher(text)
-            .find()
-        ) {
+      Pattern bounded = symbolPatterns().get(symbol);
+      if (bounded != null) {
+        if (bounded.matcher(text).find()) {
           return SYMBOL_CURRENCIES.get(symbol);
         }
       } else if (text.contains(symbol)) {
@@ -555,13 +572,34 @@ public inherited sharing class IdpValueTypes {
     return null;
   }
 
+  /** Boundary patterns for the alphabetic symbols, so "GBR" never reads as
+   *  rand. Built once; a symbol absent from the map is matched literally. */
+  private static Map<String, Pattern> symbolPatternCache;
+
+  private static Map<String, Pattern> symbolPatterns() {
+    if (symbolPatternCache == null) {
+      symbolPatternCache = new Map<String, Pattern>();
+      for (String symbol : SYMBOL_ORDER) {
+        if (symbol.isAlpha() || symbol == 'R$') {
+          symbolPatternCache.put(
+            symbol,
+            Pattern.compile(
+              '(^|[^A-Za-z])' + escapeRegex(symbol) + '([^A-Za-z]|$)'
+            )
+          );
+        }
+      }
+    }
+    return symbolPatternCache;
+  }
+
   private static String escapeRegex(String literal) {
-    String escaped = '';
+    List<String> escaped = new List<String>();
     for (Integer i = 0; i < literal.length(); i++) {
       String c = literal.substring(i, i + 1);
-      escaped += ('\\^$.|?*+()[]{}'.contains(c) ? '\\' : '') + c;
+      escaped.add(('\\^$.|?*+()[]{}'.contains(c) ? '\\' : '') + c);
     }
-    return escaped;
+    return String.join(escaped, '');
   }
 
   private static final Set<String> ISO_CURRENCIES = new Set<String>{
@@ -875,7 +913,7 @@ public inherited sharing class IdpValueTypes {
       return compiledDatePatterns.get(patternText);
     }
     DatePattern compiled = new DatePattern();
-    String regex = '';
+    List<String> regex = new List<String>();
     Integer i = 0;
     while (i < patternText.length()) {
       String c = patternText.substring(i, i + 1);
@@ -890,11 +928,11 @@ public inherited sharing class IdpValueTypes {
         String token = patternText.substring(i, runEnd);
         compiled.tokens.add(token);
         if (token == 'd' || token == 'M') {
-          regex += '(\\d{1,2})';
+          regex.add('(\\d{1,2})');
         } else if (token == 'dd' || token == 'MM' || token == 'yy') {
-          regex += '(\\d{2})';
+          regex.add('(\\d{2})');
         } else if (token == 'yyyy') {
-          regex += '(\\d{4})';
+          regex.add('(\\d{4})');
         } else if (token == 'MMM' || token == 'MMMM') {
           // \p{L}, not [A-Za-z]: "Mär" and "Ιαν" are month names too.
           // The optional dot lets "Mrz." through; folding drops it.
@@ -902,7 +940,7 @@ public inherited sharing class IdpValueTypes {
           // are not three letters in every language (French "juil",
           // Finnish "tammikuuta"), so the language table decides what
           // counts as a month, not the token's length.
-          regex += '(\\p{L}{3,}\\.?)';
+          regex.add('(\\p{L}{3,}\\.?)');
         } else {
           compiledDatePatterns.put(patternText, null); // unsupported token run
           return null;
@@ -918,21 +956,21 @@ public inherited sharing class IdpValueTypes {
           return null;
         }
         String literal = patternText.substring(i + 1, close);
-        regex += literal == '' ? '\'' : escapeRegex(literal);
+        regex.add(literal == '' ? '\'' : escapeRegex(literal));
         i = close + 1;
       } else if (c == ' ') {
-        regex += '\\s+';
+        regex.add('\\s+');
         i++;
       } else if ('\\^$.|?*+()[]{}'.contains(c)) {
-        regex += '\\' + c;
+        regex.add('\\' + c);
         i++;
       } else {
-        regex += c;
+        regex.add(c);
         i++;
       }
     }
     try {
-      compiled.regex = Pattern.compile(regex);
+      compiled.regex = Pattern.compile(String.join(regex, ''));
     } catch (Exception e) {
       compiled = null;
     }
@@ -942,7 +980,7 @@ public inherited sharing class IdpValueTypes {
 
   /** Renders a Date through the same token set the parser reads. */
   public static String formatDate(Date value, String pattern) {
-    String output = '';
+    List<String> output = new List<String>();
     Integer i = 0;
     while (i < pattern.length()) {
       String c = pattern.substring(i, i + 1);
@@ -956,39 +994,39 @@ public inherited sharing class IdpValueTypes {
         }
         String token = pattern.substring(i, runEnd);
         if (token == 'd') {
-          output += String.valueOf(value.day());
+          output.add(String.valueOf(value.day()));
         } else if (token == 'dd') {
-          output += pad2(value.day());
+          output.add(pad2(value.day()));
         } else if (token == 'M') {
-          output += String.valueOf(value.month());
+          output.add(String.valueOf(value.month()));
         } else if (token == 'MM') {
-          output += pad2(value.month());
+          output.add(pad2(value.month()));
         } else if (token == 'MMM') {
-          output += MONTH_SHORT[value.month() - 1];
+          output.add(MONTH_SHORT[value.month() - 1]);
         } else if (token == 'MMMM') {
-          output += MONTH_FULL[value.month() - 1];
+          output.add(MONTH_FULL[value.month() - 1]);
         } else if (token == 'yy') {
-          output += pad2(Math.mod(value.year(), 100));
+          output.add(pad2(Math.mod(value.year(), 100)));
         } else {
-          output += String.valueOf(value.year()).leftPad(4, '0');
+          output.add(String.valueOf(value.year()).leftPad(4, '0'));
         }
         i = runEnd;
       } else if (c == '\'') {
         Integer close = pattern.indexOf('\'', i + 1);
         if (close < 0) {
-          output += c;
+          output.add(c);
           i++;
         } else {
           String literal = pattern.substring(i + 1, close);
-          output += literal == '' ? '\'' : literal;
+          output.add(literal == '' ? '\'' : literal);
           i = close + 1;
         }
       } else {
-        output += c;
+        output.add(c);
         i++;
       }
     }
-    return output;
+    return String.join(output, '');
   }
 
   private static String pad2(Integer value) {
@@ -1010,16 +1048,13 @@ public inherited sharing class IdpValueTypes {
       if (String.isBlank(text)) {
         return failed('The value is blank.');
       }
-      if (Pattern.matches('.*([+-]\\d{2}:?\\d{2}|Z)$', text)) {
+      if (OFFSET_SUFFIX.matcher(text).matches()) {
         Datetime parsed = deserializeIso(text);
         return parsed == null
           ? failed('"' + text + '" is not a valid ISO 8601 date/time.')
           : exact(parsed);
       }
-      Matcher naive = Pattern.compile(
-          '^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2})(?::(\\d{2}))?$'
-        )
-        .matcher(text);
+      Matcher naive = NAIVE_TIMESTAMP.matcher(text);
       if (!naive.matches()) {
         return failed('"' + text + '" is not a recognized date/time.');
       }
@@ -1242,12 +1277,7 @@ public inherited sharing class IdpValueTypes {
       Object stored,
       Config cfg
     ) {
-      if (stored == null) {
-        return IdpResult.CompareOutcome.MISMATCH;
-      }
-      return canonical(extracted, cfg) == canonical(stored, cfg)
-        ? IdpResult.CompareOutcome.MATCH
-        : IdpResult.CompareOutcome.MISMATCH;
+      return compareCanonical(this, extracted, stored, cfg);
     }
 
     public String render(Object canonicalValue, Config cfg) {
@@ -1322,12 +1352,7 @@ public inherited sharing class IdpValueTypes {
       Object stored,
       Config cfg
     ) {
-      if (stored == null) {
-        return IdpResult.CompareOutcome.MISMATCH;
-      }
-      return canonical(extracted, cfg) == canonical(stored, cfg)
-        ? IdpResult.CompareOutcome.MATCH
-        : IdpResult.CompareOutcome.MISMATCH;
+      return compareCanonical(this, extracted, stored, cfg);
     }
 
     public String render(Object canonicalValue, Config cfg) {

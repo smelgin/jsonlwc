@@ -203,6 +203,23 @@ public inherited sharing class IdpContextResolver {
     if (hubFields == null) {
       return;
     }
+    // The hub's shape does not vary per document, so it is described once
+    // for the run rather than once per document per field.
+    Map<String, String> hubLookups = new Map<String, String>();
+    for (Schema.SObjectField field : hubFields.values()) {
+      Schema.DescribeFieldResult describe = field.getDescribe();
+      if (
+        describe.getType() != Schema.DisplayType.REFERENCE ||
+        describe.getReferenceTo().isEmpty()
+      ) {
+        continue;
+      }
+      String parentType = describe.getReferenceTo()[0].getDescribe().getName();
+      if (!SKIPPED_PARENT_TYPES.contains(parentType)) {
+        hubLookups.put(describe.getName(), parentType);
+      }
+    }
+
     // parent object → (parent id → docs wanting it)
     Map<String, Map<Id, List<DocContext>>> wanted = new Map<String, Map<Id, List<DocContext>>>();
     for (DocContext doc : docs) {
@@ -210,24 +227,12 @@ public inherited sharing class IdpContextResolver {
       if (hub == null) {
         continue;
       }
-      for (Schema.SObjectField field : hubFields.values()) {
-        Schema.DescribeFieldResult describe = field.getDescribe();
-        if (
-          describe.getType() != Schema.DisplayType.REFERENCE ||
-          describe.getReferenceTo().isEmpty()
-        ) {
+      for (String lookupField : hubLookups.keySet()) {
+        String parentType = hubLookups.get(lookupField);
+        if (doc.anchors.containsKey(parentType)) {
           continue;
         }
-        String parentType = describe.getReferenceTo()[0]
-          .getDescribe()
-          .getName();
-        if (
-          doc.anchors.containsKey(parentType) ||
-          SKIPPED_PARENT_TYPES.contains(parentType)
-        ) {
-          continue;
-        }
-        Id parentId = idValue(hub, describe.getName());
+        Id parentId = idValue(hub, lookupField);
         if (parentId != null) {
           want(wanted, parentType, parentId, doc);
         }
