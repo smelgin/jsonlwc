@@ -53,6 +53,10 @@ public inherited sharing class IdpConfigLoader {
     public String matchValue;
     public String recordFilter;
     public String parentSectionName;
+    /** "Create" opts a repeating section into creating unmatched rows. */
+    public String unmatchedRowPolicy;
+    /** "Create" opts a fixed section into creating its missing anchor. */
+    public String noAnchorPolicy;
     public List<RuleConfig> rules = new List<RuleConfig>();
   }
 
@@ -68,6 +72,11 @@ public inherited sharing class IdpConfigLoader {
     public Decimal minConfidence;
     public Boolean required = false;
     public String anchorFilter;
+    /** ENG-9: relative weight of this field in the document confidence
+     *  score; null/0 means "not interesting" — excluded from the roll-up. */
+    public Decimal confidenceWeight;
+    /** Mode = Custom: the resolved per-field handler (ENG-1). */
+    public IIdpFieldHandler fieldHandler;
     /** Explicit value type; null means auto-derive from the target field. */
     public IdpValueTypes.Config typeConfig;
     public IValueType type;
@@ -103,6 +112,8 @@ public inherited sharing class IdpConfigLoader {
     public String matchValue;
     public String recordFilter;
     public String parentSection;
+    public String unmatchedRows;
+    public String whenNoAnchor;
     public Boolean active = true;
     public List<RawRule> rules = new List<RawRule>();
   }
@@ -114,9 +125,11 @@ public inherited sharing class IdpConfigLoader {
     public String targetField;
     public String valueTypeName;
     public String mode;
+    public String handlerClass;
     public String overwritePolicy;
     public String minGrade;
     public Decimal minConfidence;
+    public Decimal confidenceWeight;
     public Boolean required = false;
     public String anchorFilter;
     public Boolean active = true;
@@ -323,6 +336,8 @@ public inherited sharing class IdpConfigLoader {
     'matchValue',
     'recordFilter',
     'parentSection',
+    'unmatchedRows',
+    'whenNoAnchor',
     'active',
     'rules'
   };
@@ -334,9 +349,11 @@ public inherited sharing class IdpConfigLoader {
     'targetField',
     'valueTypeName',
     'mode',
+    'handlerClass',
     'overwritePolicy',
     'minGrade',
     'minConfidence',
+    'confidenceWeight',
     'required',
     'anchorFilter',
     'active'
@@ -489,7 +506,64 @@ public inherited sharing class IdpConfigLoader {
       );
       return null;
     }
+    section.unmatchedRowPolicy = creationPolicy(
+      raw.unmatchedRows,
+      'unmatchedRows',
+      section.repeating,
+      section.name,
+      config
+    );
+    section.noAnchorPolicy = creationPolicy(
+      raw.whenNoAnchor,
+      'whenNoAnchor',
+      !section.repeating,
+      section.name,
+      config
+    );
     return section;
+  }
+
+  /** Validates unmatchedRows / whenNoAnchor: "Create" on the right section
+   *  type, or nothing. Anything else is reported and dropped, never half-
+   *  obeyed. */
+  private static String creationPolicy(
+    String value,
+    String keyName,
+    Boolean rightSectionType,
+    String sectionName,
+    SetConfig config
+  ) {
+    if (String.isBlank(value)) {
+      return null;
+    }
+    if (value != 'Create') {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Section ' +
+          sectionName +
+          ' has unknown ' +
+          keyName +
+          ' value "' +
+          value +
+          '" — only "Create" is understood; the key was ignored.'
+      );
+      return null;
+    }
+    if (!rightSectionType) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Section ' +
+          sectionName +
+          ': ' +
+          keyName +
+          ' does not apply to this section type (unmatchedRows is for ' +
+          'Repeating sections, whenNoAnchor for Fixed ones); it was ignored.'
+      );
+      return null;
+    }
+    return value;
   }
 
   private static void assembleRule(
@@ -530,7 +604,8 @@ public inherited sharing class IdpConfigLoader {
     if (
       String.isNotBlank(raw.mode) &&
       raw.mode != IdpMappingEngine.MODE_EXTRACTION &&
-      raw.mode != IdpMappingEngine.MODE_COMPLIANCE
+      raw.mode != IdpMappingEngine.MODE_COMPLIANCE &&
+      raw.mode != IdpMappingEngine.MODE_CUSTOM
     ) {
       issue(
         config,
@@ -558,6 +633,35 @@ public inherited sharing class IdpConfigLoader {
     rule.minConfidence = raw.minConfidence;
     rule.required = raw.required == true;
     rule.anchorFilter = raw.anchorFilter;
+    if (raw.confidenceWeight != null && raw.confidenceWeight < 0) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Rule ' + ruleName + ' has a negative confidenceWeight; it was ignored.'
+      );
+    } else {
+      rule.confidenceWeight = raw.confidenceWeight;
+    }
+
+    if (rule.mode == IdpMappingEngine.MODE_CUSTOM) {
+      rule.fieldHandler = resolveFieldHandler(
+        raw.handlerClass,
+        ruleName,
+        config
+      );
+      if (rule.fieldHandler == null) {
+        return; // the issue is already recorded
+      }
+    } else if (String.isNotBlank(raw.handlerClass)) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Rule ' +
+          ruleName +
+          ' names a handlerClass but its Mode is not Custom; the handler ' +
+          'was ignored.'
+      );
+    }
 
     if (String.isNotBlank(raw.valueTypeName)) {
       IdpValueTypes.Config typeConfig = valueTypes.get(raw.valueTypeName);
@@ -587,6 +691,54 @@ public inherited sharing class IdpConfigLoader {
       }
     }
     section.rules.add(rule);
+  }
+
+  /**
+   * Resolves a Mode = Custom rule's handler at load time — same DI
+   * convention as finding handlers — so a typo is a config finding here,
+   * not a runtime surprise. Null (with the issue recorded) when it cannot
+   * be used.
+   */
+  private static IIdpFieldHandler resolveFieldHandler(
+    String className,
+    String ruleName,
+    SetConfig config
+  ) {
+    String failure;
+    if (String.isBlank(className)) {
+      failure = 'has Mode "Custom" but no handlerClass';
+    } else {
+      Type handlerType = Type.forName(className);
+      if (handlerType == null) {
+        failure = 'names unknown handler class "' + className + '"';
+      } else {
+        Object instance;
+        try {
+          instance = handlerType.newInstance();
+        } catch (Exception e) {
+          failure =
+            'has a handler class "' +
+            className +
+            '" that could not be instantiated: ' +
+            e.getMessage();
+        }
+        if (failure == null && !(instance instanceof IIdpFieldHandler)) {
+          failure =
+            'has a handler class "' +
+            className +
+            '" that does not implement IIdpFieldHandler';
+        }
+        if (failure == null) {
+          return (IIdpFieldHandler) instance;
+        }
+      }
+    }
+    issue(
+      config,
+      IdpResult.SEV_WARNING,
+      'Rule ' + ruleName + ' ' + failure + '; the rule was skipped.'
+    );
+    return null;
   }
 
   /**

@@ -36,7 +36,8 @@ const POLICIES = [
 const MODES = [
     { label: "Follow the run's mode", value: '' },
     { label: 'Extraction — write the value', value: 'Extraction' },
-    { label: 'Compliance — compare and report', value: 'Compliance' }
+    { label: 'Compliance — compare and report', value: 'Compliance' },
+    { label: 'Custom — hand to an Apex handler', value: 'Custom' }
 ];
 const GRADES = [
     { label: 'Inferred (default)', value: '' },
@@ -51,9 +52,11 @@ const RULE_KEYS = [
     'targetField',
     'valueTypeName',
     'mode',
+    'handlerClass',
     'overwritePolicy',
     'minGrade',
     'minConfidence',
+    'confidenceWeight',
     'required',
     'anchorFilter',
     'active'
@@ -68,6 +71,8 @@ const SECTION_KEYS = [
     'matchValue',
     'recordFilter',
     'parentSection',
+    'unmatchedRows',
+    'whenNoAnchor',
     'active'
 ];
 
@@ -228,13 +233,13 @@ export default class IdpConfigurator extends LightningElement {
                         }
                         return;
                     }
-                    if (key === 'minConfidence') {
+                    if (key === 'minConfidence' || key === 'confidenceWeight') {
                         if (
                             value !== undefined &&
                             value !== null &&
                             value !== ''
                         ) {
-                            row.minConfidence = Number(value);
+                            row[key] = Number(value);
                         }
                         return;
                     }

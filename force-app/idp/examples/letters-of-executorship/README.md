@@ -24,14 +24,15 @@ Definition declares two sections and nine rules, plus two value types.
 
 Two things none of examples 1–3 show:
 
-| Feature                        | Where to look                                                                                                                                                    |
-| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Child hop resolution**       | The file is linked to the **Case**. Nothing points from the Case to the Estate Case — the engine finds it by looking for the child whose `Case__c` is that Case. |
-| **Writing to a custom object** | Every rule targets `Estate_Case__c`, proving the engine is not limited to the standard objects the other examples use.                                           |
-| **Two sections, one object**   | `Appointment` and `Deceased` both target `Estate_Case__c`. Sections group the **document**; the object is the **destination**. They merge into a single update.  |
-| Date value type                | `LX_Date_ZA` reads `14/02/2026`, `8 April 2026` and ISO through one ordered format list — legal documents love spelling months out.                              |
-| **Regex value type**           | `LX_SA_ID` extracts the 13-digit identity number from whatever text surrounds it, and fails loudly on anything else.                                             |
-| Restricted picklists           | `Executrix` and `Cape Town` are validated against the picklist before the write.                                                                                 |
+| Feature                        | Where to look                                                                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Child hop resolution**       | The file is linked to the **Case**. Nothing points from the Case to the Estate Case — the engine finds it by looking for the child whose `Case__c` is that Case.    |
+| **Writing to a custom object** | Every rule targets `Estate_Case__c`, proving the engine is not limited to the standard objects the other examples use.                                              |
+| **Two sections, one object**   | `Appointment` and `Deceased` both target `Estate_Case__c`. Sections group the **document**; the object is the **destination**. They merge into a single update.     |
+| Date value type                | `LX_Date_ZA` reads `14/02/2026`, `8 April 2026` and ISO through one ordered format list — legal documents love spelling months out.                                 |
+| **Regex value type**           | `LX_SA_ID` extracts the 13-digit identity number from whatever text surrounds it, and fails loudly on anything else.                                                |
+| Restricted picklists           | `Executrix` and `Cape Town` are validated against the picklist before the write.                                                                                    |
+| **Document confidence score**  | Six rules carry a `confidenceWeight`; run the confidence-annotated sample and the Result's `documentConfidence` rolls their stated OCR confidences into one number. |
 
 The child hop is the point. In a real deceased-estates org the file is filed
 against the Case an agent is working, but the data belongs on the Estate Case.
@@ -49,6 +50,13 @@ ContentDocument ──linked to──► Case ──child hop──► Estate_Ca
   — what the administrator sees on the left of `fileJsonReview`.
 - [`sample/extracted.json`](sample/extracted.json) — what the OCR/IDP service
   would have returned for it, and what you paste into **Source JSON**.
+- [`sample/extracted-with-confidence.json`](sample/extracted-with-confidence.json)
+  — the same document as a service that reports per-field OCR confidence
+  would return it, key values wrapped in `{"value": …, "confidence": …}`
+  envelopes. Same extraction result either way; see
+  [the document confidence score](#the-document-confidence-score) for what
+  the envelopes add. Keep both — pasting one or the other is how you switch
+  the score on and off when demonstrating.
 
 ```json
 {
@@ -61,6 +69,35 @@ ContentDocument ──linked to──► Case ──child hop──► Estate_Ca
 The JSON carries two paths the mapping ignores — `letters.formNumber` and
 `letters.actReference`. A document says more than the data model needs, and an
 unmapped path is simply not read.
+
+## The document confidence score
+
+Six of the nine rules carry a `confidenceWeight` — the estate number
+weighted 3 (it is the estate's identity), the two identity numbers 2 each,
+the two dates 1 each. Names and picklists carry no weight: they are easy to
+eyeball, so their OCR confidence is not what decides whether a human should
+look twice.
+
+Run **`sample/extracted-with-confidence.json`** and the engine rolls the
+weighted fields' stated confidences into one number on the Result:
+
+```
+documentConfidence = Σ(weight × confidence) / Σ(weight)
+                   = (3×0.98 + 2×0.96 + 2×0.74 + 1×0.91 + 1×0.88) / 9
+                   ≈ 0.90
+```
+
+The deceased's identity number reads at 0.74 — its double weight is what
+drags an otherwise clean document down to 90%, which is the point: the
+score weights what matters, not what the OCR happened to be sure about.
+
+Run the plain **`sample/extracted.json`** instead and `documentConfidence`
+comes back **null** — no weighted field carried a confidence, and "no
+score" is deliberately distinguishable from "zero". A weighted field the
+document annotates is counted; one it does not annotate is excluded from
+both sums rather than counted as 0, so a service that only annotates some
+fields does not tank the score. Both 0.93 and 93 are accepted, matching the
+`fileJsonReview` confidence badges.
 
 ## The configuration
 

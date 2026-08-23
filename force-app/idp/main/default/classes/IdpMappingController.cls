@@ -1,8 +1,10 @@
 /**
  * LWC entry points. apply() runs the engine for one document; preview()
  * is the same pipeline with no DML, returning the planned old → new
- * changes for the review UI to show before Save; previewValue() lets an
- * admin test a value type's configuration against sample text without
+ * changes for the review UI to show before Save; applyAsync() enqueues the
+ * same work on a fresh transaction for a document apply() deferred (the
+ * results go to the finding handler, not the caller); previewValue() lets
+ * an admin test a value type's configuration against sample text without
  * deploying anything or touching a record.
  */
 public with sharing class IdpMappingController {
@@ -41,6 +43,53 @@ public with sharing class IdpMappingController {
         IdpMappingEngine.MODE_PREVIEW,
         null
       );
+    } catch (Exception e) {
+      throw new AuraHandledException(e.getMessage());
+    }
+  }
+
+  /**
+   * ENG-4: the answer to a deferred apply(). Runs the same document as a
+   * Queueable with a fresh set of governor limits and returns the job Id.
+   * Results are delivered through the finding handler — Preview is
+   * refused, because its entire output is the plan this method cannot
+   * return.
+   */
+  @AuraEnabled
+  public static Id applyAsync(
+    Id contentDocumentId,
+    String jsonString,
+    String mappingSetName,
+    String mode,
+    String findingHandler
+  ) {
+    try {
+      if (
+        String.isNotBlank(mode) &&
+        (mode.trim().equalsIgnoreCase(IdpMappingEngine.MODE_PREVIEW) ||
+        mode.trim().equalsIgnoreCase('Dry Run'))
+      ) {
+        throw new AuraHandledException(
+          'Preview cannot run asynchronously — its output is the returned ' +
+          'plan. Use preview() instead.'
+        );
+      }
+      if (!IdpConfigLoader.load(mappingSetName).found) {
+        throw new AuraHandledException(
+          'No active IDP Mapping Set named "' + mappingSetName + '" was found.'
+        );
+      }
+      IdpAsyncProcessor.DocumentInput document = new IdpAsyncProcessor.DocumentInput();
+      document.contentDocumentId = contentDocumentId;
+      document.jsonString = jsonString;
+      return IdpAsyncProcessor.enqueue(
+        new List<IdpAsyncProcessor.DocumentInput>{ document },
+        mappingSetName,
+        mode,
+        findingHandler
+      );
+    } catch (AuraHandledException e) {
+      throw e;
     } catch (Exception e) {
       throw new AuraHandledException(e.getMessage());
     }

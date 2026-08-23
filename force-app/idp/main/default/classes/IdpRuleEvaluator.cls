@@ -51,10 +51,32 @@ public inherited sharing class IdpRuleEvaluator {
       return;
     }
 
+    // Preview never runs custom Apex (it may have side effects), and must
+    // say so — otherwise a user approves a change set that is not what
+    // will actually happen.
+    if (effectiveMode == IdpMappingEngine.MODE_CUSTOM && previewing) {
+      IdpResult.Finding skipped = result.add(
+        IdpResult.CODE_HANDLER_SKIPPED,
+        IdpResult.SEV_INFO,
+        'Rule ' +
+          rule.label +
+          ' hands its field to custom Apex, which does not run in Preview; ' +
+          'the planned changes do not include whatever it would write.'
+      );
+      contextualize(skipped, rule, objectName, record, row);
+      return;
+    }
+
     IdpJsonReader.ValueAt read = IdpJsonReader.readWithConfidence(
       scope,
       rule.jsonPath
     );
+    // ENG-9: a weighted field that resolved with a confidence contributes
+    // to the document score whatever the gates decide below — the envelope
+    // measures the extraction, not the parse.
+    if (read.value != null) {
+      result.addConfidenceSample(rule.confidenceWeight, read.confidence);
+    }
     if (read.value == null) {
       if (rule.required) {
         contextualize(
@@ -198,6 +220,20 @@ public inherited sharing class IdpRuleEvaluator {
       return;
     }
 
+    if (effectiveMode == IdpMappingEngine.MODE_CUSTOM) {
+      runFieldHandler(
+        rule,
+        parsed,
+        read,
+        record,
+        objectName,
+        row,
+        result,
+        executor
+      );
+      return;
+    }
+
     // Extraction (or Preview): coerce and stage.
     Object coerced;
     try {
@@ -238,22 +274,102 @@ public inherited sharing class IdpRuleEvaluator {
     change.oldValue = stored == null ? null : String.valueOf(stored);
     change.newValue = String.valueOf(coerced);
     change.grade = IdpResult.label(parsed.grade);
+    change.isNew = record.Id == null;
     if (row != null) {
       change.sectionName = row.sectionName;
       change.rowIndex = row.index;
     }
     result.plannedChanges.add(change);
 
-    executor.stage(
-      result,
-      record.getSObjectType(),
-      record.Id,
-      describe.getName(),
-      coerced,
-      row != null
-    );
+    if (record.Id == null) {
+      // A record the run is creating (ENG-2/ENG-3): the value rides along
+      // on the staged insert, so there is nothing to stage separately.
+      record.put(describe.getName(), coerced);
+    } else {
+      executor.stage(
+        result,
+        record.getSObjectType(),
+        record.Id,
+        describe.getName(),
+        coerced,
+        row != null
+      );
+    }
     if (!previewing) {
       result.fieldsApplied++;
+    }
+  }
+
+  /**
+   * Mode = Custom (ENG-1): hand the parsed field to the rule's
+   * IIdpFieldHandler. The handler mutates the record in memory; every
+   * field it changed is staged through the executor afterwards, so the
+   * run's single FLS-stripped update still holds. On a record the run is
+   * creating, the mutations ride along on the insert and no diff is
+   * needed. A thrown exception becomes a HANDLER_FAILED finding.
+   */
+  private static void runFieldHandler(
+    IdpConfigLoader.RuleConfig rule,
+    IdpValueTypes.ParseResult parsed,
+    IdpJsonReader.ValueAt read,
+    SObject record,
+    String objectName,
+    RowInfo row,
+    IdpResult.Result result,
+    IdpDmlExecutor executor
+  ) {
+    IdpFieldContext context = new IdpFieldContext();
+    context.jsonPath = rule.jsonPath;
+    context.targetObject = objectName;
+    context.targetField = rule.targetField;
+    context.rawValue = read.value;
+    context.parsedValue = parsed.value;
+    context.grade = IdpResult.label(parsed.grade);
+    context.confidence = read.confidence;
+    context.record = record;
+    if (row != null) {
+      context.sectionName = row.sectionName;
+      context.rowIndex = row.index;
+      context.rowKey = row.key;
+    }
+
+    Map<String, Object> before = record.Id == null
+      ? null
+      : new Map<String, Object>(record.getPopulatedFieldsAsMap());
+    try {
+      rule.fieldHandler.handle(context);
+    } catch (Exception e) {
+      IdpResult.Finding failure = result.add(
+        IdpResult.CODE_HANDLER_FAILED,
+        IdpResult.SEV_ERROR,
+        'Rule ' + rule.label + ': the field handler failed — ' + e.getMessage()
+      );
+      failure.rawValue = String.valueOf(read.value);
+      contextualize(failure, rule, objectName, record, row);
+      return;
+    }
+    if (before == null) {
+      return; // new record — mutations are already on the staged insert
+    }
+    Map<String, Object> after = record.getPopulatedFieldsAsMap();
+    for (String fieldName : after.keySet()) {
+      Object value = after.get(fieldName);
+      if (fieldName == 'Id' || value instanceof SObject) {
+        continue; // identity and parent relationships are not writes
+      }
+      Boolean changed =
+        !before.containsKey(fieldName) || before.get(fieldName) != value;
+      if (changed) {
+        executor.stage(
+          result,
+          record.getSObjectType(),
+          record.Id,
+          fieldName,
+          value,
+          row != null
+        );
+        result.fieldsApplied++;
+      }
     }
   }
 

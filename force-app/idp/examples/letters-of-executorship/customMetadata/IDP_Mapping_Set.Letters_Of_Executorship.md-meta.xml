@@ -49,7 +49,8 @@
           "jsonPath": "letters.estateNumber",
           "targetField": "Estate_Number__c",
           "overwritePolicy": "Always",
-          "required": true
+          "required": true,
+          "confidenceWeight": 3
         },
         {
           "name": "Letters_Executor_ID",
@@ -57,7 +58,8 @@
           "jsonPath": "executor.identityNumber",
           "targetField": "Executor_ID_Number__c",
           "valueTypeName": "LX_SA_ID",
-          "overwritePolicy": "Always"
+          "overwritePolicy": "Always",
+          "confidenceWeight": 2
         },
         {
           "name": "Letters_Executor_Name",
@@ -72,7 +74,8 @@
           "jsonPath": "letters.issuedDate",
           "targetField": "Letters_Issued_Date__c",
           "valueTypeName": "LX_Date_ZA",
-          "overwritePolicy": "Always"
+          "overwritePolicy": "Always",
+          "confidenceWeight": 1
         },
         {
           "name": "Letters_Masters_Office",
@@ -95,7 +98,8 @@
           "jsonPath": "deceased.dateOfDeath",
           "targetField": "Date_Of_Death__c",
           "valueTypeName": "LX_Date_ZA",
-          "overwritePolicy": "Always"
+          "overwritePolicy": "Always",
+          "confidenceWeight": 1
         },
         {
           "name": "Letters_Deceased_ID",
@@ -103,7 +107,8 @@
           "jsonPath": "deceased.identityNumber",
           "targetField": "Deceased_ID_Number__c",
           "valueTypeName": "LX_SA_ID",
-          "overwritePolicy": "Always"
+          "overwritePolicy": "Always",
+          "confidenceWeight": 2
         },
         {
           "name": "Letters_Deceased_Name",

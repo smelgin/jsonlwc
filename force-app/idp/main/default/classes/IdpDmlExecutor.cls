@@ -1,9 +1,12 @@
 /**
  * Write planning and execution for one engine run. stage() accumulates
  * field writes for the whole run — several sections and several documents
- * writing the same record merge into one update — and flush() performs a
- * single partial-success DML, FLS-stripped, mapping every outcome back to
- * the document that staged it.
+ * writing the same record merge into one update — and stageInsert() the
+ * records the run creates (opt-in, ENG-2/ENG-3), deduplicated by a caller
+ * key so two documents naming the same new row share one record. flush()
+ * performs at most one partial-success insert and one partial-success
+ * update, both FLS-stripped, mapping every outcome back to the document
+ * that staged it.
  *
  * In Preview mode nothing is flushed: the plan lives on each Result's
  * plannedChanges, which the evaluator records at staging time.
@@ -12,9 +15,16 @@ public inherited sharing class IdpDmlExecutor {
   private Map<Id, SObject> pending = new Map<Id, SObject>();
   private Map<Id, List<Contribution>> contributors = new Map<Id, List<Contribution>>();
 
+  private List<String> insertOrder = new List<String>();
+  private Map<String, SObject> pendingInserts = new Map<String, SObject>();
+  private Map<String, List<Contribution>> insertContributors = new Map<String, List<Contribution>>();
+
   private class Contribution {
     public IdpResult.Result result;
     public Boolean isRow;
+    public String sectionName;
+    public Integer rowIndex;
+    public String rowKey;
 
     public Contribution(IdpResult.Result result, Boolean isRow) {
       this.result = result;
@@ -47,8 +57,124 @@ public inherited sharing class IdpDmlExecutor {
     contributors.get(recordId).add(new Contribution(result, isRow));
   }
 
-  /** One partial-success update for everything staged. */
+  /** The record already staged for creation under this key, if any. */
+  public SObject stagedInsert(String dedupeKey) {
+    return pendingInserts.get(dedupeKey);
+  }
+
+  /**
+   * Queues one record for creation. The first caller of a key supplies the
+   * record; later callers (another document naming the same new row) get
+   * the shared instance back and are recorded as contributors, mirroring
+   * how updates merge.
+   */
+  public SObject stageInsert(
+    String dedupeKey,
+    SObject candidate,
+    IdpResult.Result result,
+    Boolean isRow,
+    String sectionName,
+    Integer rowIndex,
+    String rowKey
+  ) {
+    SObject record = pendingInserts.get(dedupeKey);
+    if (record == null) {
+      record = candidate;
+      insertOrder.add(dedupeKey);
+      pendingInserts.put(dedupeKey, record);
+      insertContributors.put(dedupeKey, new List<Contribution>());
+    }
+    List<Contribution> existing = insertContributors.get(dedupeKey);
+    for (Contribution contribution : existing) {
+      if (contribution.result == result) {
+        return record;
+      }
+    }
+    Contribution contribution = new Contribution(result, isRow);
+    contribution.sectionName = sectionName;
+    contribution.rowIndex = rowIndex;
+    contribution.rowKey = rowKey;
+    existing.add(contribution);
+    return record;
+  }
+
+  /** At most one partial-success insert, then one partial-success update. */
   public void flush() {
+    flushInserts();
+    flushUpdates();
+  }
+
+  private void flushInserts() {
+    if (pendingInserts.isEmpty()) {
+      return;
+    }
+    List<SObject> records = new List<SObject>();
+    for (String dedupeKey : insertOrder) {
+      records.add(pendingInserts.get(dedupeKey));
+    }
+
+    SObjectAccessDecision decision = Security.stripInaccessible(
+      AccessType.CREATABLE,
+      records
+    );
+    reportRemovedInsertFields(decision.getRemovedFields());
+
+    List<SObject> writable = decision.getRecords();
+    List<Database.SaveResult> saveResults = Database.insert(writable, false);
+    for (Integer i = 0; i < saveResults.size(); i++) {
+      String objectName = writable[i].getSObjectType().getDescribe().getName();
+      for (Contribution contribution : insertContributors.get(insertOrder[i])) {
+        if (saveResults[i].isSuccess()) {
+          Id recordId = saveResults[i].getId();
+          contribution.result.createdRecordIds.add(recordId);
+          if (contribution.isRow) {
+            contribution.result.rowsCreated++;
+          }
+          IdpResult.Finding created = contribution.result.add(
+            contribution.isRow
+              ? IdpResult.CODE_ROW_CREATED
+              : IdpResult.CODE_ANCHOR_CREATED,
+            IdpResult.SEV_INFO,
+            'Created ' +
+              objectName +
+              (contribution.rowKey == null
+                ? ''
+                : ' for key "' + contribution.rowKey + '"') +
+              ' (' +
+              recordId +
+              ').'
+          );
+          created.objectName = objectName;
+          created.recordId = recordId;
+          created.sectionName = contribution.sectionName;
+          created.rowIndex = contribution.rowIndex;
+          created.rowKey = contribution.rowKey;
+        } else {
+          for (Database.Error error : saveResults[i].getErrors()) {
+            IdpResult.Finding finding = contribution.result.add(
+              IdpResult.CODE_DML_FAILED,
+              IdpResult.SEV_ERROR,
+              objectName +
+                (contribution.rowKey == null
+                  ? ''
+                  : ' for key "' + contribution.rowKey + '"') +
+                ' could not be created: ' +
+                error.getMessage()
+            );
+            finding.objectName = objectName;
+            finding.sectionName = contribution.sectionName;
+            finding.rowIndex = contribution.rowIndex;
+            finding.rowKey = contribution.rowKey;
+          }
+        }
+      }
+    }
+    insertOrder.clear();
+    pendingInserts.clear();
+    insertContributors.clear();
+  }
+
+  private void flushUpdates() {
     if (pending.isEmpty()) {
       return;
     }
@@ -126,6 +252,38 @@ public inherited sharing class IdpDmlExecutor {
           );
           finding.objectName = objectName;
           finding.recordId = recordId;
+        }
+      }
+    }
+  }
+
+  /** Same, for the create side. */
+  private void reportRemovedInsertFields(
+    Map<String, Set<String>> removedByObject
+  ) {
+    for (String objectName : removedByObject.keySet()) {
+      String fields = String.join(
+        new List<String>(removedByObject.get(objectName)),
+        ', '
+      );
+      for (String dedupeKey : insertOrder) {
+        if (
+          pendingInserts.get(dedupeKey)
+            .getSObjectType()
+            .getDescribe()
+            .getName() != objectName
+        ) {
+          continue;
+        }
+        for (Contribution contribution : insertContributors.get(dedupeKey)) {
+          IdpResult.Finding finding = contribution.result.add(
+            IdpResult.CODE_FLS_BLOCKED,
+            IdpResult.SEV_ERROR,
+            'No create access to ' + objectName + ' field(s): ' + fields + '.'
+          );
+          finding.objectName = objectName;
+          finding.sectionName = contribution.sectionName;
+          finding.rowKey = contribution.rowKey;
         }
       }
     }

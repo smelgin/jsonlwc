@@ -434,11 +434,21 @@ with a SOQL query, so any queryable field works.
 
 ### What repeating sections do and do not do
 
-Rows are **matched and updated, never created**. A document row whose key
+Rows are **matched and updated** by default. A document row whose key
 finds no record is reported in `Result.unmatchedRowKeys` (and as a
 `ROW_UNMATCHED` info finding) — data, not an error. Two document rows
 rendering the same key: the second is skipped and reported rather than
 silently overwriting the first.
+
+Setting `"unmatchedRows": "Create"` on the section opts it into creating
+the missing rows instead: the match key, the parent lookup and the
+section's rule values land in the run's single partial-success insert, and
+each success is a `ROW_CREATED` finding (`rowsCreated` and
+`createdRecordIds` on the Result). Extraction only — Preview reports what
+would be created (`PlannedChange.isNew`) and Compliance never creates. The
+equivalent for a fixed section whose target is unreachable is
+`"whenNoAnchor": "Create"`, which builds the missing anchor linked to the
+first resolved record it looks up to (`ANCHOR_CREATED`).
 
 Where a lookup from the row object to a resolved record exists, rows are
 constrained to it, so a key that is only unique within one account cannot

@@ -98,19 +98,21 @@ A section is a part of the document that fills in one kind of record. A form
 that updates a Case and its Account has two sections. An invoice with a header
 and a table of line items has two sections: one Fixed, one Repeating.
 
-| Key             | Required         | What it means                                                                                                                                     |
-| --------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`          | yes              | The section's identity, unique within the document type. Letters, numbers and underscores. Used in error messages and by `parentSection`.         |
-| `label`         | no               | A human name for messages. Defaults to `name`.                                                                                                    |
-| `sectionType`   | no               | `Fixed` (default) writes one record. `Repeating` walks a list of rows.                                                                            |
-| `targetObject`  | yes              | API name of the object this section writes to — `Case`, `Account`, `Asset`, `Claim__c`. Must exist, or the section and all its rules are skipped. |
-| `rules`         | yes, in practice | The list of fields to fill. A section with no rules does nothing.                                                                                 |
-| `recordFilter`  | no               | Extra SOQL `WHERE` fragment narrowing which record is used. Overrides a rule's `anchorFilter`.                                                    |
-| `active`        | no               | `false` switches the whole section off without deleting it. Defaults to on.                                                                       |
-| `rowPath`       | Repeating only   | Path to the list of rows in the document, e.g. `Details`.                                                                                         |
-| `matchField`    | Repeating only   | The field each row is found by, e.g. `SerialNumber`. Any queryable field — it does **not** have to be an External Id.                             |
-| `matchValue`    | Repeating only   | A template building each row's key. See [tokens](#tokens-in-matchvalue).                                                                          |
-| `parentSection` | no               | Name of another section whose record constrains this one's rows. Leave it out and the engine finds the relationship from the schema.              |
+| Key             | Required         | What it means                                                                                                                                        |
+| --------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`          | yes              | The section's identity, unique within the document type. Letters, numbers and underscores. Used in error messages and by `parentSection`.            |
+| `label`         | no               | A human name for messages. Defaults to `name`.                                                                                                       |
+| `sectionType`   | no               | `Fixed` (default) writes one record. `Repeating` walks a list of rows.                                                                               |
+| `targetObject`  | yes              | API name of the object this section writes to — `Case`, `Account`, `Asset`, `Claim__c`. Must exist, or the section and all its rules are skipped.    |
+| `rules`         | yes, in practice | The list of fields to fill. A section with no rules does nothing.                                                                                    |
+| `recordFilter`  | no               | Extra SOQL `WHERE` fragment narrowing which record is used. Overrides a rule's `anchorFilter`.                                                       |
+| `active`        | no               | `false` switches the whole section off without deleting it. Defaults to on.                                                                          |
+| `rowPath`       | Repeating only   | Path to the list of rows in the document, e.g. `Details`.                                                                                            |
+| `matchField`    | Repeating only   | The field each row is found by, e.g. `SerialNumber`. Any queryable field — it does **not** have to be an External Id.                                |
+| `matchValue`    | Repeating only   | A template building each row's key. See [tokens](#tokens-in-matchvalue).                                                                             |
+| `unmatchedRows` | Repeating only   | `Create` makes the section **create** a row no record matched, instead of only reporting it. Extraction and Preview only — Compliance never creates. |
+| `whenNoAnchor`  | Fixed only       | `Create` makes the section **create** its target record when none is reachable, linked to the first resolved record it looks up to.                  |
+| `parentSection` | no               | Name of another section whose record constrains this one's rows. Leave it out and the engine finds the relationship from the schema.                 |
 
 ### A repeating section
 
@@ -138,9 +140,15 @@ Inside a repeating section, each rule's `jsonPath` is read **relative to the
 current row** — `Quantity`, not `Details[0].Quantity`. That is why the rule
 count stays the same whether the invoice has two lines or two hundred.
 
-Rows are **matched and updated, never created**. A row whose key finds no
-record is reported back as an unmatched row, which is information, not a
-failure.
+Rows are **matched and updated** by default. A row whose key finds no record
+is reported back as an unmatched row, which is information, not a failure.
+Add `"unmatchedRows": "Create"` to the section and the engine instead
+creates the missing row — match key and parent link filled in, the
+section's rules applied, everything in the run's single insert. Creation
+only happens in Extraction (Preview reports what would be created;
+Compliance never creates), and a creation the database refuses — a missing
+required field, a validation rule — comes back as a `DML_FAILED` finding on
+that row.
 
 ### Tokens in `matchValue`
 
@@ -158,20 +166,22 @@ Whole numbers render without a decimal point, so the second line is `2`, never
 
 One rule moves one value from the document into one field.
 
-| Key               | Required | What it means                                                                                                                                               |
-| ----------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `name`            | yes      | The rule's identity, unique within the document type. Appears in every message about it.                                                                    |
-| `label`           | no       | A human name for messages. Defaults to `name`.                                                                                                              |
-| `jsonPath`        | yes      | Where to read from, as a dot path: `applicant.email`, `parties[0].name`. Relative to the row in a Repeating section.                                        |
-| `targetField`     | yes      | The field to write, e.g. `SuppliedEmail`. `Case.SuppliedEmail` is accepted too — the object part is ignored, since the section already decided the object.  |
-| `valueTypeName`   | no       | Name of an IDP Value Type that parses the raw text (money, dates, phone numbers). Leave it out and a strict type is derived from the field itself.          |
-| `overwritePolicy` | no       | `Always` replaces what is there. `Only if blank` fills gaps and never overwrites a human's work.                                                            |
-| `mode`            | no       | `Extraction` writes the value. `Compliance` compares it and reports instead of writing. Leave it out to follow the run's mode.                              |
-| `minGrade`        | no       | Lowest parse quality allowed to write. `Exact` means only a cleanly parsed value counts. The default, `Inferred`, blocks only genuinely ambiguous readings. |
-| `minConfidence`   | no       | A number between 0 and 1. If the document states a confidence for the value, anything below this is not written.                                            |
-| `required`        | no       | `true` means a document missing this path is an error worth someone's attention, not a silent skip.                                                         |
-| `anchorFilter`    | no       | Extra SOQL `WHERE` fragment narrowing which record the value lands on. The section's `recordFilter` beats it.                                               |
-| `active`          | no       | `false` switches the rule off without deleting it. Defaults to on.                                                                                          |
+| Key                | Required            | What it means                                                                                                                                                                                                                                |
+| ------------------ | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`             | yes                 | The rule's identity, unique within the document type. Appears in every message about it.                                                                                                                                                     |
+| `label`            | no                  | A human name for messages. Defaults to `name`.                                                                                                                                                                                               |
+| `jsonPath`         | yes                 | Where to read from, as a dot path: `applicant.email`, `parties[0].name`. Relative to the row in a Repeating section.                                                                                                                         |
+| `targetField`      | yes                 | The field to write, e.g. `SuppliedEmail`. `Case.SuppliedEmail` is accepted too — the object part is ignored, since the section already decided the object.                                                                                   |
+| `valueTypeName`    | no                  | Name of an IDP Value Type that parses the raw text (money, dates, phone numbers). Leave it out and a strict type is derived from the field itself.                                                                                           |
+| `overwritePolicy`  | no                  | `Always` replaces what is there. `Only if blank` fills gaps and never overwrites a human's work.                                                                                                                                             |
+| `mode`             | no                  | `Extraction` writes the value. `Compliance` compares it and reports instead of writing. `Custom` hands the parsed value to the Apex class in `handlerClass`. Leave it out to follow the run's mode.                                          |
+| `handlerClass`     | with `mode: Custom` | Apex class implementing `IIdpFieldHandler`. It receives the parsed value with its grade and confidence, and mutates the record in memory — the engine still performs the single, permission-checked save. Skipped in Preview, which says so. |
+| `minGrade`         | no                  | Lowest parse quality allowed to write. `Exact` means only a cleanly parsed value counts. The default, `Inferred`, blocks only genuinely ambiguous readings.                                                                                  |
+| `minConfidence`    | no                  | A number between 0 and 1. If the document states a confidence for the value, anything below this is not written.                                                                                                                             |
+| `confidenceWeight` | no                  | Relative weight of this field in the document confidence score. Leave it out (or 0) for "not interesting". The score is the weighted average of the stated confidences of the weighted fields, on the Result as `documentConfidence`.        |
+| `required`         | no                  | `true` means a document missing this path is an error worth someone's attention, not a silent skip.                                                                                                                                          |
+| `anchorFilter`     | no                  | Extra SOQL `WHERE` fragment narrowing which record the value lands on. The section's `recordFilter` beats it.                                                                                                                                |
+| `active`           | no                  | `false` switches the rule off without deleting it. Defaults to on.                                                                                                                                                                           |
 
 ### Leaving out what you do not need
 
@@ -284,16 +294,18 @@ anything. One document type can extract some fields and verify others.
 The engine never throws away a whole document type because one line is wrong.
 It reports the problem, disables the smallest piece it can, and runs the rest.
 
-| What you did                                | What happens                                                                      |
-| ------------------------------------------- | --------------------------------------------------------------------------------- |
-| Misspelled a key, or broke the JSON syntax  | **Nothing loads.** The whole document type stops, because nothing else is honest. |
-| Named an object that does not exist         | That section and all of its rules are skipped.                                    |
-| Named a field that does not exist           | That one rule is skipped.                                                         |
-| Left out `jsonPath` or `targetField`        | That one rule is skipped.                                                         |
-| Named a value type that does not exist      | That one rule is skipped.                                                         |
-| Used a `mode` other than the two valid ones | That one rule is skipped.                                                         |
-| Pointed `parentSection` at nothing real     | The section still runs; the parent constraint is dropped.                         |
-| Named a locale or region nobody seeded      | The rule still runs, with reduced parsing. You are told which.                    |
+| What you did                                          | What happens                                                                      |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Misspelled a key, or broke the JSON syntax            | **Nothing loads.** The whole document type stops, because nothing else is honest. |
+| Named an object that does not exist                   | That section and all of its rules are skipped.                                    |
+| Named a field that does not exist                     | That one rule is skipped.                                                         |
+| Left out `jsonPath` or `targetField`                  | That one rule is skipped.                                                         |
+| Named a value type that does not exist                | That one rule is skipped.                                                         |
+| Used a `mode` other than the three valid ones         | That one rule is skipped.                                                         |
+| `mode: Custom` with a missing or wrong `handlerClass` | That one rule is skipped, with the reason named.                                  |
+| `unmatchedRows` / `whenNoAnchor` misused              | The key is ignored and you are told why; the section still runs.                  |
+| Pointed `parentSection` at nothing real               | The section still runs; the parent constraint is dropped.                         |
+| Named a locale or region nobody seeded                | The rule still runs, with reduced parsing. You are told which.                    |
 
 Every one of these appears in the Configurator when you press **Check**, and
 again as a configuration finding on any run. The **Save** button refuses

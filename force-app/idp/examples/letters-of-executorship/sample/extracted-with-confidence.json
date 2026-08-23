@@ -1,0 +1,19 @@
+{
+  "letters": {
+    "formNumber": "J238",
+    "estateNumber": { "value": "004521/2026", "confidence": 0.98 },
+    "issuedDate": { "value": "08/04/2026", "confidence": 0.91 },
+    "mastersOffice": "Cape Town",
+    "actReference": "Section 13 and 14 of the Administration of Estates Act, No 66 of 1965"
+  },
+  "executor": {
+    "fullName": "Nomsa Patience Dlamini",
+    "identityNumber": { "value": "8203155009087", "confidence": 0.96 },
+    "capacity": "Executrix"
+  },
+  "deceased": {
+    "fullName": "Johannes Petrus van der Merwe",
+    "identityNumber": { "value": "5107085042083", "confidence": 0.74 },
+    "dateOfDeath": { "value": "14/02/2026", "confidence": 0.88 }
+  }
+}

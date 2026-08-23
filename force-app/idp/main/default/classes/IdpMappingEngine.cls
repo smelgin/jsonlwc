@@ -12,15 +12,27 @@
  *  - Preview     the full Extraction pipeline with the final DML skipped;
  *                each Result carries plannedChanges (old → new per field)
  *
- * A rule's Mode overrides the run's per field (Extraction/Compliance).
+ * A rule's Mode overrides the run's per field: Extraction, Compliance, or
+ * Custom — the last hands the parsed field to the rule's IIdpFieldHandler
+ * (skipped in Preview, which says so).
+ *
+ * Sections can opt into creating what a run cannot find (Extraction and
+ * Preview only — Compliance never creates): unmatchedRows: "Create" on a
+ * repeating section creates the rows no record matched, and whenNoAnchor:
+ * "Create" on a fixed section creates its missing anchor.
+ *
  * Cost model: one ContentDocumentLink query for the run, grouped anchor
  * queries per object, one query per repeating section group, and at most
- * one update DML — query count does not scale with rule or row count.
+ * one insert plus one update DML — query count does not scale with rule
+ * or row count.
  */
 public inherited sharing class IdpMappingEngine {
   public static final String MODE_EXTRACTION = 'Extraction';
   public static final String MODE_COMPLIANCE = 'Compliance';
   public static final String MODE_PREVIEW = 'Preview';
+  /** Per-rule only — never a run mode. */
+  public static final String MODE_CUSTOM = 'Custom';
+  private static final String POLICY_CREATE = 'Create';
 
   // Query-budget model, checked against the limits guard before a run starts.
   // Flat cost of a run: the ContentDocumentLink query plus one spare.
@@ -40,6 +52,8 @@ public inherited sharing class IdpMappingEngine {
     private Object root;
     private IdpContextResolver.DocContext context;
     private IdpResult.Result result;
+    /** Distinguishes this document's created anchors from another's. */
+    private Integer docIndex;
   }
 
   public static List<IdpResult.Result> run(
@@ -115,6 +129,7 @@ public inherited sharing class IdpMappingEngine {
         );
         continue;
       }
+      work.docIndex = eligible.size();
       eligible.add(work);
     }
     if (eligible.isEmpty()) {
@@ -176,6 +191,9 @@ public inherited sharing class IdpMappingEngine {
     }
     // compliant needs no roll-up here: IdpResult.Result.add() clears it the
     // moment a VALUE_MISMATCH finding is recorded.
+    for (IdpResult.Result result : results) {
+      result.finalizeDocumentConfidence();
+    }
     invokeFindingHandler(findingHandler, config, runMode, results);
     return results;
   }
@@ -194,6 +212,13 @@ public inherited sharing class IdpMappingEngine {
     }
     SObject anchor = work.context.anchors.get(section.targetObject);
     if (anchor == null) {
+      if (
+        section.noAnchorPolicy == POLICY_CREATE &&
+        runMode != MODE_COMPLIANCE
+      ) {
+        createAnchor(section, work, runMode, previewing, executor);
+        return;
+      }
       IdpResult.Finding finding = work.result.add(
         IdpResult.CODE_UNREACHABLE_TARGET,
         IdpResult.SEV_ERROR,
@@ -222,6 +247,77 @@ public inherited sharing class IdpMappingEngine {
     }
   }
 
+  /**
+   * whenNoAnchor: "Create" (ENG-3) — builds the missing anchor in memory,
+   * links it to the first resolved record it looks up to, applies the
+   * section's Extraction rules onto it and stages it for the run's single
+   * insert. Compliance rules are skipped: there is nothing to compare on a
+   * record that does not exist yet. A created anchor is not added to the
+   * document's anchor map, so rows cannot hang off it within the same run.
+   */
+  private static void createAnchor(
+    IdpConfigLoader.SectionConfig section,
+    DocumentWork work,
+    String runMode,
+    Boolean previewing,
+    IdpDmlExecutor executor
+  ) {
+    String objectName = section.targetObject;
+    String dedupeKey = 'anchor|' + objectName + '|' + work.docIndex;
+    SObject record = executor.stagedInsert(dedupeKey);
+    if (record == null) {
+      record = IdpSchemaCache.typeOf(objectName).newSObject();
+      List<String> anchored = new List<String>(work.context.anchors.keySet());
+      anchored.sort();
+      for (String candidate : anchored) {
+        String lookup = IdpSchemaCache.findLookupTo(objectName, candidate);
+        if (lookup != null) {
+          record.put(lookup, work.context.anchors.get(candidate).Id);
+          break;
+        }
+      }
+      if (previewing) {
+        IdpResult.Finding planned = work.result.add(
+          IdpResult.CODE_ANCHOR_CREATED,
+          IdpResult.SEV_INFO,
+          'Section ' +
+            section.name +
+            ' would create a ' +
+            objectName +
+            ' record (whenNoAnchor is "Create").'
+        );
+        planned.objectName = objectName;
+        planned.sectionName = section.name;
+      }
+    }
+    record = executor.stageInsert(
+      dedupeKey,
+      record,
+      work.result,
+      false,
+      section.name,
+      null,
+      null
+    );
+    for (IdpConfigLoader.RuleConfig rule : section.rules) {
+      String mode = effectiveMode(rule, runMode);
+      if (mode == MODE_COMPLIANCE) {
+        continue;
+      }
+      IdpRuleEvaluator.apply(
+        rule,
+        mode,
+        previewing,
+        work.root,
+        record,
+        objectName,
+        null,
+        work.result,
+        executor
+      );
+    }
+  }
+
   // ────────────────────── repeating sections ──────────────────────
 
   /** One document's rows and keys for one repeating section. */
@@ -238,8 +334,9 @@ public inherited sharing class IdpMappingEngine {
    * Matches every document's rows against existing records with one query
    * per (lookup-field) group — a 200-line statement costs the same as a
    * 2-line invoice, and 10 statements cost the same as one. Rows are
-   * matched and updated, never created; unmatched keys are data, not
-   * errors.
+   * matched and updated; unmatched keys are data, not errors — unless the
+   * section opts in with unmatchedRows: "Create" (ENG-2), in which case
+   * they join the run's single insert.
    */
   private static void processRepeatingSection(
     IdpConfigLoader.SectionConfig section,
@@ -489,35 +586,64 @@ public inherited sharing class IdpMappingEngine {
           : docRows.parentId + '|' + key;
         SObject record = recordsByKey.get(bucketKey);
         Integer index = docRows.indexByKey.get(key);
+        Boolean created = false;
         if (record == null) {
-          docRows.work.result.unmatchedRowKeys.add(key);
-          IdpResult.Finding finding = docRows.work.result.add(
-            IdpResult.CODE_ROW_UNMATCHED,
-            IdpResult.SEV_INFO,
-            label +
-              ': no ' +
-              objectName +
-              ' record matches key "' +
-              key +
-              '" (row ' +
-              index +
-              '). Rows are matched, never created.'
-          );
-          finding.sectionName = section.name;
-          finding.rowIndex = index;
-          finding.rowKey = key;
-          continue;
+          if (
+            section.unmatchedRowPolicy == POLICY_CREATE &&
+            runMode != MODE_COMPLIANCE
+          ) {
+            record = stageRowCreation(
+              section,
+              docRows,
+              key,
+              index,
+              matchFieldName,
+              previewing,
+              executor,
+              label
+            );
+            created = record != null;
+          }
+          if (record == null) {
+            docRows.work.result.unmatchedRowKeys.add(key);
+            IdpResult.Finding finding = docRows.work.result.add(
+              IdpResult.CODE_ROW_UNMATCHED,
+              IdpResult.SEV_INFO,
+              label +
+                ': no ' +
+                objectName +
+                ' record matches key "' +
+                key +
+                '" (row ' +
+                index +
+                ').' +
+                (section.unmatchedRowPolicy == POLICY_CREATE
+                  ? ''
+                  : ' Rows are matched, not created, unless the section' +
+                    ' sets unmatchedRows to "Create".')
+            );
+            finding.sectionName = section.name;
+            finding.rowIndex = index;
+            finding.rowKey = key;
+            continue;
+          }
         }
-        docRows.work.result.rowsMatched++;
+        if (!created) {
+          docRows.work.result.rowsMatched++;
+        }
         IdpRuleEvaluator.RowInfo rowInfo = new IdpRuleEvaluator.RowInfo(
           section.name,
           index,
           key
         );
         for (IdpConfigLoader.RuleConfig rule : section.rules) {
+          String mode = effectiveMode(rule, runMode);
+          if (created && mode == MODE_COMPLIANCE) {
+            continue; // nothing to compare on a record being created
+          }
           IdpRuleEvaluator.apply(
             rule,
-            effectiveMode(rule, runMode),
+            mode,
             previewing,
             docRows.rows[index],
             record,
@@ -529,6 +655,84 @@ public inherited sharing class IdpMappingEngine {
         }
       }
     }
+  }
+
+  /**
+   * unmatchedRows: "Create" (ENG-2) — builds the missing row in memory
+   * with its match key and parent lookup, and stages it for the run's
+   * single insert. Deduplicated across documents by (object, parent, key),
+   * so two statements naming the same new row share one record, mirroring
+   * how updates merge. Null when the match key cannot be written (reported).
+   */
+  private static SObject stageRowCreation(
+    IdpConfigLoader.SectionConfig section,
+    DocRows docRows,
+    String key,
+    Integer index,
+    String matchFieldName,
+    Boolean previewing,
+    IdpDmlExecutor executor,
+    String label
+  ) {
+    String objectName = section.targetObject;
+    String dedupeKey =
+      'row|' +
+      objectName +
+      '|' +
+      (docRows.parentId == null ? '' : String.valueOf(docRows.parentId)) +
+      '|' +
+      key;
+    SObject record = executor.stagedInsert(dedupeKey);
+    if (record == null) {
+      record = IdpSchemaCache.typeOf(objectName).newSObject();
+      try {
+        record.put(matchFieldName, key);
+      } catch (Exception e) {
+        IdpResult.Finding finding = docRows.work.result.add(
+          IdpResult.CODE_ROW_LOOKUP_FAILED,
+          IdpResult.SEV_ERROR,
+          label +
+            ': key "' +
+            key +
+            '" cannot be written to Match Field ' +
+            matchFieldName +
+            ', so the row was not created — ' +
+            e.getMessage()
+        );
+        finding.sectionName = section.name;
+        finding.rowIndex = index;
+        finding.rowKey = key;
+        return null;
+      }
+      if (docRows.lookupField != null && docRows.parentId != null) {
+        record.put(docRows.lookupField, docRows.parentId);
+      }
+      if (previewing) {
+        IdpResult.Finding planned = docRows.work.result.add(
+          IdpResult.CODE_ROW_CREATED,
+          IdpResult.SEV_INFO,
+          label +
+            ': a ' +
+            objectName +
+            ' record would be created for key "' +
+            key +
+            '" (unmatchedRows is "Create").'
+        );
+        planned.objectName = objectName;
+        planned.sectionName = section.name;
+        planned.rowIndex = index;
+        planned.rowKey = key;
+      }
+    }
+    return executor.stageInsert(
+      dedupeKey,
+      record,
+      docRows.work.result,
+      true,
+      section.name,
+      index,
+      key
+    );
   }
 
   /** Runs one row-matching query and buckets results by key (and parent

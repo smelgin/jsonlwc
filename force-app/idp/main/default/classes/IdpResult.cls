@@ -52,9 +52,12 @@ public inherited sharing class IdpResult {
   public static final String CODE_ROW_UNMATCHED = 'ROW_UNMATCHED';
   public static final String CODE_ROW_DUPLICATE_KEY = 'ROW_DUPLICATE_KEY';
   public static final String CODE_ROW_LOOKUP_FAILED = 'ROW_LOOKUP_FAILED';
+  public static final String CODE_ROW_CREATED = 'ROW_CREATED';
+  public static final String CODE_ANCHOR_CREATED = 'ANCHOR_CREATED';
   public static final String CODE_FLS_BLOCKED = 'FLS_BLOCKED';
   public static final String CODE_DML_FAILED = 'DML_FAILED';
   public static final String CODE_HANDLER_FAILED = 'HANDLER_FAILED';
+  public static final String CODE_HANDLER_SKIPPED = 'HANDLER_SKIPPED';
   public static final String CODE_DOC_DEFERRED = 'DOC_DEFERRED';
 
   /** Human-readable grade label for findings and planned changes. */
@@ -200,6 +203,12 @@ public inherited sharing class IdpResult {
     @InvocableVariable
     @AuraEnabled
     public Integer rowIndex;
+
+    /** True when the change belongs to a record the run plans to create
+     *  (recordId is null until the insert lands). */
+    @InvocableVariable
+    @AuraEnabled
+    public Boolean isNew;
   }
 
   /** Per-document outcome. */
@@ -248,7 +257,24 @@ public inherited sharing class IdpResult {
 
     @InvocableVariable
     @AuraEnabled
+    public Integer rowsCreated = 0;
+
+    /**
+     * Weighted document-level confidence, 0–1, from the rules that carry a
+     * Confidence Weight. Null when no weighted field resolved with a
+     * confidence — "no score" is distinguishable from "zero".
+     */
+    @InvocableVariable
+    @AuraEnabled
+    public Decimal documentConfidence;
+
+    @InvocableVariable
+    @AuraEnabled
     public List<String> updatedRecordIds = new List<String>();
+
+    @InvocableVariable
+    @AuraEnabled
+    public List<String> createdRecordIds = new List<String>();
 
     @InvocableVariable
     @AuraEnabled
@@ -261,6 +287,33 @@ public inherited sharing class IdpResult {
     @InvocableVariable
     @AuraEnabled
     public List<PlannedChange> plannedChanges = new List<PlannedChange>();
+
+    // ENG-9 accumulators — Σ(weight × confidence) and Σ(weight) over the
+    // weighted fields that resolved with a confidence. Not serialized to
+    // callers; documentConfidence is the published number.
+    private Decimal confidenceWeightedSum = 0;
+    private Decimal confidenceWeightTotal = 0;
+
+    /**
+     * Records one weighted field confidence. Both 0.93 and 93 are accepted
+     * (IDP services report either scale), matching jsonForm's convention.
+     */
+    public void addConfidenceSample(Decimal weight, Decimal confidence) {
+      if (weight == null || weight <= 0 || confidence == null) {
+        return;
+      }
+      Decimal fraction = confidence > 1 ? confidence / 100 : confidence;
+      confidenceWeightedSum += weight * fraction;
+      confidenceWeightTotal += weight;
+    }
+
+    /** Rolls the samples up into documentConfidence; null when no weighted
+     *  field yielded a confidence. The engine calls this once per run. */
+    public void finalizeDocumentConfidence() {
+      documentConfidence = confidenceWeightTotal > 0
+        ? (confidenceWeightedSum / confidenceWeightTotal).setScale(4)
+        : null;
+    }
 
     public Finding add(String code, String severity, String message) {
       Finding finding = new Finding();
