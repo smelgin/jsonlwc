@@ -1,9 +1,9 @@
-# Reusable Components for IDP
+# Intelligent Document Processing - IDP
 
-**IDP**: Intelligent Document Processing. It assumes a previous endpoint where the file binary is sent and a JSON comes back as a response with the text recognized in that file (for instance, Mulesoft IDP or similar technology). It uses `fileJsonReview` (the document previewer) and `jsonForm`.
+Welcome to the wiki of Intelligent Document Processing, the home of intelligent automations for digitized documents.
+Once you digitize documents, what do you plan to do with the recognized data?
 
-> **LQC** (Liquidity Calculator) used to live here under `force-app/lqc`. It now has its own
-> repository: **[smelgin/lqc](https://github.com/smelgin/lqc)**. The two never shared code.
+**IDP offers extraction, compliancy check and intelligent mapping, all in one pack.**
 
 ## Documentation
 
