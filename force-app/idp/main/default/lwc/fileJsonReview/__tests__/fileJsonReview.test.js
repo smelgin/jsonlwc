@@ -2,6 +2,7 @@ import { createElement } from 'lwc';
 import FileJsonReview from 'c/fileJsonReview';
 import getFileInfo from '@salesforce/apex/FilePreviewController.getFileInfo';
 import getFileBase64 from '@salesforce/apex/FilePreviewController.getFileBase64';
+import previewMapping from '@salesforce/apex/IdpMappingController.preview';
 
 jest.mock(
     '@salesforce/apex/FilePreviewController.getFileInfo',
@@ -16,6 +17,12 @@ jest.mock(
 
 jest.mock(
     '@salesforce/apex/FilePreviewController.getFileBase64',
+    () => ({ default: jest.fn() }),
+    { virtual: true }
+);
+
+jest.mock(
+    '@salesforce/apex/IdpMappingController.preview',
     () => ({ default: jest.fn() }),
     { virtual: true }
 );
@@ -46,6 +53,23 @@ function buildComponent(props = {}) {
     Object.assign(element, props);
     document.body.appendChild(element);
     return element;
+}
+
+/** The Save button is always the last one in the footer. */
+function saveButton(element) {
+    const buttons = [
+        ...element.shadowRoot.querySelectorAll('.right-footer lightning-button')
+    ];
+    return buttons[buttons.length - 1];
+}
+
+/** Stands in for c-json-form telling the host about an edit. */
+function fireJsonChange(element, value, valid) {
+    element.shadowRoot.querySelector('c-json-form').dispatchEvent(
+        new CustomEvent('jsonchange', {
+            detail: { value, jsonString: JSON.stringify(value), valid }
+        })
+    );
 }
 
 async function flushPromises() {
@@ -327,5 +351,455 @@ describe('c-file-json-review', () => {
         );
         await flushPromises();
         expect(leftPane.style.width).toBe('22%');
+    });
+
+    // -----------------------------------------------------------------
+    // FJR-1 - forwarding the form's capabilities
+    // -----------------------------------------------------------------
+
+    describe('forwarding the jsonForm flags', () => {
+        it('leaves every capability off when the host sets none', () => {
+            const element = buildComponent({ jsonInput: SAMPLE_JSON });
+            const form = element.shadowRoot.querySelector('c-json-form');
+
+            expect(form.editStructure).toBe(false);
+            expect(form.collapsible).toBe(false);
+            expect(form.searchable).toBe(false);
+            expect(form.showConfidence).toBe(false);
+            expect(form.validateTypes).toBe(false);
+            // No toolbar and no add controls: the plain value-editing form
+            expect(
+                form.shadowRoot.querySelector('.json-form-toolbar')
+            ).toBeNull();
+            expect(
+                form.shadowRoot.querySelectorAll('.add-button')
+            ).toHaveLength(0);
+        });
+
+        it('forwards each flag to the child form', () => {
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                editStructure: true,
+                collapsible: true,
+                searchable: true,
+                showConfidence: true,
+                validateTypes: true
+            });
+            const form = element.shadowRoot.querySelector('c-json-form');
+
+            expect(form.editStructure).toBe(true);
+            expect(form.collapsible).toBe(true);
+            expect(form.searchable).toBe(true);
+            expect(form.showConfidence).toBe(true);
+            expect(form.validateTypes).toBe(true);
+            // And they reached the rendering, not just the property
+            expect(
+                form.shadowRoot.querySelector('.json-form-toolbar')
+            ).not.toBeNull();
+            expect(
+                form.shadowRoot.querySelector('.search-input')
+            ).not.toBeNull();
+        });
+
+        it('forwards the confidence threshold', () => {
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                showConfidence: true,
+                confidenceThreshold: 0.5
+            });
+            const form = element.shadowRoot.querySelector('c-json-form');
+            expect(form.confidenceThreshold).toBe(0.5);
+        });
+
+        it('accepts the strings Flow and App Builder pass', () => {
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                editStructure: 'true',
+                searchable: 'true'
+            });
+            const form = element.shadowRoot.querySelector('c-json-form');
+            // The child owns the coercion, so they arrive resolved
+            expect(form.editStructure).toBe(true);
+            expect(form.searchable).toBe(true);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // FJR-6 - blocking Save on invalid fields
+    // -----------------------------------------------------------------
+
+    describe('blocking save on invalid fields', () => {
+        it('blocks Save while a field is the wrong type', async () => {
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                validateTypes: true
+            });
+            expect(saveButton(element).disabled).toBe(false);
+
+            fireJsonChange(
+                element,
+                { 'First Name': 'Carlos', Age: 'forty' },
+                false
+            );
+            await flushPromises();
+
+            expect(saveButton(element).disabled).toBe(true);
+            expect(
+                element.shadowRoot.querySelector('.blocked-message').textContent
+            ).toContain('Fix the highlighted fields');
+        });
+
+        it('releases Save once the value is corrected', async () => {
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                validateTypes: true
+            });
+            fireJsonChange(
+                element,
+                { 'First Name': 'Carlos', Age: 'forty' },
+                false
+            );
+            await flushPromises();
+            expect(saveButton(element).disabled).toBe(true);
+
+            fireJsonChange(element, { 'First Name': 'Carlos', Age: 46 }, true);
+            await flushPromises();
+            expect(saveButton(element).disabled).toBe(false);
+            expect(
+                element.shadowRoot.querySelector('.blocked-message')
+            ).toBeNull();
+        });
+
+        it('does not block Save when the form is not validating types', async () => {
+            const element = buildComponent({ jsonInput: SAMPLE_JSON });
+            // A form with validation off always reports itself valid
+            fireJsonChange(
+                element,
+                { 'First Name': 'Carlos', Age: 'forty' },
+                true
+            );
+            await flushPromises();
+            expect(saveButton(element).disabled).toBe(false);
+        });
+
+        it('clears a blocked state when fresh JSON is loaded', async () => {
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                validateTypes: true
+            });
+            fireJsonChange(element, { Age: 'forty' }, false);
+            await flushPromises();
+            expect(saveButton(element).disabled).toBe(true);
+
+            element.jsonInput = SAMPLE_JSON;
+            await flushPromises();
+            expect(saveButton(element).disabled).toBe(false);
+        });
+    });
+
+    // -----------------------------------------------------------------
+    // FJR-2 - previewing the planned changes
+    // -----------------------------------------------------------------
+
+    describe('previewing the planned changes', () => {
+        function clickPreview(element) {
+            element.shadowRoot
+                .querySelector('.preview-button')
+                .dispatchEvent(new CustomEvent('click'));
+        }
+
+        it('offers no Preview button without a mapping set', () => {
+            const element = buildComponent({ jsonInput: SAMPLE_JSON });
+            expect(
+                element.shadowRoot.querySelector('.preview-button')
+            ).toBeNull();
+            expect(previewMapping).not.toHaveBeenCalled();
+        });
+
+        it('asks the engine what a save would change and lists it', async () => {
+            previewMapping.mockResolvedValue({
+                success: true,
+                plannedChanges: [
+                    {
+                        objectName: 'Account',
+                        fieldName: 'Name',
+                        recordId: '001',
+                        oldValue: 'Old Co',
+                        newValue: 'Blue Harbour',
+                        grade: 'Exact'
+                    },
+                    {
+                        objectName: 'Account',
+                        fieldName: 'Phone',
+                        recordId: '001',
+                        oldValue: null,
+                        newValue: '+27115550100',
+                        grade: 'Inferred'
+                    }
+                ],
+                findings: []
+            });
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                contentDocumentId: '069000000000001AAA',
+                mappingSetName: 'Estate_Intake'
+            });
+
+            clickPreview(element);
+            await flushPromises();
+
+            expect(previewMapping).toHaveBeenCalledWith({
+                contentDocumentId: '069000000000001AAA',
+                jsonString: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+
+            const rows = [
+                ...element.shadowRoot.querySelectorAll(
+                    '.preview-table tbody tr'
+                )
+            ];
+            expect(rows).toHaveLength(2);
+            expect(rows[0].textContent).toContain('Account.Name');
+            expect(rows[0].textContent).toContain('Old Co');
+            expect(rows[0].textContent).toContain('Blue Harbour');
+            // A null old value reads as blank, not as the word "null"
+            expect(rows[1].textContent).toContain('(blank)');
+            expect(
+                element.shadowRoot.querySelector('.preview-message').textContent
+            ).toContain('2 fields would change');
+        });
+
+        it('says so when nothing would change', async () => {
+            previewMapping.mockResolvedValue({
+                success: true,
+                plannedChanges: [],
+                findings: []
+            });
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+
+            clickPreview(element);
+            await flushPromises();
+
+            expect(
+                element.shadowRoot.querySelector('.preview-message').textContent
+            ).toContain('would change nothing');
+            expect(
+                element.shadowRoot.querySelector('.preview-table')
+            ).toBeNull();
+        });
+
+        it('lists findings worth acting on and leaves Info out', async () => {
+            previewMapping.mockResolvedValue({
+                success: false,
+                plannedChanges: [],
+                findings: [
+                    {
+                        code: 'PARSE_FAILED',
+                        severity: 'Error',
+                        message: 'Could not read the date.'
+                    },
+                    {
+                        code: 'ROW_UNMATCHED',
+                        severity: 'Info',
+                        message: 'No record matches that key.'
+                    }
+                ]
+            });
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+
+            clickPreview(element);
+            await flushPromises();
+
+            const findings = [
+                ...element.shadowRoot.querySelectorAll('.preview-findings li')
+            ];
+            expect(findings).toHaveLength(1);
+            expect(findings[0].textContent).toContain('PARSE_FAILED');
+        });
+
+        it('reports an Apex failure instead of a diff', async () => {
+            previewMapping.mockRejectedValue({
+                body: { message: 'No mapping set named Nope was found.' }
+            });
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Nope'
+            });
+
+            clickPreview(element);
+            await flushPromises();
+
+            expect(
+                element.shadowRoot.querySelector('.preview-panel').textContent
+            ).toContain('No mapping set named');
+        });
+
+        it('writes nothing on its own, so Save still emits jsonsubmit', async () => {
+            previewMapping.mockResolvedValue({
+                success: true,
+                plannedChanges: [],
+                findings: []
+            });
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+            const submitted = jest.fn();
+            element.addEventListener('jsonsubmit', submitted);
+
+            clickPreview(element);
+            await flushPromises();
+            expect(submitted).not.toHaveBeenCalled();
+
+            saveButton(element).dispatchEvent(new CustomEvent('click'));
+            expect(submitted).toHaveBeenCalledTimes(1);
+        });
+
+        it('dismisses the panel on request', async () => {
+            previewMapping.mockResolvedValue({
+                success: true,
+                plannedChanges: [],
+                findings: []
+            });
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+            clickPreview(element);
+            await flushPromises();
+            expect(
+                element.shadowRoot.querySelector('.preview-panel')
+            ).not.toBeNull();
+
+            element.shadowRoot
+                .querySelector('.preview-dismiss')
+                .dispatchEvent(new CustomEvent('click'));
+            await flushPromises();
+            expect(
+                element.shadowRoot.querySelector('.preview-panel')
+            ).toBeNull();
+        });
+
+        it('drops a preview the next edit has made stale', async () => {
+            previewMapping.mockResolvedValue({
+                success: true,
+                plannedChanges: [
+                    {
+                        objectName: 'Account',
+                        fieldName: 'Name',
+                        recordId: '001',
+                        oldValue: 'Old Co',
+                        newValue: 'Blue Harbour',
+                        grade: 'Exact'
+                    }
+                ],
+                findings: []
+            });
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+            clickPreview(element);
+            await flushPromises();
+            expect(
+                element.shadowRoot.querySelector('.preview-panel')
+            ).not.toBeNull();
+
+            fireJsonChange(element, { 'First Name': 'Carla', Age: 45 }, true);
+            await flushPromises();
+            expect(
+                element.shadowRoot.querySelector('.preview-panel')
+            ).toBeNull();
+        });
+
+        it('shows what it is doing while the engine is thinking', async () => {
+            let release;
+            previewMapping.mockReturnValue(
+                new Promise((resolve) => {
+                    release = resolve;
+                })
+            );
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+
+            const button = element.shadowRoot.querySelector('.preview-button');
+            button.dispatchEvent(new CustomEvent('click'));
+            await flushPromises();
+            expect(button.label).toBe('Previewing…');
+            expect(button.disabled).toBe(true);
+
+            release({ success: true, plannedChanges: [], findings: [] });
+            await flushPromises();
+            expect(button.label).toBe('Preview changes');
+            expect(button.disabled).toBe(false);
+        });
+
+        it('drops a preview response that lands after an edit', async () => {
+            let release;
+            previewMapping.mockReturnValue(
+                new Promise((resolve) => {
+                    release = resolve;
+                })
+            );
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake'
+            });
+
+            clickPreview(element);
+            await flushPromises();
+            // The reviewer edits while the call is still out
+            fireJsonChange(element, { 'First Name': 'Carla', Age: 45 }, true);
+            await flushPromises();
+
+            // The stale response arrives — it must not resurrect a diff of
+            // JSON that no longer exists
+            release({
+                success: true,
+                plannedChanges: [
+                    {
+                        objectName: 'Account',
+                        fieldName: 'Name',
+                        recordId: '001',
+                        oldValue: 'Old Co',
+                        newValue: 'Stale Co',
+                        grade: 'Exact'
+                    }
+                ],
+                findings: []
+            });
+            await flushPromises();
+
+            expect(
+                element.shadowRoot.querySelector('.preview-panel')
+            ).toBeNull();
+            // And the edit re-enabled the button rather than leaving it stuck
+            expect(
+                element.shadowRoot.querySelector('.preview-button').disabled
+            ).toBe(false);
+        });
+
+        it('will not preview a form that is failing validation', async () => {
+            const element = buildComponent({
+                jsonInput: SAMPLE_JSON,
+                mappingSetName: 'Estate_Intake',
+                validateTypes: true
+            });
+            fireJsonChange(element, { Age: 'forty' }, false);
+            await flushPromises();
+
+            expect(
+                element.shadowRoot.querySelector('.preview-button').disabled
+            ).toBe(true);
+        });
     });
 });

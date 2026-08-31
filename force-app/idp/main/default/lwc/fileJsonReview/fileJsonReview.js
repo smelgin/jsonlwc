@@ -3,6 +3,8 @@ import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
 import PDFJS_RESOURCE from '@salesforce/resourceUrl/pdfjs';
 import getFileInfo from '@salesforce/apex/FilePreviewController.getFileInfo';
 import getFileBase64 from '@salesforce/apex/FilePreviewController.getFileBase64';
+import previewMapping from '@salesforce/apex/IdpMappingController.preview';
+import { toPlannedRows, toFindingItems } from 'c/idpResultFormat';
 
 const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif'];
 const MIN_PANE_PERCENT = 20;
@@ -26,6 +28,18 @@ const VIEWER_READY_TIMEOUT_MS = 10000;
  * and avoids the cross-origin redirect that blocks a direct fetch() of the
  * Files servlet. If PDF.js can't render (viewer error or file too large) the
  * component falls back to the browser's native preview.
+ *
+ * The editing capabilities of the right-hand pane are the ones c-json-form
+ * offers, forwarded one for one and all defaulting to off, so a host that
+ * sets none of them gets the plain value-editing form it always got.
+ *
+ * Given a mapping set name, the pane can also ask the engine what a save
+ * would do — IdpMappingController.preview() writes nothing and returns the
+ * planned old → new changes, which are listed beside the document so the
+ * reviewer confirms them before pressing Save. Leave the mapping set blank
+ * and the component never calls the engine at all: it stays the
+ * storage-agnostic component it was, emitting `jsonsubmit` for its host to
+ * act on.
  */
 export default class FileJsonReview extends LightningElement {
     /** Id of the ContentDocument to preview (PDF, JPG, PNG or GIF). */
@@ -44,6 +58,25 @@ export default class FileJsonReview extends LightningElement {
      */
     @api editLabels;
 
+    /**
+     * The rest of c-json-form's opt-in capabilities, forwarded untouched.
+     * The child owns their defaults and the string-to-boolean coercion Flow
+     * and App Builder need, so there is nothing to do here but pass them on.
+     */
+    @api editStructure;
+    @api collapsible;
+    @api searchable;
+    @api showConfidence;
+    @api confidenceThreshold;
+    @api validateTypes;
+
+    /**
+     * DeveloperName of the IDP_Mapping_Set__mdt to preview against. Blank
+     * (the default) hides the Preview button and keeps the component free of
+     * any call to the mapping engine.
+     */
+    @api mappingSetName;
+
     fileInfo;
     fileError;
     leftPercent = 50;
@@ -51,8 +84,19 @@ export default class FileJsonReview extends LightningElement {
     pdfFallback = false;
     pdfRendered = false;
 
+    previewing = false;
+    previewResult;
+    previewError;
+    // Ticket for the in-flight preview call. Bumped by every new request
+    // and by clearPreview(), so a response landing after an edit (or after
+    // a newer request) identifies itself as stale and is dropped.
+    _previewSeq = 0;
+
     _jsonInput;
     _modifiedJson;
+    // c-json-form reports validity on every edit; until it does, and whenever
+    // type validation is switched off, there is nothing to block a save.
+    _formValid = true;
     _onDragMove;
     _onDragEnd;
     _onMessage;
@@ -69,6 +113,8 @@ export default class FileJsonReview extends LightningElement {
     set jsonInput(value) {
         this._jsonInput = value;
         this._modifiedJson = undefined;
+        this._formValid = true;
+        this.clearPreview();
     }
 
     /** The JSON string including the user's edits. Flow output attribute. */
@@ -293,6 +339,11 @@ export default class FileJsonReview extends LightningElement {
 
     handleJsonChange(event) {
         this._modifiedJson = JSON.stringify(event.detail.value);
+        // `valid` is false only when the form is validating types and some
+        // field no longer parses as the one it loaded as.
+        this._formValid = event.detail.valid !== false;
+        // Any edit invalidates a preview taken before it.
+        this.clearPreview();
         this.dispatchEvent(
             new CustomEvent('jsonchange', { detail: event.detail })
         );
@@ -302,7 +353,115 @@ export default class FileJsonReview extends LightningElement {
     }
 
     get submitDisabled() {
-        return !this.jsonOutput;
+        return !this.jsonOutput || !this._formValid || this.previewing;
+    }
+
+    /** Shown next to a disabled Save so the reason is not a mystery. */
+    get blockedMessage() {
+        return this._formValid
+            ? undefined
+            : 'Fix the highlighted fields first.';
+    }
+
+    // ---------------------------------------------------------------------
+    // Preview
+    // ---------------------------------------------------------------------
+
+    /** The Preview button only exists once a host names a mapping set. */
+    get canPreview() {
+        return Boolean(this.mappingSetName) && Boolean(this.jsonOutput);
+    }
+
+    get previewDisabled() {
+        return this.previewing || !this._formValid;
+    }
+
+    get hasPreview() {
+        return Boolean(this.previewResult) || Boolean(this.previewError);
+    }
+
+    /** Labels the button with what it is doing while it is doing it. */
+    get previewLabel() {
+        return this.previewing ? 'Previewing…' : 'Preview changes';
+    }
+
+    /**
+     * Asks the engine what a save would change, without writing anything:
+     * Preview mode runs the whole extraction pipeline and skips the DML.
+     *
+     * The reviewer can keep editing while the call is out, and every edit
+     * calls clearPreview(). The sequence ticket makes sure a response that
+     * comes back after that — or after a newer Preview click — is thrown
+     * away instead of resurrecting a diff of JSON that no longer exists.
+     */
+    handlePreview() {
+        const ticket = ++this._previewSeq;
+        this.previewing = true;
+        this.previewResult = undefined;
+        this.previewError = undefined;
+        previewMapping({
+            contentDocumentId: this.contentDocumentId,
+            jsonString: this.jsonOutput,
+            mappingSetName: this.mappingSetName
+        })
+            .then((result) => {
+                if (ticket === this._previewSeq) {
+                    this.previewResult = result;
+                }
+            })
+            .catch((error) => {
+                if (ticket === this._previewSeq) {
+                    this.previewError =
+                        (error.body && error.body.message) ||
+                        'The preview could not be produced.';
+                }
+            })
+            .finally(() => {
+                if (ticket === this._previewSeq) {
+                    this.previewing = false;
+                }
+            });
+    }
+
+    handleDismissPreview() {
+        this.clearPreview();
+    }
+
+    clearPreview() {
+        this._previewSeq++;
+        this.previewing = false;
+        this.previewResult = undefined;
+        this.previewError = undefined;
+    }
+
+    /** One row per planned field write, old → new (c/idpResultFormat). */
+    get plannedRows() {
+        return toPlannedRows(this.previewResult);
+    }
+
+    get hasPlannedRows() {
+        return this.plannedRows.length > 0;
+    }
+
+    /** Anything the run wants the reviewer to know; Info is left out because
+     *  an unmatched row is data, not a problem to act on here. */
+    get previewFindings() {
+        return toFindingItems(this.previewResult);
+    }
+
+    get hasPreviewFindings() {
+        return this.previewFindings.length > 0;
+    }
+
+    get previewSummary() {
+        if (!this.previewResult) {
+            return '';
+        }
+        const count = this.plannedRows.length;
+        if (count === 0) {
+            return 'This document would change nothing.';
+        }
+        return `${count} field${count === 1 ? '' : 's'} would change. Nothing has been written yet.`;
     }
 
     /**

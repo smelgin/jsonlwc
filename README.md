@@ -23,7 +23,7 @@ Documentation stays at the repository root because the guides cross-reference ea
 
 ## Index
 
-- **[DOC_PREVIEWER.md](DOC_PREVIEWER.md)** — The `fileJsonReview` document previewer: a split-screen LWC that shows a Salesforce file (PDF/JPG/PNG/GIF) next to an OCR-extracted JSON rendered as an editable form, so users can curate the result and store it back on `Document__c`. Covers business context (MuleSoft OCR pipeline), all dependencies (`jsonForm` child LWC, `FilePreviewController` Apex, `pdfjs` static resource), the public API, hosting from Screen Flows / parent LWCs / OmniStudio, PDF-rendering internals, org-to-org deployment steps, PDF.js maintenance, and troubleshooting.
+- **[DOC_PREVIEWER.md](DOC_PREVIEWER.md)** — The `fileJsonReview` document previewer: a split-screen LWC that shows a Salesforce file (PDF/JPG/PNG/GIF) next to an OCR-extracted JSON rendered as an editable form, so users can curate the result and store it back on `Document__c`. Covers business context (MuleSoft OCR pipeline), all dependencies (`jsonForm` child LWC, `FilePreviewController` Apex, `pdfjs` static resource, and `IdpMappingController` for the Preview button), the public API including the forwarded form capabilities and previewing a save before making it, hosting from Screen Flows / parent LWCs / OmniStudio, PDF-rendering internals, org-to-org deployment steps, PDF.js maintenance, and troubleshooting.
 
 - **[JSON_FORM.md](JSON_FORM.md)** — The reusable `jsonForm` component that renders any JSON as a hierarchical form of label/value textboxes and returns the modified JSON. Covers its public API and editing behavior, use from a parent LWC / Screen Flow / Lightning page, the `jsonFormDemo` test host, and the project's local setup commands (npm, tests, deploy).
 

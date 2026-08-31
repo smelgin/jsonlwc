@@ -44,9 +44,83 @@
 .right-footer {
     flex: none;
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 0.5rem;
     padding: 0.5rem 0.75rem;
     border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+}
+
+/* Pushes the buttons to the right and keeps the reason on the left */
+.blocked-message {
+    flex: 1;
+    margin-right: auto;
+    font-size: 0.75rem;
+}
+
+/*
+ * The planned-changes panel sits between the form and the footer, so the
+ * diff and the Save button that would apply it are read together. It is
+ * capped and scrolls on its own: a long change list must never push the
+ * footer off the bottom of the pane.
+ */
+.preview-panel {
+    flex: none;
+    max-height: 45%;
+    overflow: auto;
+    padding: 0.5rem 0.75rem 0.75rem;
+    border-top: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    background: var(--slds-g-color-neutral-base-95, #f3f3f3);
+}
+
+.preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.preview-message {
+    font-size: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+}
+
+.preview-table th,
+.preview-table td {
+    text-align: left;
+    padding: 0.25rem 0.5rem;
+    border-bottom: 1px solid var(--slds-g-color-border-base-1, #e5e5e5);
+    vertical-align: top;
+    word-break: break-word;
+}
+
+.preview-table th {
+    font-weight: 600;
+    color: var(--slds-g-color-neutral-base-30, #444);
+}
+
+.old-value {
+    color: var(--slds-g-color-neutral-base-30, #444);
+    text-decoration: line-through;
+}
+
+.new-value {
+    color: var(--slds-g-color-success-base-30, #1b5b30);
+    font-weight: 600;
+}
+
+.preview-findings {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    list-style: disc;
+    padding-left: 1.25rem;
 }
 
 .divider {

@@ -46,17 +46,24 @@ The **calculation** of a weighted document-level confidence now lives in the eng
 
 `force-app/idp/main/default/lwc/fileJsonReview` — see [DOC_PREVIEWER.md](DOC_PREVIEWER.md).
 
-Nothing here is implemented yet. The component's API was deliberately left untouched while `jsonForm` grew.
+The component forwards everything `jsonForm` can do and, given a mapping set, can ask the engine what a save would change before anyone presses Save.
 
 | #     | Status | Item                                                                                                                                                                                                                                                                                                                                                              | Size |
 | ----- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| FJR-1 | ⬜     | **Pass the `jsonForm` flags through.** Matching `@api` properties and Flow / App Builder metadata for `editStructure`, `collapsible`, `searchable`, `showConfidence` and `validateTypes`, forwarded like `editLabels` is today. Explicitly declined for now to keep the property list short — revisit when a host in the split-screen actually needs one of them. | S    |
-| FJR-2 | ⬜     | **Preview the planned changes in the pane.** The component emits JSON but never calls `IdpMappingController.preview()`. Showing the old → new diff next to the document, before Save, is the obvious payoff of Preview mode already existing in the engine.                                                                                                       | M    |
+| FJR-1 | ✅     | **Pass the `jsonForm` flags through.** `editStructure`, `collapsible`, `searchable`, `showConfidence`, `confidenceThreshold` and `validateTypes` are now `@api` properties on the review component and Flow / App Builder properties, forwarded to the child exactly as `editLabels` always was. The child keeps ownership of the defaults and of the string-to-boolean coercion, so there is no second copy of that logic. | S    |
+| FJR-2 | ✅     | **Preview the planned changes in the pane.** Given a `mappingSetName`, a Preview button calls `IdpMappingController.preview()` and lists the planned old → new changes, with grades and any non-Info findings, between the form and the Save button. Leave the mapping set blank and the component never calls the engine. See the note below on what this costs. | M    |
 | FJR-3 | ⬜     | **Link fields to the document.** Click a JSON field, highlight its bounding box in the PDF or image. Needs the extraction service to emit coordinates alongside each value, so this is blocked on the JSON envelope carrying geometry — agree the shape first.                                                                                                    | L    |
 | FJR-4 | ⬜     | **Jump to a field's source page.** Cheaper subset of FJR-3: a page number per field is enough to scroll the PDF.js viewer, no bounding boxes needed.                                                                                                                                                                                                              | M    |
 | FJR-5 | ⬜     | **Image zoom, pan and rotate.** Images render as a plain `<img>` today. Scanned documents arrive rotated.                                                                                                                                                                                                                                                         | S    |
-| FJR-6 | ⬜     | **Block Save on invalid fields.** Consume `jsonForm`'s `isValid` / `event.detail.valid` to disable the submit button. Depends on FJR-1 forwarding `validateTypes`.                                                                                                                                                                                                | S    |
+| FJR-6 | ✅     | **Block Save on invalid fields.** The review component tracks `event.detail.valid` from the form and disables Save (and Preview) while a field no longer parses as the type it loaded as, with a short line saying why. Loading fresh JSON clears the block. | S    |
 | FJR-7 | ⬜     | **Remember the divider position.** The split percentage resets on every load.                                                                                                                                                                                                                                                                                     | S    |
+
+
+### Note — what FJR-2 cost
+
+`fileJsonReview` now imports `IdpMappingController.preview`, so it can no longer be deployed with only `FilePreviewController` and the `pdfjs` resource beside it: it pulls in the mapping engine. Everything lives in the same package directory (`force-app/idp/main`), so an ordinary deploy is unaffected, but the component is no longer the engine-agnostic previewer it was, and that is worth remembering before extracting it for reuse elsewhere.
+
+`jsonForm` itself is untouched by this and stays free of Apex — the split between the two components is now the meaningful one: the form knows nothing about Salesforce, the reviewer knows about the engine.
 
 ---
 

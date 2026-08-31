@@ -76,11 +76,103 @@
                 <c-json-form
                     json-data={jsonInput}
                     edit-labels={editLabels}
+                    edit-structure={editStructure}
+                    collapsible={collapsible}
+                    searchable={searchable}
+                    show-confidence={showConfidence}
+                    confidence-threshold={confidenceThreshold}
+                    validate-types={validateTypes}
                     onjsonchange={handleJsonChange}
                     lwc:ref="jsonForm"
                 ></c-json-form>
             </div>
+
+            <template lwc:if={hasPreview}>
+                <div class="preview-panel">
+                    <div class="preview-header">
+                        <h2 class="slds-text-title_caps">Planned changes</h2>
+                        <lightning-button-icon
+                            icon-name="utility:close"
+                            variant="bare"
+                            size="small"
+                            alternative-text="Dismiss preview"
+                            title="Dismiss preview"
+                            class="preview-dismiss"
+                            onclick={handleDismissPreview}
+                        ></lightning-button-icon>
+                    </div>
+
+                    <template lwc:if={previewError}>
+                        <p class="slds-text-color_error preview-message">
+                            {previewError}
+                        </p>
+                    </template>
+                    <template lwc:else>
+                        <p class="preview-message slds-text-color_weak">
+                            {previewSummary}
+                        </p>
+                        <template lwc:if={hasPlannedRows}>
+                            <table class="preview-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Field</th>
+                                        <th scope="col">Now</th>
+                                        <th scope="col">After save</th>
+                                        <th scope="col">Read as</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template
+                                        for:each={plannedRows}
+                                        for:item="row"
+                                    >
+                                        <tr key={row.key}>
+                                            <td>{row.field}</td>
+                                            <td class="old-value">
+                                                {row.oldValue}
+                                            </td>
+                                            <td class="new-value">
+                                                {row.newValue}
+                                            </td>
+                                            <td>{row.grade}</td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </template>
+                        <template lwc:if={hasPreviewFindings}>
+                            <ul class="preview-findings">
+                                <template
+                                    for:each={previewFindings}
+                                    for:item="finding"
+                                >
+                                    <li
+                                        key={finding.key}
+                                        class={finding.cssClass}
+                                    >
+                                        {finding.label}
+                                    </li>
+                                </template>
+                            </ul>
+                        </template>
+                    </template>
+                </div>
+            </template>
+
             <div class="right-footer">
+                <template lwc:if={blockedMessage}>
+                    <p class="blocked-message slds-text-color_error">
+                        {blockedMessage}
+                    </p>
+                </template>
+                <template lwc:if={canPreview}>
+                    <lightning-button
+                        label={previewLabel}
+                        class="preview-button"
+                        disabled={previewDisabled}
+                        onclick={handlePreview}
+                    ></lightning-button>
+                </template>
                 <lightning-button
                     label={submitLabel}
                     variant="brand"

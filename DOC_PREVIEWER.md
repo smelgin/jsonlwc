@@ -51,6 +51,9 @@ _Figure 1 — Component overview._
     - one textbox per **field value** (editable → type-preserving: numbers stay numbers, booleans stay booleans),
     - nested objects/arrays render as indented **Group** / **List** sections,
     - a **Save** button (configurable label) that returns the curated JSON.
+- **Everything the form can do is available here and switched off by default.** Adding and deleting fields, collapsing groups, a search box, confidence badges and type validation are each a checkbox on the component; leave them alone and the reviewer gets the plain value-editing form. What each one does is described in [JSON_FORM.md](JSON_FORM.md) — this component only forwards them.
+- **Preview before saving.** Name a mapping set and a **Preview changes** button appears next to Save. It asks the engine what a save would write and lists the result — field by field, what is stored now and what would replace it — between the form and the Save button, so the diff and the button that applies it are read together. Nothing is written by previewing.
+- **Save can be blocked.** With type validation on, a field holding something that no longer parses as the type it arrived as disables both Save and Preview, with a line saying why. Correcting the field releases them.
 
 ![Screenshot placeholder: close-up of the right pane with a renamed key and corrected value](docs/images/file-json-review-form-detail.png)
 _Figure 2 — Editing the OCR result (placeholder)._
@@ -65,7 +68,9 @@ Everything lives in `force-app/idp/main/default/`. **All items below must move t
 | --------------------------- | --------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `fileJsonReview`            | LWC             | `lwc/fileJsonReview`                    | The split-screen previewer (this document).                                                      |
 | `jsonForm`                  | LWC             | `lwc/jsonForm`                          | Child component: renders/edits the JSON. Reusable on its own — see [JSON_FORM.md](JSON_FORM.md). |
+| `idpResultFormat`           | LWC (module)    | `lwc/idpResultFormat`                   | Shared formatting of engine results (planned changes, mismatches, findings) for the preview panel. |
 | `FilePreviewController`     | Apex class      | `classes/FilePreviewController.cls`     | Resolves file metadata and returns PDF bytes as base64.                                          |
+| `IdpMappingController`      | Apex class      | `classes/IdpMappingController.cls`      | Only for the Preview button: `preview()` reports the planned changes without writing them.       |
 | `FilePreviewControllerTest` | Apex test       | `classes/FilePreviewControllerTest.cls` | Test coverage (required for production deploys).                                                 |
 | `pdfjs`                     | Static resource | `staticresources/pdfjs`                 | Mozilla PDF.js v6.1.200 + custom `viewer.html`.                                                  |
 
@@ -80,18 +85,24 @@ graph TD
         V[pdfjs static resource<br/>viewer.html iframe]
     end
     A[FilePreviewController<br/>Apex, WITH USER_MODE]
+    M[IdpMappingController.preview<br/>mapping engine, writes nothing]
     S[(Salesforce Files<br/>ContentDocument / ContentVersion)]
 
     F -- "contentDocumentId, jsonInput" --> R
     R -- "jsonsubmit / jsonOutput" --> F
     R --> J
+    J -- "jsonchange (value + valid)" --> R
     R -- "postMessage (base64 PDF)" --> V
     R -- "@wire getFileInfo / getFileBase64" --> A
+    R -- "preview() when a mapping set is set" --> M
+    M -- "plannedChanges, findings" --> R
     A -- "SOQL user mode" --> S
     V -. "renders pages to canvas" .- R
 ```
 
 **No external dependencies:** no npm runtime packages, no Experience Cloud CSP entries, no named credentials, no remote-site settings. The MuleSoft integration is entirely on the host side.
+
+**One internal dependency worth knowing about.** The Preview button imports `IdpMappingController.preview`, which reaches the whole mapping engine. The import is static, so it comes along whether or not a host ever sets a mapping set — this component can no longer be lifted out with only `FilePreviewController` and `pdfjs` beside it. Everything sits in the same package directory, so a normal deploy is unaffected; it matters only if you are extracting the previewer for use somewhere the engine is not wanted. `c-json-form` is unaffected and still has no Apex dependency at all.
 
 ---
 
@@ -105,10 +116,29 @@ graph TD
 | `height`              | `@api` (String)            | CSS height, default `600px` (e.g. `70vh`).                                                                              |
 | `submit-label`        | `@api` (String)            | Save button label, default `Save`.                                                                                      |
 | `edit-labels`         | `@api` (Boolean)           | Whether the reviewer may rename field names, not just edit values. Off by default; passed through to `c-json-form`.     |
+| `edit-structure`      | `@api` (Boolean)           | Whether fields, list items and groups may be added and deleted. Off by default; passed through.                        |
+| `collapsible`         | `@api` (Boolean)           | Whether groups and lists can be collapsed. Off by default; passed through.                                             |
+| `searchable`          | `@api` (Boolean)           | Whether a search box filters the form. Off by default; passed through.                                                 |
+| `show-confidence`     | `@api` (Boolean)           | Whether `{value, confidence}` envelopes are unwrapped and badged. Off by default; passed through.                      |
+| `confidence-threshold`| `@api` (Number)            | Confidence below which the badge turns red. Fraction (`0.8`) or percentage (`80`). Passed through.                     |
+| `validate-types`      | `@api` (Boolean)           | Whether values of the wrong type are flagged. Off by default; passed through. Also gates Save — see below.             |
+| `mapping-set-name`    | `@api` (String)            | DeveloperName of the `IDP_Mapping_Set__mdt` the Preview button runs against. Blank hides the button entirely.          |
 | `onjsonchange`        | event                      | Fired on **every edit**. `detail.value` (object), `detail.jsonString` (string).                                         |
 | `onjsonsubmit`        | event                      | Fired on **Save click**. Same detail shape — this is the "user is done curating" signal.                                |
 
 Design intent: `jsonchange`/`jsonOutput` give you the _live_ value (useful when the user can leave the screen any way they like); `jsonsubmit` gives you an _explicit confirmation_ moment (useful to trigger the `Document__c` update).
+
+The six pass-through properties are forwarded to `c-json-form` untouched. The child owns their defaults and the string-to-boolean coercion that Flow and App Builder need, so there is exactly one copy of that logic and the two components can never disagree about what "off" means.
+
+### Preview, and why it writes nothing
+
+Setting `mapping-set-name` adds a **Preview changes** button. It calls `IdpMappingController.preview()`, which runs the entire extraction pipeline and then skips the final DML, returning the planned old → new value for every field it would have written. Those are listed under the form with the parse grade for each, alongside any warnings or errors the run produced (Info findings, such as a statement row that matched nothing, are left out — they are data, not something to act on here).
+
+The preview is a snapshot, so it is dropped as soon as the reviewer edits anything, rather than left on screen describing a JSON that no longer exists. Previewing never emits `jsonsubmit`: saving is still the host's job, exactly as before.
+
+### Blocking Save
+
+`c-json-form` reports validity on every edit. When `validate-types` is on and some field no longer parses as the type it loaded as, Save and Preview are both disabled and a short message says why. Loading fresh JSON clears the block. With `validate-types` off the form always reports itself valid, so nothing changes for hosts that do not use it.
 
 ---
 
@@ -122,7 +152,8 @@ The component is exposed to `lightning__FlowScreen` as **File and JSON Review**.
 2. Add a **Screen** element, drop **File and JSON Review** on it:
     - **Content Document Id** ← the file's `069…` id (e.g., from `ContentDocumentLink` on `Document__c`),
     - **Source JSON** ← `varOcrJson`,
-    - optionally **Height** / **Save Button Label**, and **Allow field names to be edited** if reviewers should be able to rename keys (off by default).
+    - optionally **Height** / **Save Button Label**, and any of the reviewing capabilities — **Allow field names to be edited**, **Allow fields to be added and deleted**, **Allow groups to be collapsed**, **Show a search box**, **Show extraction confidence** (with **Low confidence below**) and **Flag values of the wrong type**. All are off by default; switch on only what that screen needs.
+    - optionally **Mapping Set for Preview**, the DeveloperName of an `IDP_Mapping_Set__mdt`, to give reviewers a Preview button that shows what saving would change. Leave it blank and no preview is offered.
 3. After the screen: read **Modified JSON** (`jsonOutput`) into a variable and use an **Update Records** element to write it to your JSON field on `Document__c` (e.g., `Curated_Json__c`, a Long Text Area sized for your payloads).
 
 > `jsonOutput` is updated on every keystroke _and_ on Save, so it is current regardless of how the user exits the screen (Next, Finish, custom footer).
@@ -144,6 +175,10 @@ _Figure 3 — Screen Flow wiring (placeholder)._
     content-document-id="{documentId}"
     json-input="{ocrJson}"
     submit-label="Confirm extraction"
+    edit-structure
+    searchable
+    validate-types
+    mapping-set-name="Estate_Intake"
     onjsonsubmit="{handleJsonSubmit}"
 ></c-file-json-review>
 ```
@@ -221,7 +256,7 @@ Salesforce serves `.mjs` static-resource files as `application/octet-stream`, an
 
 ### 7.1 What to deploy
 
-The five components from §3. With this repo:
+The six components from §3. With this repo:
 
 ```sh
 sf org login web -a targetOrg
@@ -245,6 +280,7 @@ Or with a `package.xml`:
     <types>
         <members>FilePreviewController</members>
         <members>FilePreviewControllerTest</members>
+        <members>IdpMappingController</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -254,6 +290,9 @@ Or with a `package.xml`:
     <version>66.0</version>
 </Package>
 ```
+
+> `IdpMappingController` is imported statically by `fileJsonReview`, so it is required even in an org that never uses the Preview button — the component will not compile without it. It in turn needs the rest of the engine (`IdpMappingEngine`, `IdpConfigLoader`, the value types, the `IDP_*` custom metadata types and their tests). Naming every one of them in a manifest is tedious and easy to get wrong, so prefer the `--source-dir force-app/idp/main` deploy above, which takes the engine and the components together.
+
 
 For **production**, run local tests as part of the deploy (`FilePreviewControllerTest` provides the coverage):
 

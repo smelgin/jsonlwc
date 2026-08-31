@@ -2,6 +2,11 @@ import { LightningElement, api } from 'lwc';
 import { ShowToastEvent } from 'lightning/platformShowToastEvent';
 import apply from '@salesforce/apex/IdpMappingController.apply';
 import preview from '@salesforce/apex/IdpMappingController.preview';
+import {
+    toPlannedRows,
+    toMismatchRows,
+    toFindingItems
+} from 'c/idpResultFormat';
 
 const SAMPLE_JSON = {
     applicant: {
@@ -201,13 +206,7 @@ export default class FileJsonReviewMappingDemo extends LightningElement {
     }
 
     get plannedRows() {
-        return (this.lastResult?.plannedChanges || []).map((change, index) => ({
-            key: `${change.recordId}-${change.fieldName}-${index}`,
-            field: `${change.objectName}.${change.fieldName}`,
-            oldValue: change.oldValue === null ? '(blank)' : change.oldValue,
-            newValue: change.newValue,
-            grade: change.grade
-        }));
+        return toPlannedRows(this.lastResult);
     }
 
     get hasPlannedRows() {
@@ -215,36 +214,16 @@ export default class FileJsonReviewMappingDemo extends LightningElement {
     }
 
     get mismatchRows() {
-        return this.mismatchFindings(this.lastResult || {}).map((f, index) => ({
-            key: `${f.recordId}-${f.fieldName}-${index}`,
-            field: `${f.objectName}.${f.fieldName}`,
-            stored: f.storedValue === null ? '(blank)' : f.storedValue,
-            extracted: f.extractedValue,
-            outcome: f.compareOutcome,
-            jsonPath: f.jsonPath
-        }));
+        return toMismatchRows(this.lastResult);
     }
 
     get hasMismatches() {
         return this.mismatchRows.length > 0;
     }
 
+    // Mismatches stay out of this list: they are rendered as rows above.
     get problemFindings() {
-        return (this.lastResult?.findings || [])
-            .filter(
-                (f) =>
-                    f.code !== 'VALUE_MISMATCH' &&
-                    f.code !== 'VALUE_NEAR' &&
-                    f.severity !== 'Info'
-            )
-            .map((f, index) => ({
-                key: `${f.code}-${index}`,
-                label: `${f.code}: ${f.message}`,
-                cssClass:
-                    f.severity === ERROR
-                        ? 'slds-text-color_error'
-                        : 'slds-text-color_weak'
-            }));
+        return toFindingItems(this.lastResult, { includeMismatches: false });
     }
 
     get hasProblemFindings() {
