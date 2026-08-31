@@ -11,6 +11,7 @@ this JSON is the thing the engine obeys.
 **Contents**
 
 - [Where the configuration lives](#where-the-configuration-lives)
+- [Adding a new document type](#adding-a-new-document-type)
 - [The shape of it](#the-shape-of-it)
 - [Sections — regions of a document](#sections--regions-of-a-document)
 - [Rules — one field each](#rules--one-field-each)
@@ -18,6 +19,7 @@ this JSON is the thing the engine obeys.
 - [Common jobs](#common-jobs)
 - [When something is wrong](#when-something-is-wrong)
 - [Rules of thumb](#rules-of-thumb)
+- [Recipes](#recipes)
 
 ## Where the configuration lives
 
@@ -54,6 +56,52 @@ the same definition as raw text for bulk edits and copying between orgs —
 switching back to Rules re-reads whatever is there. Everything the rest of
 this manual describes is what the form writes for you, so it is still worth
 knowing what each key means.
+
+## Adding a new document type
+
+Everything above is about editing an **existing** IDP Mapping Set's
+Definition. The Configurator's Save button only updates a record that
+already exists — it has no "create" button, on purpose: a new mapping set
+is a new custom metadata record, and that first record has to be created in
+Setup once. After that, it behaves exactly like every other document type
+described in this manual.
+
+1. **Setup → Custom Metadata Types → IDP Mapping Set → Manage Records → New.**
+   Fill in:
+
+    | Field                            | What to put                                                                                                                                                                                                 |
+    | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | `Label` / `IDP Mapping Set Name` | A human label and a DeveloperName — pick the DeveloperName carefully, it is the identity every caller (Flow, LWC, batch) uses to run this document type, and renaming it later means updating every caller. |
+    | `Active__c`                      | Checked. An inactive set behaves as if it does not exist.                                                                                                                                                   |
+    | `Default_Mode__c`                | `Extraction`, `Compliance` or `Preview` — the mode a run uses when nobody names one explicitly. `Extraction` is the usual choice.                                                                           |
+    | `Definition__c`                  | `{"sections": []}` to start. You will fill this in from the Configurator next, not here — hand-writing is the escape hatch, not the front door.                                                             |
+    | `JSON_Source_Field__c`           | Leave blank unless this document type will run from `IdpBatchProcessor`. If it will, `Object.Field` naming the long-text field that holds the stored JSON, e.g. `Case.Extracted_JSON__c`.                   |
+    | `Processed_Marker_Field__c`      | Leave blank unless batching. A Datetime field on the same object as `JSON_Source_Field__c`, stamped after a document runs so a rerun of the batch skips it.                                                 |
+    | `Finding_Handler__c`             | Leave blank unless a Compliance run should notify someone automatically. Apex class name implementing `IIdpFindingHandler`.                                                                                 |
+    | `Description__c`                 | What this document type is, for the list in the Configurator. Not read by the engine.                                                                                                                       |
+
+    Only `Label`, the DeveloperName, `Active__c` and `Definition__c` are
+    needed to get started; the rest can be added later without touching what
+    is already configured.
+
+2. **App Launcher → IDP Configuration.** The new document type now appears
+   in the left-hand list — empty, with no sections. From here on, use the
+   Rules tab (or the Advanced tab) exactly as described in the rest of this
+   manual: **Add section**, fill in the target object, **Add rule** per
+   field, **Check**, **Save**.
+
+3. **Point a file or a record at it.** The mapping set is only reachable
+   once something calls it by name — `IdpMappingController.apply()` /
+   `preview()` from `fileJsonReview`, the `Apply IDP Mapping Set` invocable
+   from Flow, or `IdpBatchProcessor` if you filled in `JSON_Source_Field__c`.
+   None of that is configuration; see
+   [IDP_MAPPING.md](IDP_MAPPING.md) for how each caller is wired up.
+
+New document types are also just files: everything in
+`force-app/idp/examples/*/customMetadata` is a real `IDP_Mapping_Set__mdt`
+record checked into source, so copying one of those and changing the
+DeveloperName, the sections and the target objects is usually faster than
+starting from an empty Definition.
 
 ## The shape of it
 
@@ -339,6 +387,152 @@ its field is unknown.
   phone numbers are parsed and graded properly by the value type layer; a rule
   that writes raw text into a Date field is a rule that will fail on the first
   document written in another format.
+
+## Recipes
+
+Three worked examples, start to finish. Each one is a job you would actually
+be asked to do, not a feature tour.
+
+### Recipe 1 — Onboard a new document type from scratch
+
+**The ask:** "We get a Proof of Address as a PDF. It has an address and an
+issue date. Put it on the Case."
+
+1. **Setup → Custom Metadata Types → IDP Mapping Set → New** (see
+   [Adding a new document type](#adding-a-new-document-type)):
+    - `Label`: `Proof of Address`
+    - DeveloperName: `Proof_Of_Address`
+    - `Active__c`: checked
+    - `Default_Mode__c`: `Extraction`
+    - `Definition__c`: `{"sections": []}`
+2. **App Launcher → IDP Configuration**, select **Proof of Address**,
+   **Add section**:
+    - Name: `Address_Details`, Region type: `Fixed`, Fills in: `Case`
+3. **Add rule** twice:
+    ```json
+    {
+        "name": "POA_Address",
+        "jsonPath": "document.address",
+        "targetField": "Description",
+        "overwritePolicy": "Only if blank"
+    }
+    ```
+    ```json
+    {
+        "name": "POA_Issue_Date",
+        "jsonPath": "document.issueDate",
+        "targetField": "Application_Signed_Date__c",
+        "valueTypeName": "AO_Date_ZA"
+    }
+    ```
+    (Reusing an existing value type — `AO_Date_ZA` from the
+    [business-account-opening example](force-app/idp/examples/business-account-opening) —
+    rather than inventing a new one for the same date format. One value type
+    can serve every document type that shares its formatting.)
+4. **Check.** Fix anything it names — a typo in `targetField` is the usual
+   culprit.
+5. **Save.** Wait for "Saved" in the status pill; it is a metadata
+   deployment, not an instant write.
+6. Try it: paste a sample `{"document": {"address": "12 Long St, Cape
+Town", "issueDate": "04/03/2026"}}` into `fileJsonReview`'s Source JSON
+   against a Case with a linked file, and confirm the fields land.
+
+### Recipe 2 — Stop losing unmatched invoice lines: create instead of report
+
+**The ask:** "Consolidated Statement" (see the
+[example](force-app/idp/examples/consolidated-statement)) reports a
+`ROW_UNMATCHED` finding whenever the statement lists a product the org has
+no `Asset` for yet — a new account the customer opened since the last
+statement. The admin wants those rows created instead of just flagged.
+
+This is **ENG-2** — added recently, so the section-level key may be new to
+you even if you know the rest of the engine.
+
+1. Open the **Consolidated_Statement** mapping set, find the
+   **Consolidated_Statement_Holdings** section (Repeating, target `Asset`).
+2. On the **Advanced** tab (there is no form control for this key yet —
+   type it directly), add one key to the section:
+    ```json
+    {
+        "name": "Consolidated_Statement_Holdings",
+        "sectionType": "Repeating",
+        "targetObject": "Asset",
+        "rowPath": "holdings",
+        "matchField": "Product_Account_Number__c",
+        "matchValue": "{row:accountNumber}",
+        "recordFilter": "Account_Status__c != 'Closed'",
+        "parentSection": "Consolidated_Statement_Header",
+        "unmatchedRows": "Create",
+        "rules": [/* unchanged */]
+    }
+    ```
+3. **Check**, then **Save**.
+4. Run **Preview** against a statement with a product the org does not
+   have yet. The unmatched row now appears in `plannedChanges` with
+   `isNew: true` instead of only in `unmatchedRowKeys` — the plan is honest
+   about what will be created before anyone commits to it.
+5. Run for real. The created row's `Result.rowsCreated` and
+   `createdRecordIds` account for it, and a `ROW_CREATED` finding replaces
+   the `ROW_UNMATCHED` one.
+
+Worth remembering: this only fires in Extraction (Preview reports it,
+Compliance never creates), and a row the database refuses — a missing
+required field on `Asset`, say — comes back as a `DML_FAILED` finding
+instead of silently vanishing.
+
+### Recipe 3 — Weight the fields that matter for a document confidence score
+
+**The ask:** "Letters of Executorship" (see the
+[example](force-app/idp/examples/letters-of-executorship)) extracts nine
+fields. Compliance wants one number per document saying how much to trust
+the OCR, weighted toward the fields that actually matter — the estate
+number most of all — not toward whichever field happened to have the
+clearest handwriting.
+
+This is **ENG-9** — the `confidenceWeight` rule key and
+`Result.documentConfidence`, both added recently.
+
+1. Open the **Letters_Of_Executorship** mapping set. On the rule for
+   `letters.estateNumber` (the estate's identity — weight it highest), add:
+    ```json
+    { "confidenceWeight": 3 }
+    ```
+2. On the two identity-number rules (`executor.identityNumber`,
+   `deceased.identityNumber`) and the two date rules
+   (`letters.issuedDate`, `deceased.dateOfDeath`), add lighter weights:
+    ```json
+    { "confidenceWeight": 2 }
+    ```
+    ```json
+    { "confidenceWeight": 1 }
+    ```
+    Leave the name and picklist rules unweighted — they are easy for a
+    human to eyeball, so their OCR confidence is not what should decide
+    whether someone looks twice.
+3. **Check**, **Save**.
+4. Feed the engine JSON where the weighted paths carry confidence
+   envelopes:
+    ```json
+    {
+        "letters": {
+            "estateNumber": { "value": "004521/2026", "confidence": 0.98 },
+            "issuedDate": { "value": "08/04/2026", "confidence": 0.91 }
+        }
+    }
+    ```
+    `Result.documentConfidence` comes back as the weighted average —
+    `Σ(weight × confidence) / Σ(weight)` — of every weighted field that
+    carried a confidence. A weighted field the document does not annotate
+    is excluded from both sums, not counted as 0, so a service that only
+    annotates some fields does not tank the score by itself.
+5. Feed it a plain document with no confidence envelopes at all, and
+   `documentConfidence` comes back **null**, not zero — "no score" and "a
+   bad score" have to stay distinguishable, or a null gets misread as a
+   failing document.
+
+The full worked version — six rules, one confidence-annotated sample file,
+and the arithmetic spelled out — is in
+[the example's README](force-app/idp/examples/letters-of-executorship/README.md#the-document-confidence-score).
 
 ## Related documents
 
