@@ -49,3 +49,6 @@ $RECYCLE.BIN/
 **/__pycache__/
 **/.venv/
 **/venv/
+
+# IDP Configuration Builder — kept local until the repo can go private
+force-app/idp/main/config/
