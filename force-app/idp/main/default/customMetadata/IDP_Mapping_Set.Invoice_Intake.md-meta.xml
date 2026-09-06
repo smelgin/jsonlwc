@@ -28,43 +28,6 @@
     </values>
     <values>
         <field>Definition__c</field>
-        <value xsi:type="xsd:string">{
-  "sections": [
-    {
-      "name": "Invoice_Intake_Lines",
-      "label": "Invoice Intake: Lines",
-      "sectionType": "Repeating",
-      "targetObject": "Asset",
-      "rowPath": "Details",
-      "matchField": "SerialNumber",
-      "matchValue": "INV-{json:Invoice}-{row:number}",
-      "rowScope": "None",
-      "rules": [
-        {
-          "name": "Invoice_Intake_Line_Description",
-          "label": "Invoice Intake: Line Description",
-          "jsonPath": "Description",
-          "targetField": "Name",
-          "overwritePolicy": "Always"
-        },
-        {
-          "name": "Invoice_Intake_Line_Quantity",
-          "label": "Invoice Intake: Line Quantity",
-          "jsonPath": "Quantity",
-          "targetField": "Quantity",
-          "overwritePolicy": "Always"
-        },
-        {
-          "name": "Invoice_Intake_Line_Subtotal",
-          "label": "Invoice Intake: Line Subtotal",
-          "jsonPath": "Subtotal",
-          "targetField": "Price",
-          "valueTypeName": "Money",
-          "overwritePolicy": "Always"
-        }
-      ]
-    }
-  ]
-}</value>
+        <value xsi:type="xsd:string">{"sections":[{"name":"Invoice_Intake_Lines","label":"Invoice Intake: Lines","sectionType":"Repeating","targetObject":"Asset","rowPath":"Details","matchField":"SerialNumber","matchValue":"INV-{json:Invoice}-{row:number}","rowScope":"None","rules":[{"name":"Invoice_Intake_Line_Description","label":"Invoice Intake: Line Description","jsonPath":"Description","targetField":"Name","overwritePolicy":"Always"},{"name":"Invoice_Intake_Line_Quantity","label":"Invoice Intake: Line Quantity","jsonPath":"Quantity","targetField":"Quantity","overwritePolicy":"Always"},{"name":"Invoice_Intake_Line_Subtotal","label":"Invoice Intake: Line Subtotal","jsonPath":"Subtotal","targetField":"Price","valueTypeName":"Money","overwritePolicy":"Always"}]}]}</value>
     </values>
 </CustomMetadata>

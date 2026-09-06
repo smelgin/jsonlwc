@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sample_Document__c</fullName>
+    <label>Sample Document</label>
+    <type>LongTextArea</type>
+    <length>131072</length>
+    <visibleLines>10</visibleLines>
+    <required>false</required>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>One extraction result for this document type, kept so the Configuration Builder can show the wiring against a real shape rather than an empty canvas. It deploys with the metadata and is readable by anyone who can open the configuration page, so it must hold redacted or synthetic values, never a real customer&apos;s document.</description>
+</CustomField>
