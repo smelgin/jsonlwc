@@ -18,6 +18,17 @@ public inherited sharing class IdpDmlExecutor {
   private List<String> insertOrder = new List<String>();
   private Map<String, SObject> pendingInserts = new Map<String, SObject>();
   private Map<String, List<Contribution>> insertContributors = new Map<String, List<Contribution>>();
+  private List<BackLink> backLinks = new List<BackLink>();
+
+  /** A lookup on an existing record that must point at a record this run
+   *  creates — resolvable only once the insert has handed out an Id. */
+  private class BackLink {
+    public String dedupeKey;
+    public IdpResult.Result result;
+    public Schema.SObjectType sourceType;
+    public Id sourceId;
+    public String fieldName;
+  }
 
   private class Contribution {
     public IdpResult.Result result;
@@ -98,7 +109,40 @@ public inherited sharing class IdpDmlExecutor {
     return record;
   }
 
-  /** At most one partial-success insert, then one partial-success update. */
+  /**
+   * Queues "sourceId.fieldName = the Id of the record staged under
+   * dedupeKey" — how a created anchor reached by a parent hop gets linked
+   * from its source (Case.Person_Account__c → the new Account). The write
+   * joins the run's single update after the insert lands; a failed insert
+   * simply leaves the lookup untouched.
+   */
+  public void stageBackLink(
+    String dedupeKey,
+    IdpResult.Result result,
+    Schema.SObjectType sourceType,
+    Id sourceId,
+    String fieldName
+  ) {
+    for (BackLink existing : backLinks) {
+      if (
+        existing.dedupeKey == dedupeKey &&
+        existing.sourceId == sourceId &&
+        existing.fieldName == fieldName
+      ) {
+        return;
+      }
+    }
+    BackLink link = new BackLink();
+    link.dedupeKey = dedupeKey;
+    link.result = result;
+    link.sourceType = sourceType;
+    link.sourceId = sourceId;
+    link.fieldName = fieldName;
+    backLinks.add(link);
+  }
+
+  /** At most one partial-success insert, then one partial-success update
+   *  (which carries any back-links the insert made resolvable). */
   public void flush() {
     flushInserts();
     flushUpdates();
@@ -121,8 +165,12 @@ public inherited sharing class IdpDmlExecutor {
 
     List<SObject> writable = decision.getRecords();
     List<Database.SaveResult> saveResults = Database.insert(writable, false);
+    Map<String, Id> createdIds = new Map<String, Id>();
     for (Integer i = 0; i < saveResults.size(); i++) {
       String objectName = writable[i].getSObjectType().getDescribe().getName();
+      if (saveResults[i].isSuccess()) {
+        createdIds.put(insertOrder[i], saveResults[i].getId());
+      }
       for (Contribution contribution : insertContributors.get(insertOrder[i])) {
         if (saveResults[i].isSuccess()) {
           Id recordId = saveResults[i].getId();
@@ -169,6 +217,20 @@ public inherited sharing class IdpDmlExecutor {
         }
       }
     }
+    for (BackLink link : backLinks) {
+      Id createdId = createdIds.get(link.dedupeKey);
+      if (createdId != null) {
+        stage(
+          link.result,
+          link.sourceType,
+          link.sourceId,
+          link.fieldName,
+          createdId,
+          false
+        );
+      }
+    }
+    backLinks.clear();
     insertOrder.clear();
     pendingInserts.clear();
     insertContributors.clear();

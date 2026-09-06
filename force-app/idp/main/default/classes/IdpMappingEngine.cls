@@ -21,10 +21,17 @@
  * repeating section creates the rows no record matched, and whenNoAnchor:
  * "Create" on a fixed section creates its missing anchor.
  *
+ * Sections reach their record either implicitly — the resolver walks
+ * the schema along the one lookup that joins two objects — or explicitly,
+ * with reachFrom / via naming the anchor and the lookup to follow, which
+ * is how two sections address two different Accounts of one Case. An
+ * object joined to a resolved record by several lookups is never guessed
+ * at: the section gets an AMBIGUOUS_RELATIONSHIP finding naming them.
+ *
  * Cost model: one ContentDocumentLink query for the run, grouped anchor
- * queries per object, one query per repeating section group, and at most
- * one insert plus one update DML — query count does not scale with rule
- * or row count.
+ * queries per object (or per explicit section), one query per repeating
+ * section group, and at most one insert plus one update DML — query count
+ * does not scale with rule or row count.
  */
 public inherited sharing class IdpMappingEngine {
   public static final String MODE_EXTRACTION = 'Extraction';
@@ -136,12 +143,10 @@ public inherited sharing class IdpMappingEngine {
       return results;
     }
 
-    Map<String, IdpContextResolver.AnchorSpec> requests = buildAnchorRequests(
-      config
-    );
+    IdpContextResolver.Plan plan = buildPlan(config);
     Integer estimate =
       BASE_QUERIES +
-      requests.size() * QUERIES_PER_ANCHOR +
+      plan.size() * QUERIES_PER_ANCHOR +
       config.sections.size();
     if (!IdpLimitsGuard.hasQueryHeadroom(estimate)) {
       for (DocumentWork work : eligible) {
@@ -163,13 +168,20 @@ public inherited sharing class IdpMappingEngine {
       work.context.jsonRoot = work.root;
       contexts.add(work.context);
     }
-    IdpContextResolver.resolveAll(contexts, requests);
+    IdpContextResolver.resolveAll(contexts, plan);
 
     IdpDmlExecutor executor = new IdpDmlExecutor();
     for (DocumentWork work : eligible) {
       for (IdpConfigLoader.SectionConfig section : config.sections) {
         if (!section.repeating) {
-          processFixedSection(section, work, runMode, previewing, executor);
+          processFixedSection(
+            section,
+            config,
+            work,
+            runMode,
+            previewing,
+            executor
+          );
         }
       }
     }
@@ -202,6 +214,7 @@ public inherited sharing class IdpMappingEngine {
 
   private static void processFixedSection(
     IdpConfigLoader.SectionConfig section,
+    IdpConfigLoader.SetConfig config,
     DocumentWork work,
     String runMode,
     Boolean previewing,
@@ -210,26 +223,21 @@ public inherited sharing class IdpMappingEngine {
     if (section.rules.isEmpty()) {
       return;
     }
-    SObject anchor = work.context.anchors.get(section.targetObject);
+    SObject anchor = anchorFor(section, work.context);
     if (anchor == null) {
+      SObject source = section.reachFrom == null
+        ? null
+        : work.context.anchorFor(sourceKeyFor(section, config));
       if (
         section.noAnchorPolicy == POLICY_CREATE &&
-        runMode != MODE_COMPLIANCE
+        runMode != MODE_COMPLIANCE &&
+        (section.reachFrom == null ||
+        source != null)
       ) {
-        createAnchor(section, work, runMode, previewing, executor);
+        createAnchor(section, source, work, runMode, previewing, executor);
         return;
       }
-      IdpResult.Finding finding = work.result.add(
-        IdpResult.CODE_UNREACHABLE_TARGET,
-        IdpResult.SEV_ERROR,
-        'No ' +
-          section.targetObject +
-          ' record is reachable from this document — section ' +
-          section.name +
-          ' was skipped.'
-      );
-      finding.objectName = section.targetObject;
-      finding.sectionName = section.name;
+      reportUnreachable(section, source, work);
       return;
     }
     for (IdpConfigLoader.RuleConfig rule : section.rules) {
@@ -248,32 +256,127 @@ public inherited sharing class IdpMappingEngine {
   }
 
   /**
+   * The reason a fixed section has no record, as a finding: an explicit
+   * path names the hop that came up empty; an implicit target that the
+   * walk declined to guess at is AMBIGUOUS_RELATIONSHIP with the
+   * candidates; anything else is plain UNREACHABLE_TARGET.
+   */
+  private static void reportUnreachable(
+    IdpConfigLoader.SectionConfig section,
+    SObject source,
+    DocumentWork work
+  ) {
+    String code = IdpResult.CODE_UNREACHABLE_TARGET;
+    String message;
+    String ambiguity = work.context.ambiguities.get(section.targetObject);
+    if (section.reachFrom != null && source == null) {
+      message =
+        'Section ' +
+        section.name +
+        ' reaches ' +
+        section.targetObject +
+        ' from "' +
+        section.reachFrom +
+        '", which was not resolved for this document; the section was skipped.';
+    } else if (section.reachFrom != null) {
+      message =
+        'No ' +
+        section.targetObject +
+        ' record is reachable from ' +
+        section.sourceObject +
+        ' via ' +
+        section.relationshipField +
+        (section.childHop
+          ? ' (no such child record)'
+          : ' (the lookup is empty, or points at a record you cannot see)') +
+        ' — section ' +
+        section.name +
+        ' was skipped.';
+    } else if (ambiguity != null) {
+      code = IdpResult.CODE_AMBIGUOUS_RELATIONSHIP;
+      message =
+        'Section ' +
+        section.name +
+        ' targets ' +
+        section.targetObject +
+        ', which this document reaches only through an ambiguous ' +
+        'relationship: ' +
+        ambiguity +
+        '. Set reachFrom and via on the section to choose one; nothing was guessed.';
+    } else {
+      message =
+        'No ' +
+        section.targetObject +
+        ' record is reachable from this document — section ' +
+        section.name +
+        ' was skipped.';
+    }
+    IdpResult.Finding finding = work.result.add(
+      code,
+      IdpResult.SEV_ERROR,
+      message
+    );
+    finding.objectName = section.targetObject;
+    finding.sectionName = section.name;
+  }
+
+  /**
    * whenNoAnchor: "Create" (ENG-3) — builds the missing anchor in memory,
-   * links it to the first resolved record it looks up to, applies the
-   * section's Extraction rules onto it and stages it for the run's single
-   * insert. Compliance rules are skipped: there is nothing to compare on a
-   * record that does not exist yet. A created anchor is not added to the
-   * document's anchor map, so rows cannot hang off it within the same run.
+   * links it to its source, applies the section's Extraction rules onto
+   * it and stages it for the run's single insert. The link follows the
+   * section's relationship: a child hop writes the lookup on the new
+   * record; a parent hop stages a back-link that sets the source's
+   * lookup once the insert has an Id; an implicit section links to the
+   * first resolved record with a single lookup to it. Compliance rules
+   * are skipped: there is nothing to compare on a record that does not
+   * exist yet. A created anchor is not added to the document's anchor
+   * map, so rows cannot hang off it within the same run.
    */
   private static void createAnchor(
     IdpConfigLoader.SectionConfig section,
+    SObject source,
     DocumentWork work,
     String runMode,
     Boolean previewing,
     IdpDmlExecutor executor
   ) {
     String objectName = section.targetObject;
-    String dedupeKey = 'anchor|' + objectName + '|' + work.docIndex;
+    String dedupeKey =
+      'anchor|' +
+      objectName +
+      '|' +
+      (section.reachFrom == null ? '' : section.name) +
+      '|' +
+      work.docIndex;
     SObject record = executor.stagedInsert(dedupeKey);
     if (record == null) {
       record = IdpSchemaCache.typeOf(objectName).newSObject();
-      List<String> anchored = new List<String>(work.context.anchors.keySet());
-      anchored.sort();
-      for (String candidate : anchored) {
-        String lookup = IdpSchemaCache.findLookupTo(objectName, candidate);
-        if (lookup != null) {
-          record.put(lookup, work.context.anchors.get(candidate).Id);
-          break;
+      String linkNote = '';
+      if (section.reachFrom != null && section.childHop) {
+        record.put(section.relationshipField, source.Id);
+      } else if (section.reachFrom != null) {
+        executor.stageBackLink(
+          dedupeKey,
+          work.result,
+          source.getSObjectType(),
+          source.Id,
+          section.relationshipField
+        );
+        linkNote =
+          ' and point ' +
+          section.sourceObject +
+          '.' +
+          section.relationshipField +
+          ' at it';
+      } else {
+        List<String> anchored = new List<String>(work.context.anchors.keySet());
+        anchored.sort();
+        for (String candidate : anchored) {
+          String lookup = IdpSchemaCache.findLookupTo(objectName, candidate);
+          if (lookup != null) {
+            record.put(lookup, work.context.anchors.get(candidate).Id);
+            break;
+          }
         }
       }
       if (previewing) {
@@ -284,7 +387,9 @@ public inherited sharing class IdpMappingEngine {
             section.name +
             ' would create a ' +
             objectName +
-            ' record (whenNoAnchor is "Create").'
+            ' record' +
+            linkNote +
+            ' (whenNoAnchor is "Create").'
         );
         planned.objectName = objectName;
         planned.sectionName = section.name;
@@ -475,22 +580,65 @@ public inherited sharing class IdpMappingEngine {
       return null;
     }
 
-    // Rows are constrained to the resolved parent record where a lookup
-    // exists, so a key unique only within one account cannot reach
-    // another account's rows.
-    String parentObject = parentObjectFor(
-      section,
-      config,
-      work.context.anchors
-    );
-    if (parentObject != null) {
-      docRows.lookupField = IdpSchemaCache.findLookupTo(
-        section.targetObject,
-        parentObject
-      );
-      if (docRows.lookupField != null) {
-        docRows.parentId = work.context.anchors.get(parentObject).Id;
+    if (section.unscopedRows) {
+      return docRows; // rowScope: "None" — keys stand on their own
+    }
+    // Rows are constrained to their parent record, so a key unique only
+    // within one account cannot reach another account's rows.
+    if (section.reachFrom != null) {
+      SObject parent = work.context.anchorFor(sourceKeyFor(section, config));
+      if (parent == null) {
+        IdpResult.Finding finding = work.result.add(
+          IdpResult.CODE_ROW_LOOKUP_FAILED,
+          IdpResult.SEV_ERROR,
+          label +
+            ': rows are scoped to "' +
+            section.reachFrom +
+            '", which was not resolved for this document; the rows were skipped.'
+        );
+        finding.sectionName = section.name;
+        return null;
       }
+      docRows.lookupField = section.relationshipField;
+      docRows.parentId = parent.Id;
+      return docRows;
+    }
+    // No reachFrom: the first anchored object (sorted, so deterministic)
+    // the row object has exactly one lookup to. Several lookups to an
+    // anchored object and no single-lookup alternative is an ambiguity
+    // to report, not a reason to run the rows unscoped.
+    List<String> anchored = new List<String>(work.context.anchors.keySet());
+    anchored.sort();
+    List<String> ambiguous = new List<String>();
+    for (String candidate : anchored) {
+      List<String> lookups = IdpSchemaCache.lookupsTo(
+        section.targetObject,
+        candidate
+      );
+      if (lookups.size() == 1) {
+        docRows.lookupField = lookups[0];
+        docRows.parentId = work.context.anchors.get(candidate).Id;
+        return docRows;
+      }
+      if (lookups.size() > 1) {
+        ambiguous.add(candidate + ' (' + String.join(lookups, ', ') + ')');
+      }
+    }
+    if (!ambiguous.isEmpty()) {
+      IdpResult.Finding finding = work.result.add(
+        IdpResult.CODE_AMBIGUOUS_RELATIONSHIP,
+        IdpResult.SEV_ERROR,
+        label +
+          ': ' +
+          section.targetObject +
+          ' rows could be scoped to a resolved record through several ' +
+          'lookups — ' +
+          String.join(ambiguous, '; ') +
+          '. Set reachFrom and via on the section to choose one; the rows were skipped.'
+      );
+      finding.sectionName = section.name;
+      finding.objectName = section.targetObject;
+      return null;
     }
     return docRows;
   }
@@ -801,79 +949,125 @@ public inherited sharing class IdpMappingEngine {
     }
   }
 
-  /** The object whose resolved record constrains a section's rows: the
-   *  declared Parent Section when given, otherwise the first anchored
-   *  object (sorted, so deterministic) the row object looks up to. */
-  private static String parentObjectFor(
+  // ─────────────────────────── plumbing ───────────────────────────
+
+  /** The record a section addresses: its own explicit anchor when it
+   *  declares a path, else the implicit anchor of its target object. */
+  private static SObject anchorFor(
     IdpConfigLoader.SectionConfig section,
-    IdpConfigLoader.SetConfig config,
-    Map<String, SObject> anchors
+    IdpContextResolver.DocContext context
   ) {
-    if (String.isNotBlank(section.parentSectionName)) {
-      for (IdpConfigLoader.SectionConfig candidate : config.sections) {
-        if (candidate.name == section.parentSectionName) {
-          return anchors.containsKey(candidate.targetObject)
-            ? candidate.targetObject
-            : null;
-        }
-      }
-      return null;
+    return section.reachFrom == null
+      ? context.anchors.get(section.targetObject)
+      : context.anchorsBySection.get(section.name);
+  }
+
+  /**
+   * The resolver key of the anchor a section is reached from: an explicit
+   * source section's name, an implicit source section's target object,
+   * or the root object named directly.
+   */
+  private static String sourceKeyFor(
+    IdpConfigLoader.SectionConfig section,
+    IdpConfigLoader.SetConfig config
+  ) {
+    if (!section.reachFromSection) {
+      return section.sourceObject;
     }
-    List<String> anchored = new List<String>(anchors.keySet());
-    anchored.sort();
-    for (String candidate : anchored) {
-      if (
-        IdpSchemaCache.findLookupTo(section.targetObject, candidate) != null
-      ) {
+    IdpConfigLoader.SectionConfig source = sectionNamed(
+      config,
+      section.reachFrom
+    );
+    if (source == null) {
+      return section.sourceObject;
+    }
+    return source.reachFrom == null ? source.targetObject : source.name;
+  }
+
+  private static IdpConfigLoader.SectionConfig sectionNamed(
+    IdpConfigLoader.SetConfig config,
+    String name
+  ) {
+    for (IdpConfigLoader.SectionConfig candidate : config.sections) {
+      if (candidate.name == name) {
         return candidate;
       }
     }
     return null;
   }
 
-  // ─────────────────────────── plumbing ───────────────────────────
-
-  /** The per-object anchor requests the resolver needs. */
-  private static Map<String, IdpContextResolver.AnchorSpec> buildAnchorRequests(
+  /**
+   * What the resolver must find: every fixed section as an implicit
+   * (per object) or explicit (per section) target, and every source a
+   * path starts from — resolved even when no rule writes to it.
+   */
+  private static IdpContextResolver.Plan buildPlan(
     IdpConfigLoader.SetConfig config
   ) {
-    Map<String, IdpContextResolver.AnchorSpec> requests = new Map<String, IdpContextResolver.AnchorSpec>();
+    IdpContextResolver.Plan plan = new IdpContextResolver.Plan();
+    plan.hubObject = config.hubObject;
     for (IdpConfigLoader.SectionConfig section : config.sections) {
-      if (!section.repeating) {
-        IdpContextResolver.AnchorSpec spec = specFor(
-          requests,
-          section.targetObject
-        );
-        for (IdpConfigLoader.RuleConfig rule : section.rules) {
-          spec.fields.add(rule.targetField);
-        }
-        if (UserInfo.isMultiCurrencyOrganization()) {
-          // The currency guard compares against the record's denomination;
-          // the resolver drops the field where an object lacks it.
-          spec.fields.add('CurrencyIsoCode');
-        }
-        if (String.isBlank(spec.filter)) {
-          spec.filter = String.isNotBlank(section.recordFilter)
-            ? section.recordFilter
-            : firstAnchorFilter(section);
-        }
-      } else if (String.isNotBlank(section.parentSectionName)) {
-        // A repeating section's rows hang off a parent record, so that
-        // parent must be resolved even when no rule writes to it.
-        for (IdpConfigLoader.SectionConfig candidate : config.sections) {
-          if (candidate.name == section.parentSectionName) {
-            IdpContextResolver.AnchorSpec spec = specFor(
-              requests,
-              candidate.targetObject
-            );
-            if (String.isBlank(spec.filter)) {
-              spec.filter = candidate.recordFilter;
-            }
-          }
-        }
+      if (section.reachFrom != null) {
+        ensureSource(plan, config, section);
+      }
+      if (section.repeating) {
+        continue;
+      }
+      IdpContextResolver.AnchorSpec spec;
+      if (section.reachFrom == null) {
+        spec = specFor(plan.byObject, section.targetObject);
+      } else {
+        spec = new IdpContextResolver.AnchorSpec();
+        spec.objectName = section.targetObject;
+        spec.sourceKey = sourceKeyFor(section, config);
+        spec.relationshipField = section.relationshipField;
+        spec.childHop = section.childHop;
+        plan.bySection.put(section.name, spec);
+        plan.sectionOrder.add(section.name);
+      }
+      for (IdpConfigLoader.RuleConfig rule : section.rules) {
+        spec.fields.add(rule.targetField);
+      }
+      if (UserInfo.isMultiCurrencyOrganization()) {
+        // The currency guard compares against the record's denomination;
+        // the resolver drops the field where an object lacks it.
+        spec.fields.add('CurrencyIsoCode');
+      }
+      if (String.isBlank(spec.filter)) {
+        spec.filter = String.isNotBlank(section.recordFilter)
+          ? section.recordFilter
+          : firstAnchorFilter(section);
       }
     }
-    return requests;
+    return plan;
+  }
+
+  /** A path's source must be anchored: an implicit source section joins
+   *  the per-object requests (with its filter); a root object named
+   *  directly is requested so the walk reaches it when it is not a root;
+   *  an explicit source section registers itself. */
+  private static void ensureSource(
+    IdpContextResolver.Plan plan,
+    IdpConfigLoader.SetConfig config,
+    IdpConfigLoader.SectionConfig section
+  ) {
+    if (!section.reachFromSection) {
+      specFor(plan.byObject, section.sourceObject);
+      return;
+    }
+    IdpConfigLoader.SectionConfig source = sectionNamed(
+      config,
+      section.reachFrom
+    );
+    if (source != null && source.reachFrom == null) {
+      IdpContextResolver.AnchorSpec spec = specFor(
+        plan.byObject,
+        source.targetObject
+      );
+      if (String.isBlank(spec.filter)) {
+        spec.filter = source.recordFilter;
+      }
+    }
   }
 
   private static IdpContextResolver.AnchorSpec specFor(
@@ -883,6 +1077,7 @@ public inherited sharing class IdpMappingEngine {
     IdpContextResolver.AnchorSpec spec = requests.get(objectName);
     if (spec == null) {
       spec = new IdpContextResolver.AnchorSpec();
+      spec.objectName = objectName;
       requests.put(objectName, spec);
     }
     return spec;

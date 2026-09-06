@@ -39,6 +39,9 @@ public inherited sharing class IdpConfigLoader {
     public String jsonSourceField;
     public String processedMarkerField;
     public String findingHandler;
+    /** Hub_Object__c: the object whose lookups are all followed when it is
+     *  a root; null means the resolver's default (Document__c). */
+    public String hubObject;
     public List<SectionConfig> sections = new List<SectionConfig>();
     public List<IdpResult.Finding> issues = new List<IdpResult.Finding>();
   }
@@ -52,7 +55,39 @@ public inherited sharing class IdpConfigLoader {
     public String matchField;
     public String matchValue;
     public String recordFilter;
+    /**
+     * Explicit navigation. reachFrom names the anchor this section's
+     * record is reached from — another Fixed section, or (when no section
+     * has that name) the API name of an object the walk anchors on its
+     * own: a root the file is linked to, or a hub parent. Null means the
+     * implicit walk reaches the target by the unique lookup it finds.
+     */
+    public String reachFrom;
+    /** True when reachFrom names a section rather than a root object. */
+    public Boolean reachFromSection = false;
+    /** Object of the record navigated from (set with reachFrom). */
+    public String sourceObject;
+    /** The lookup the hop follows, resolved at load time from `via` or —
+     *  when via is absent — the one lookup Describe finds between the two
+     *  objects. Set whenever reachFrom is. */
+    public String relationshipField;
+    /** True when the target holds the lookup back to the source (a child
+     *  hop: newest child wins; the only shape rows can have); false when
+     *  the source holds the lookup (a parent hop). */
+    public Boolean childHop = false;
+    /** reachFrom when it names a section — the older `parentSection` key
+     *  read the same way; kept for callers that still ask by that name. */
     public String parentSectionName;
+    /** rowScope: "None" — rows are matched by key alone, never scoped to
+     *  a parent record. */
+    public Boolean unscopedRows = false;
+    /** True for a hop the loader synthesised from a multi-segment `via`
+     *  (Case__c.AccountId): a rule-less Fixed section that only exists to
+     *  anchor the intermediate record. */
+    public Boolean synthetic = false;
+    /** The synthesised hops of this section, source-first; moved into
+     *  the set's section list once the path is validated. */
+    public List<SectionConfig> hops = new List<SectionConfig>();
     /** "Create" opts a repeating section into creating unmatched rows. */
     public String unmatchedRowPolicy;
     /** "Create" opts a fixed section into creating its missing anchor. */
@@ -93,6 +128,7 @@ public inherited sharing class IdpConfigLoader {
     public String jsonSourceField;
     public String processedMarkerField;
     public String findingHandler;
+    public String hubObject;
     public String definitionJson;
     public Boolean active = true;
   }
@@ -111,7 +147,12 @@ public inherited sharing class IdpConfigLoader {
     public String matchField;
     public String matchValue;
     public String recordFilter;
+    /** Older name for reachFrom; either key is accepted. */
     public String parentSection;
+    public String reachFrom;
+    public String via;
+    public String hop;
+    public String rowScope;
     public String unmatchedRows;
     public String whenNoAnchor;
     public Boolean active = true;
@@ -212,6 +253,7 @@ public inherited sharing class IdpConfigLoader {
     config.jsonSourceField = rawSet.jsonSourceField;
     config.processedMarkerField = rawSet.processedMarkerField;
     config.findingHandler = rawSet.findingHandler;
+    config.hubObject = hubObjectFor(rawSet.hubObject, config);
 
     return assembleSections(
       parseDefinition(definitionJson, config),
@@ -241,24 +283,7 @@ public inherited sharing class IdpConfigLoader {
         kept.add(raw);
       }
     }
-    // Parent references must point at surviving sections.
-    for (SectionConfig section : config.sections) {
-      if (
-        String.isNotBlank(section.parentSectionName) &&
-        !sectionsByName.containsKey(section.parentSectionName)
-      ) {
-        issue(
-          config,
-          IdpResult.SEV_WARNING,
-          'Section ' +
-            section.name +
-            ' names unknown or inactive parent section "' +
-            section.parentSectionName +
-            '"; the parent constraint was dropped.'
-        );
-        section.parentSectionName = null;
-      }
-    }
+    resolveNavigation(config, sectionsByName, kept);
 
     loadReferencedValueTypes(kept, valueTypes);
     for (RawSection raw : kept) {
@@ -336,11 +361,20 @@ public inherited sharing class IdpConfigLoader {
     'matchValue',
     'recordFilter',
     'parentSection',
+    'reachFrom',
+    'via',
+    'hop',
+    'rowScope',
     'unmatchedRows',
     'whenNoAnchor',
     'active',
     'rules'
   };
+
+  public static final String HOP_PARENT = 'Parent';
+  public static final String HOP_CHILD = 'Child';
+  public static final String ROW_SCOPE_PARENT = 'Parent';
+  public static final String ROW_SCOPE_NONE = 'None';
 
   private static final Set<String> RULE_KEYS = new Set<String>{
     'name',
@@ -442,7 +476,6 @@ public inherited sharing class IdpConfigLoader {
     section.matchField = bareField(raw.matchField);
     section.matchValue = raw.matchValue;
     section.recordFilter = raw.recordFilter;
-    section.parentSectionName = raw.parentSection;
 
     if (String.isBlank(section.name)) {
       issue(
@@ -506,6 +539,26 @@ public inherited sharing class IdpConfigLoader {
       );
       return null;
     }
+    if (
+      String.isNotBlank(raw.reachFrom) &&
+      String.isNotBlank(raw.parentSection) &&
+      raw.reachFrom != raw.parentSection
+    ) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Section ' +
+          section.name +
+          ' sets both reachFrom ("' +
+          raw.reachFrom +
+          '") and parentSection ("' +
+          raw.parentSection +
+          '"), which mean the same thing; reachFrom was used.'
+      );
+    }
+    section.reachFrom = String.isNotBlank(raw.reachFrom)
+      ? raw.reachFrom.trim()
+      : String.isBlank(raw.parentSection) ? null : raw.parentSection.trim();
     section.unmatchedRowPolicy = creationPolicy(
       raw.unmatchedRows,
       'unmatchedRows',
@@ -520,6 +573,7 @@ public inherited sharing class IdpConfigLoader {
       section.name,
       config
     );
+    section.unscopedRows = rowScopePolicy(raw.rowScope, section, config);
     return section;
   }
 
@@ -564,6 +618,560 @@ public inherited sharing class IdpConfigLoader {
       return null;
     }
     return value;
+  }
+
+  // ───────────────────────── navigation ───────────────────────────
+
+  /**
+   * Settles every section's reachFrom / via / hop against the real schema
+   * while both ends are known, so the run never has to guess: the source
+   * is a surviving Fixed section or an object, and the lookup is the one
+   * named by `via` — or the single one Describe finds. A Fixed section
+   * whose path cannot be honoured is skipped rather than quietly reached
+   * some other way; a Repeating section keeps the older behaviour of
+   * dropping an unresolvable parent constraint with a warning, except
+   * that an ambiguous one (several lookups, no via) also skips, because
+   * scoping rows to the wrong parent is worse than not running them.
+   * Sections reached from a skipped section, and reachFrom cycles, are
+   * skipped in turn.
+   */
+  private static void resolveNavigation(
+    SetConfig config,
+    Map<String, SectionConfig> sectionsByName,
+    List<RawSection> kept
+  ) {
+    Map<String, RawSection> rawByName = new Map<String, RawSection>();
+    for (RawSection raw : kept) {
+      rawByName.put(raw.name, raw);
+    }
+    Set<String> skipped = new Set<String>();
+    for (SectionConfig section : config.sections) {
+      if (section.reachFrom == null) {
+        continue;
+      }
+      RawSection raw = rawByName.get(section.name);
+      String failure = resolvePath(section, raw, sectionsByName, config);
+      if (failure != null) {
+        issue(
+          config,
+          IdpResult.SEV_WARNING,
+          'Section ' +
+            section.name +
+            ' ' +
+            failure +
+            '; the section and its rules were skipped.'
+        );
+        skipped.add(section.name);
+      }
+    }
+    // Hops synthesised from multi-segment paths join the set, each just
+    // before the section that needed it, so the chain lists source-first.
+    List<SectionConfig> withHops = new List<SectionConfig>();
+    for (SectionConfig section : config.sections) {
+      if (!skipped.contains(section.name)) {
+        for (SectionConfig hopSection : section.hops) {
+          sectionsByName.put(hopSection.name, hopSection);
+          withHops.add(hopSection);
+        }
+      }
+      withHops.add(section);
+    }
+    config.sections = withHops;
+    // Cascade: a section reached from a skipped one, or inside a cycle,
+    // cannot resolve either.
+    Boolean changed = true;
+    while (changed) {
+      changed = false;
+      for (SectionConfig section : config.sections) {
+        if (skipped.contains(section.name) || !section.reachFromSection) {
+          continue;
+        }
+        String problem;
+        if (skipped.contains(section.reachFrom)) {
+          problem =
+            'reaches from section "' +
+            section.reachFrom +
+            '", which was skipped';
+        } else {
+          List<String> cycle = reachCycle(section, sectionsByName);
+          if (cycle != null) {
+            problem =
+              'is in a reachFrom cycle (' +
+              String.join(cycle, ' → ') +
+              ')';
+          }
+        }
+        if (problem != null) {
+          issue(
+            config,
+            IdpResult.SEV_WARNING,
+            'Section ' +
+              section.name +
+              ' ' +
+              problem +
+              '; the section and its rules were skipped.'
+          );
+          skipped.add(section.name);
+          changed = true;
+        }
+      }
+    }
+    if (skipped.isEmpty()) {
+      return;
+    }
+    List<SectionConfig> survivors = new List<SectionConfig>();
+    for (SectionConfig section : config.sections) {
+      if (!skipped.contains(section.name)) {
+        survivors.add(section);
+      } else {
+        sectionsByName.remove(section.name);
+      }
+    }
+    config.sections = survivors;
+    for (Integer i = kept.size() - 1; i >= 0; i--) {
+      if (skipped.contains(kept[i].name)) {
+        kept.remove(i);
+      }
+    }
+  }
+
+  /** Resolves one section's source and lookup. Returns null when the path
+   *  is usable (the section's navigation fields are filled in) or when a
+   *  Repeating section's constraint was dropped with a warning; otherwise
+   *  the reason the section must be skipped. */
+  private static String resolvePath(
+    SectionConfig section,
+    RawSection raw,
+    Map<String, SectionConfig> sectionsByName,
+    SetConfig config
+  ) {
+    String target = section.targetObject;
+    SectionConfig source = sectionsByName.get(section.reachFrom);
+    if (source == section) {
+      return 'reaches from itself';
+    }
+    if (source != null) {
+      if (source.repeating) {
+        return 'reaches from Repeating section "' +
+          source.name +
+          '"; only a Fixed section (one record) or a root object can be reached from';
+      }
+      section.reachFromSection = true;
+      section.sourceObject = source.targetObject;
+      section.parentSectionName = source.name;
+    } else if (IdpSchemaCache.typeOf(section.reachFrom) != null) {
+      section.reachFromSection = false;
+      section.sourceObject = IdpSchemaCache.describe(section.reachFrom)
+        .getName();
+    } else if (section.repeating) {
+      // Older behaviour, kept: an unknown parent drops the constraint.
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Section ' +
+          section.name +
+          ' names unknown or inactive parent section "' +
+          section.reachFrom +
+          '"; the parent constraint was dropped.'
+      );
+      section.reachFrom = null;
+      return null;
+    } else {
+      return 'reaches from "' +
+        section.reachFrom +
+        '", which is neither a section nor an object';
+    }
+    String sourceObject = section.sourceObject;
+
+    String hop = raw == null || String.isBlank(raw.hop) ? null : raw.hop.trim();
+    if (
+      hop != null &&
+      !hop.equalsIgnoreCase(HOP_PARENT) &&
+      !hop.equalsIgnoreCase(HOP_CHILD)
+    ) {
+      return 'has unknown hop value "' +
+        hop +
+        '" — only "' +
+        HOP_PARENT +
+        '" or "' +
+        HOP_CHILD +
+        '" is understood';
+    }
+    if (hop != null && hop.equalsIgnoreCase(HOP_PARENT) && section.repeating) {
+      return 'has hop "Parent", but rows always hold the lookup to their parent (a Child hop)';
+    }
+    Boolean wantParent = hop != null && hop.equalsIgnoreCase(HOP_PARENT);
+    Boolean wantChild = hop != null && hop.equalsIgnoreCase(HOP_CHILD);
+
+    String via = raw == null || String.isBlank(raw.via) ? null : raw.via.trim();
+    if (via != null && via.contains('.')) {
+      List<String> segments = via.split('\\.');
+      Schema.DescribeFieldResult first = IdpSchemaCache.fieldDescribe(
+        sourceObject,
+        segments[0]
+      );
+      // A multi-segment path (Case__c.AccountId) starts with a lookup on
+      // the source; Object.Field starts with an object name and is
+      // handled below as a qualifier.
+      if (first != null && first.getType() == Schema.DisplayType.REFERENCE) {
+        String failure = expandPath(section, via, segments);
+        if (failure != null) {
+          return failure;
+        }
+        sourceObject = section.sourceObject;
+        via = segments[segments.size() - 1];
+      }
+    }
+    if (via == null) {
+      return discoverPath(
+        section,
+        sourceObject,
+        target,
+        wantParent,
+        wantChild,
+        config
+      );
+    }
+
+    // `via` may be qualified, Object.Field, like targetField; the object
+    // half then says which side holds the lookup.
+    String viaObject = via.contains('.') ? via.substringBeforeLast('.') : null;
+    String viaField = bareField(via);
+    if (viaObject != null) {
+      if (
+        viaObject.equalsIgnoreCase(sourceObject) &&
+        !sourceObject.equalsIgnoreCase(target)
+      ) {
+        wantParent = true;
+      } else if (
+        viaObject.equalsIgnoreCase(target) &&
+        !sourceObject.equalsIgnoreCase(target)
+      ) {
+        wantChild = true;
+      } else if (
+        !viaObject.equalsIgnoreCase(sourceObject) &&
+        !viaObject.equalsIgnoreCase(target)
+      ) {
+        return 'names via "' +
+          via +
+          '", but ' +
+          viaObject +
+          ' is neither the source (' +
+          sourceObject +
+          ') nor the target (' +
+          target +
+          '), and ' +
+          sourceObject +
+          '.' +
+          viaObject +
+          ' is not a lookup to start a path from';
+      }
+    }
+    Boolean onSource =
+      !section.repeating &&
+      IdpSchemaCache.references(sourceObject, viaField, target);
+    Boolean onTarget = IdpSchemaCache.references(
+      target,
+      viaField,
+      sourceObject
+    );
+    if (wantParent && !onSource) {
+      return 'has hop "Parent" but ' +
+        sourceObject +
+        '.' +
+        viaField +
+        ' is not a lookup to ' +
+        target;
+    }
+    if (wantChild && !onTarget) {
+      return 'has hop "Child" but ' +
+        target +
+        '.' +
+        viaField +
+        ' is not a lookup to ' +
+        sourceObject;
+    }
+    if (onSource && onTarget && !wantParent && !wantChild) {
+      return 'names via "' +
+        viaField +
+        '", which could be followed either way between ' +
+        sourceObject +
+        ' and ' +
+        target +
+        '; set hop to "' +
+        HOP_PARENT +
+        '" or "' +
+        HOP_CHILD +
+        '"';
+    }
+    if (!onSource && !onTarget) {
+      return 'names via "' +
+        viaField +
+        '", but ' +
+        sourceObject +
+        '.' +
+        viaField +
+        ' is not a lookup to ' +
+        target +
+        (section.repeating
+          ? ''
+          : ', nor ' +
+            target +
+            '.' +
+            viaField +
+            ' a lookup to ' +
+            sourceObject);
+    }
+    section.childHop = wantChild || (onTarget && !onSource);
+    section.relationshipField = canonicalFieldName(
+      section.childHop ? target : sourceObject,
+      viaField
+    );
+    return null;
+  }
+
+  /** No `via`: the one lookup Describe finds decides; several is an
+   *  ambiguity the admin settles with via, never a guess. */
+  private static String discoverPath(
+    SectionConfig section,
+    String sourceObject,
+    String target,
+    Boolean wantParent,
+    Boolean wantChild,
+    SetConfig config
+  ) {
+    if (sourceObject.equalsIgnoreCase(target)) {
+      return 'reaches ' +
+        target +
+        ' from ' +
+        sourceObject +
+        ' — a self-relationship needs via (the lookup field) and hop';
+    }
+    List<String> parents = section.repeating || wantChild
+      ? new List<String>()
+      : IdpSchemaCache.lookupsTo(sourceObject, target);
+    List<String> children = wantParent
+      ? new List<String>()
+      : IdpSchemaCache.lookupsTo(target, sourceObject);
+    if (parents.size() + children.size() == 1) {
+      section.childHop = children.size() == 1;
+      section.relationshipField = section.childHop ? children[0] : parents[0];
+      return null;
+    }
+    if (parents.isEmpty() && children.isEmpty()) {
+      if (section.repeating) {
+        // Older behaviour, kept: rows run unscoped when nothing joins them.
+        issue(
+          config,
+          IdpResult.SEV_WARNING,
+          'Section ' +
+            section.name +
+            ': no lookup joins ' +
+            target +
+            ' to ' +
+            sourceObject +
+            ', so the parent constraint was dropped and its rows are not ' +
+            'scoped to a parent record.'
+        );
+        section.reachFrom = null;
+        section.reachFromSection = false;
+        section.sourceObject = null;
+        section.parentSectionName = null;
+        return null;
+      }
+      return 'has no lookup between ' + sourceObject + ' and ' + target;
+    }
+    List<String> candidates = new List<String>();
+    for (String field : parents) {
+      candidates.add(sourceObject + '.' + field);
+    }
+    for (String field : children) {
+      candidates.add(target + '.' + field);
+    }
+    return 'is reachable from ' +
+      sourceObject +
+      ' through several lookups (' +
+      String.join(candidates, ', ') +
+      '); set via to choose one';
+  }
+
+  private static String canonicalFieldName(
+    String objectName,
+    String fieldName
+  ) {
+    Schema.DescribeFieldResult described = IdpSchemaCache.fieldDescribe(
+      objectName,
+      fieldName
+    );
+    return described == null ? fieldName : described.getName();
+  }
+
+  /**
+   * Turns every segment of a path but the last into a synthesised Fixed
+   * section — a parent hop through the named lookup — chained from the
+   * section's source, and moves the section's own source to the end of
+   * that chain. The last segment is then resolved like a plain `via`.
+   * Intermediate lookups must point at exactly one object: a polymorphic
+   * one (OwnerId) would leave the next hop's object unknown.
+   */
+  private static String expandPath(
+    SectionConfig section,
+    String via,
+    List<String> segments
+  ) {
+    String current = section.sourceObject;
+    String previousKey = section.reachFrom;
+    Boolean previousIsSection = section.reachFromSection;
+    for (Integer i = 0; i < segments.size() - 1; i++) {
+      String segment = segments[i];
+      Schema.DescribeFieldResult described = IdpSchemaCache.fieldDescribe(
+        current,
+        segment
+      );
+      if (
+        described == null ||
+        described.getType() != Schema.DisplayType.REFERENCE
+      ) {
+        return 'names via "' +
+          via +
+          '", but ' +
+          current +
+          '.' +
+          segment +
+          ' is not a lookup';
+      }
+      if (described.getReferenceTo().size() != 1) {
+        return 'names via "' +
+          via +
+          '", but ' +
+          current +
+          '.' +
+          segment +
+          ' can point at several objects; an intermediate hop must point at one';
+      }
+      String next = described.getReferenceTo()[0].getDescribe().getName();
+      SectionConfig hopSection = new SectionConfig();
+      hopSection.name = section.name + ' › ' + described.getName();
+      hopSection.label = hopSection.name;
+      hopSection.targetObject = next;
+      hopSection.reachFrom = previousKey;
+      hopSection.reachFromSection = previousIsSection;
+      hopSection.sourceObject = current;
+      hopSection.relationshipField = described.getName();
+      hopSection.childHop = false;
+      hopSection.synthetic = true;
+      section.hops.add(hopSection);
+      previousKey = hopSection.name;
+      previousIsSection = true;
+      current = next;
+    }
+    section.reachFrom = previousKey;
+    section.reachFromSection = true;
+    section.sourceObject = current;
+    return null;
+  }
+
+  /** Hub_Object__c, checked against the schema; blank or unknown falls
+   *  back to the resolver's default hub. */
+  private static String hubObjectFor(String hubObject, SetConfig config) {
+    if (String.isBlank(hubObject)) {
+      return null;
+    }
+    Schema.DescribeSObjectResult described = IdpSchemaCache.describe(
+      hubObject.trim()
+    );
+    if (described == null) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Mapping set ' +
+          config.name +
+          ' names unknown Hub Object "' +
+          hubObject +
+          '"; the default hub (Document__c) was used.'
+      );
+      return null;
+    }
+    return described.getName();
+  }
+
+  /** rowScope: "Parent" (default) scopes rows to a parent record; "None"
+   *  matches rows by key alone and makes reachFrom / via meaningless on
+   *  that section. Repeating sections only. */
+  private static Boolean rowScopePolicy(
+    String value,
+    SectionConfig section,
+    SetConfig config
+  ) {
+    if (String.isBlank(value)) {
+      return false;
+    }
+    String trimmed = value.trim();
+    if (
+      !trimmed.equalsIgnoreCase(ROW_SCOPE_PARENT) &&
+      !trimmed.equalsIgnoreCase(ROW_SCOPE_NONE)
+    ) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Section ' +
+          section.name +
+          ' has unknown rowScope value "' +
+          value +
+          '" — only "Parent" or "None" is understood; the key was ignored.'
+      );
+      return false;
+    }
+    if (!section.repeating) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Section ' +
+          section.name +
+          ': rowScope applies to Repeating sections only; it was ignored.'
+      );
+      return false;
+    }
+    if (!trimmed.equalsIgnoreCase(ROW_SCOPE_NONE)) {
+      return false;
+    }
+    if (section.reachFrom != null) {
+      issue(
+        config,
+        IdpResult.SEV_WARNING,
+        'Section ' +
+          section.name +
+          ' has rowScope "None", so its reachFrom / via were ignored: rows ' +
+          'are matched by key alone.'
+      );
+      section.reachFrom = null;
+    }
+    return true;
+  }
+
+  /** The chain of reachFrom section names starting at this section when
+   *  it loops back; null otherwise. */
+  private static List<String> reachCycle(
+    SectionConfig start,
+    Map<String, SectionConfig> sectionsByName
+  ) {
+    List<String> chain = new List<String>{ start.name };
+    SectionConfig current = start;
+    for (Integer i = 0; i <= sectionsByName.size(); i++) {
+      if (!current.reachFromSection) {
+        return null;
+      }
+      SectionConfig next = sectionsByName.get(current.reachFrom);
+      if (next == null) {
+        return null;
+      }
+      chain.add(next.name);
+      if (next == start) {
+        return chain;
+      }
+      current = next;
+    }
+    return null;
   }
 
   private static void assembleRule(
@@ -915,6 +1523,7 @@ public inherited sharing class IdpConfigLoader {
         JSON_Source_Field__c,
         Processed_Marker_Field__c,
         Finding_Handler__c,
+        Hub_Object__c,
         Definition__c,
         Active__c
       FROM IDP_Mapping_Set__mdt
@@ -931,6 +1540,7 @@ public inherited sharing class IdpConfigLoader {
     raw.jsonSourceField = records[0].JSON_Source_Field__c;
     raw.processedMarkerField = records[0].Processed_Marker_Field__c;
     raw.findingHandler = records[0].Finding_Handler__c;
+    raw.hubObject = records[0].Hub_Object__c;
     raw.definitionJson = records[0].Definition__c;
     raw.active = records[0].Active__c;
     return raw;

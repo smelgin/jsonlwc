@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Hub_Object__c</fullName>
+    <label>Hub Object</label>
+    <type>Text</type>
+    <length>255</length>
+    <required>false</required>
+    <unique>false</unique>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <description>API name of the hub object: when a file (or seed record) is linked to a record of this object, every lookup on it is followed so its parents become stepping stones for the walk. Blank means Document__c.</description>
+</CustomField>

@@ -38,6 +38,7 @@
       "rowPath": "Details",
       "matchField": "SerialNumber",
       "matchValue": "INV-{json:Invoice}-{row:number}",
+      "rowScope": "None",
       "rules": [
         {
           "name": "Invoice_Intake_Line_Description",

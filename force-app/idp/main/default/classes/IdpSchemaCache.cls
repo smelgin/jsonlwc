@@ -4,19 +4,19 @@
  * cost is proportional to the org's whole schema; unknown object names
  * simply describe to null.
  *
- * Also owns lookup discovery (which field of A points at B), ported from
- * v1 DocumentContextResolver.findLookupTo: a field named <LocalName>__c or
- * <LocalName>Id is preferred (Case__c, AccountId), otherwise the only
- * reference field to that object; several candidates without the
- * conventional name are ambiguous and resolve to null.
+ * Also owns relationship discovery (which fields of A point at B). The
+ * answer comes from Describe alone — getReferenceTo() — never from a
+ * field's name: lookupsTo() lists every candidate, findLookupTo() returns
+ * the one candidate when there is exactly one and null otherwise, so an
+ * object with several lookups to the same target (Asset has three to
+ * Account) is reported as ambiguous rather than guessed at. A section
+ * that needs one of several chooses it explicitly with its `via` key.
  */
 public inherited sharing class IdpSchemaCache {
-  private static final String NO_LOOKUP = '';
-
   private static Map<String, Schema.DescribeSObjectResult> objectDescribes = new Map<String, Schema.DescribeSObjectResult>();
   private static Map<String, Map<String, Schema.SObjectField>> fieldMaps = new Map<String, Map<String, Schema.SObjectField>>();
   private static Map<String, Schema.DescribeFieldResult> fieldDescribes = new Map<String, Schema.DescribeFieldResult>();
-  private static Map<String, String> lookupsByPair = new Map<String, String>();
+  private static Map<String, List<String>> lookupsByPair = new Map<String, List<String>>();
 
   /** Describe for an object name; null when the object does not exist. */
   public static Schema.DescribeSObjectResult describe(String objectName) {
@@ -72,47 +72,67 @@ public inherited sharing class IdpSchemaCache {
     return fieldDescribes.get(key);
   }
 
+  // ─────────────────────── relationship discovery ───────────────────
+
   /**
-   * API name of the field on fromObject that looks up to targetObject, or
-   * null when absent or ambiguous.
+   * API names of every reference field on fromObject that can point at
+   * targetObject, sorted for determinism. Empty when either object is
+   * unknown or nothing joins them. Polymorphic lookups count when the
+   * target is among their types.
    */
-  public static String findLookupTo(String fromObject, String targetObject) {
+  public static List<String> lookupsTo(String fromObject, String targetObject) {
     String pair = keyOf(fromObject) + '>' + keyOf(targetObject);
-    if (lookupsByPair.containsKey(pair)) {
-      String cached = lookupsByPair.get(pair);
-      return cached == NO_LOOKUP ? null : cached;
+    if (!lookupsByPair.containsKey(pair)) {
+      lookupsByPair.put(pair, discoverLookups(fromObject, targetObject));
     }
-    String found = discoverLookup(fromObject, targetObject);
-    lookupsByPair.put(pair, found == null ? NO_LOOKUP : found);
-    return found;
+    return lookupsByPair.get(pair).clone();
   }
 
-  private static String discoverLookup(String fromObject, String targetObject) {
+  /**
+   * The one field on fromObject that looks up to targetObject, or null
+   * when there is none — or more than one. Several candidates are an
+   * ambiguity the configuration must settle (a section's `via`), never a
+   * guess made here; callers that want to explain the ambiguity list the
+   * candidates with lookupsTo().
+   */
+  public static String findLookupTo(String fromObject, String targetObject) {
+    List<String> candidates = lookupsTo(fromObject, targetObject);
+    return candidates.size() == 1 ? candidates[0] : null;
+  }
+
+  /**
+   * Whether objectName.fieldName is a reference field that can hold an Id
+   * of targetObject — the check behind a section's explicit `via`.
+   */
+  public static Boolean references(
+    String objectName,
+    String fieldName,
+    String targetObject
+  ) {
+    Schema.DescribeFieldResult described = fieldDescribe(objectName, fieldName);
+    Schema.SObjectType targetType = typeOf(targetObject);
+    return described != null &&
+      targetType != null &&
+      references(described, targetType);
+  }
+
+  private static List<String> discoverLookups(
+    String fromObject,
+    String targetObject
+  ) {
+    List<String> found = new List<String>();
     Map<String, Schema.SObjectField> fields = fieldsOf(fromObject);
     Schema.SObjectType targetType = typeOf(targetObject);
     if (fields == null || targetType == null) {
-      return null;
+      return found;
     }
-    String localName = targetObject.endsWith('__c')
-      ? targetObject.removeEnd('__c')
-      : targetObject;
-    for (
-      String candidate : new List<String>{ localName + '__c', localName + 'Id' }
-    ) {
-      Schema.SObjectField field = fields.get(candidate);
-      if (field != null && references(field.getDescribe(), targetType)) {
-        return field.getDescribe().getName();
-      }
-    }
-    String found;
     for (Schema.SObjectField field : fields.values()) {
-      if (references(field.getDescribe(), targetType)) {
-        if (found != null) {
-          return null; // ambiguous — require the conventional name
-        }
-        found = field.getDescribe().getName();
+      Schema.DescribeFieldResult described = field.getDescribe();
+      if (references(described, targetType)) {
+        found.add(described.getName());
       }
     }
+    found.sort();
     return found;
   }
 

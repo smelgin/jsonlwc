@@ -1108,6 +1108,19 @@ private class IdpMappingEngineTest {
   }
 
   @IsTest
+  static void shippedInvoiceSampleLoadsWithoutIssues() {
+    // Asset carries three lookups to Account, so this sample would report
+    // an ambiguous relationship the moment an Account anchored. Its keys
+    // are unique across the org, so it declares rowScope: "None" instead.
+    IdpConfigLoader.SetConfig config = IdpConfigLoader.load('Invoice_Intake');
+    Assert.isTrue(config.found);
+    Assert.areEqual(0, config.issues.size(), JSON.serialize(config.issues));
+    Assert.areEqual(1, config.sections.size());
+    Assert.isTrue(config.sections[0].repeating);
+    Assert.areEqual('Asset', config.sections[0].targetObject);
+  }
+
+  @IsTest
   static void reportAndGuardPlumbing() {
     IdpResult.Result result = new IdpResult.Result();
     result.add(IdpResult.CODE_VALUE_MISMATCH, IdpResult.SEV_WARNING, 'differs');

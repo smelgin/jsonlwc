@@ -67,7 +67,8 @@
       "matchField": "Product_Account_Number__c",
       "matchValue": "{row:accountNumber}",
       "recordFilter": "Account_Status__c != 'Closed'",
-      "parentSection": "Consolidated_Statement_Header",
+      "reachFrom": "Consolidated_Statement_Header",
+      "via": "AccountId",
       "rules": [
         {
           "name": "Consolidated_Statement_Holding_Available",

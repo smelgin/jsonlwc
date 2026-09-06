@@ -281,7 +281,10 @@ private class IdpEngineExtensionsTest {
     lines.rowPath = 'Details';
     lines.matchField = 'SerialNumber';
     lines.matchValue = 'INV-{json:Invoice}-{row:number}';
-    lines.parentSection = 'Customer';
+    // Asset has three lookups to Account (AccountId, AssetProvidedById,
+    // AssetServicedById), so the parent relationship must be chosen.
+    lines.reachFrom = 'Customer';
+    lines.via = 'AccountId';
     lines.unmatchedRows = unmatchedRows;
     lines.rules.add(rule('L1_Quantity', 'Quantity', 'Quantity'));
     lines.rules.add(rule('L2_Name', 'Description', 'Name'));
@@ -418,6 +421,10 @@ private class IdpEngineExtensionsTest {
     fixedWithRows.unmatchedRows = 'Create';
     fixedWithRows.rules.add(rule('R1', 'a', 'Subject'));
     IdpConfigLoader.RawSection badValue = invoiceLines('Upsert');
+    // No Customer section is installed here (and some orgs ship a standard
+    // Customer object), so the rows' parent is left to the schema.
+    badValue.reachFrom = null;
+    badValue.via = null;
 
     IdpConfigLoader.SetConfig config = install(
       new List<IdpConfigLoader.RawSection>{ fixedWithRows, badValue }
@@ -444,6 +451,9 @@ private class IdpEngineExtensionsTest {
     customer.rules.add(rule('C1_Name', 'holding.name', 'Description'));
     IdpConfigLoader.RawSection holding = section('Holding', 'Asset');
     holding.whenNoAnchor = 'Create';
+    // A child hop from the Account through the chosen lookup.
+    holding.reachFrom = 'Customer';
+    holding.via = 'AccountId';
     holding.rules.add(rule('H1_Name', 'holding.name', 'Name'));
     holding.rules.add(rule('H2_Serial', 'holding.serial', 'SerialNumber'));
     install(new List<IdpConfigLoader.RawSection>{ customer, holding });
@@ -472,7 +482,7 @@ private class IdpEngineExtensionsTest {
     Assert.areEqual(
       data.account.Id,
       created[0].AccountId,
-      'the created anchor links to the first resolved record it looks up to'
+      'the created anchor links to its source through the section via'
     );
   }
 
@@ -480,6 +490,8 @@ private class IdpEngineExtensionsTest {
   static void withoutThePolicyAMissingAnchorStaysAnError() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
     IdpConfigLoader.RawSection holding = section('Holding', 'Asset');
+    holding.reachFrom = 'Account';
+    holding.via = 'AccountId';
     holding.rules.add(rule('H1_Name', 'holding.name', 'Name'));
     install(new List<IdpConfigLoader.RawSection>{ holding });
 

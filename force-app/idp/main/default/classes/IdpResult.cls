@@ -39,6 +39,9 @@ public inherited sharing class IdpResult {
   public static final String CODE_INVALID_INPUT = 'INVALID_INPUT';
   public static final String CODE_INVALID_MODE = 'INVALID_MODE';
   public static final String CODE_UNREACHABLE_TARGET = 'UNREACHABLE_TARGET';
+  /** The target is joined to a resolved record by several lookups and the
+   *  section did not say which (reachFrom / via); nothing was guessed. */
+  public static final String CODE_AMBIGUOUS_RELATIONSHIP = 'AMBIGUOUS_RELATIONSHIP';
   public static final String CODE_UNKNOWN_FIELD = 'UNKNOWN_FIELD';
   public static final String CODE_REQUIRED_MISSING = 'REQUIRED_MISSING';
   public static final String CODE_PARSE_FAILED = 'PARSE_FAILED';

@@ -233,6 +233,440 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(1, config.issues.size());
   }
 
+  // ───────────────────────── navigation ───────────────────────────
+
+  private static IdpConfigLoader.RawSection reaching(
+    String name,
+    String targetObject,
+    String reachFrom,
+    String via
+  ) {
+    IdpConfigLoader.RawSection raw = rawSection(name, 'Fixed', targetObject);
+    raw.reachFrom = reachFrom;
+    raw.via = via;
+    raw.rules.add(rawRule(name + '_R', 'a', 'Name'));
+    return raw;
+  }
+
+  private static IdpConfigLoader.RawSection rows(
+    String name,
+    String targetObject,
+    String reachFrom,
+    String via
+  ) {
+    IdpConfigLoader.RawSection raw = rawSection(
+      name,
+      'Repeating',
+      targetObject
+    );
+    raw.rowPath = 'Details';
+    raw.matchField = targetObject == 'Case' ? 'Subject' : 'Name';
+    raw.matchValue = '{row:number}';
+    raw.reachFrom = reachFrom;
+    raw.via = via;
+    return raw;
+  }
+
+  private static IdpConfigLoader.SetConfig assembleAll(
+    List<IdpConfigLoader.RawSection> sections
+  ) {
+    return assemble(
+      rawSet(),
+      sections,
+      new Map<String, IdpValueTypes.Config>()
+    );
+  }
+
+  private static String issues(IdpConfigLoader.SetConfig config) {
+    return JSON.serialize(config.issues);
+  }
+
+  @IsTest
+  static void viaResolvesDirectionFromDescribe() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        reaching('Holder', 'Account', 'Case', 'AccountId'),
+        reaching('Holding', 'Asset', 'Holder', 'AssetServicedById')
+      }
+    );
+    Assert.areEqual(0, config.issues.size(), issues(config));
+    IdpConfigLoader.SectionConfig holder = config.sections[0];
+    Assert.isFalse(holder.reachFromSection, 'Case is a root object here');
+    Assert.areEqual('Case', holder.sourceObject);
+    Assert.areEqual('AccountId', holder.relationshipField);
+    Assert.isFalse(holder.childHop, 'Case holds the lookup: a parent hop');
+    Assert.isNull(holder.parentSectionName);
+
+    IdpConfigLoader.SectionConfig holding = config.sections[1];
+    Assert.isTrue(holding.reachFromSection);
+    Assert.areEqual('Holder', holding.parentSectionName);
+    Assert.areEqual('Account', holding.sourceObject);
+    Assert.areEqual('AssetServicedById', holding.relationshipField);
+    Assert.isTrue(holding.childHop, 'Asset holds the lookup: a child hop');
+  }
+
+  @IsTest
+  static void viaAcceptsQualifiedNamesAndCanonicalisesCase() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        reaching('Holder', 'Account', 'Case', 'case.accountid'),
+        reaching('Wrong', 'Account', 'Case', 'Contact.AccountId')
+      }
+    );
+    Assert.areEqual(1, config.sections.size(), issues(config));
+    Assert.areEqual('AccountId', config.sections[0].relationshipField);
+    Assert.isTrue(
+      issues(config).contains('neither the source'),
+      issues(config)
+    );
+  }
+
+  @IsTest
+  static void withoutViaTheOnlyLookupIsDiscovered() {
+    // Case.ContactId is the one lookup between Case and Contact.
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        reaching('Signatory', 'Contact', 'Case', null)
+      }
+    );
+    Assert.areEqual(0, config.issues.size(), issues(config));
+    Assert.areEqual('ContactId', config.sections[0].relationshipField);
+    Assert.isFalse(config.sections[0].childHop);
+  }
+
+  @IsTest
+  static void severalLookupsWithoutViaSkipTheSectionNamingThem() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        rawSection('Customer', 'Fixed', 'Account'),
+        reaching('Holding', 'Asset', 'Customer', null)
+      }
+    );
+    Assert.areEqual(1, config.sections.size(), issues(config));
+    Assert.areEqual('Customer', config.sections[0].name);
+    String text = issues(config);
+    Assert.isTrue(text.contains('Asset.AccountId'), text);
+    Assert.isTrue(text.contains('Asset.AssetServicedById'), text);
+    Assert.isTrue(text.contains('set via'), text);
+  }
+
+  @IsTest
+  static void viaThatJoinsNothingSkipsTheSection() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        reaching('Holder', 'Account', 'Case', 'ParentId')
+      }
+    );
+    Assert.areEqual(0, config.sections.size(), issues(config));
+    Assert.isTrue(
+      issues(config).contains('is not a lookup to'),
+      issues(config)
+    );
+  }
+
+  @IsTest
+  static void selfRelationshipsNeedHop() {
+    IdpConfigLoader.RawSection noHop = reaching(
+      'Parent_Account',
+      'Account',
+      'Account',
+      'ParentId'
+    );
+    IdpConfigLoader.RawSection up = reaching(
+      'Up',
+      'Account',
+      'Account',
+      'ParentId'
+    );
+    up.hop = 'Parent';
+    IdpConfigLoader.RawSection down = reaching(
+      'Down',
+      'Account',
+      'Account',
+      'ParentId'
+    );
+    down.hop = 'Child';
+    IdpConfigLoader.RawSection sideways = reaching(
+      'Sideways',
+      'Account',
+      'Account',
+      'ParentId'
+    );
+    sideways.hop = 'Across';
+    IdpConfigLoader.RawSection undiscoverable = reaching(
+      'Undiscoverable',
+      'Account',
+      'Account',
+      null
+    );
+
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        noHop,
+        up,
+        down,
+        sideways,
+        undiscoverable
+      }
+    );
+    Assert.areEqual(2, config.sections.size(), issues(config));
+    Assert.areEqual('Up', config.sections[0].name);
+    Assert.isFalse(config.sections[0].childHop);
+    Assert.areEqual('Down', config.sections[1].name);
+    Assert.isTrue(config.sections[1].childHop);
+    String text = issues(config);
+    Assert.isTrue(text.contains('either way'), text);
+    Assert.isTrue(text.contains('unknown hop value'), text);
+    Assert.isTrue(text.contains('self-relationship'), text);
+  }
+
+  @IsTest
+  static void hopThatContradictsTheSchemaIsRejected() {
+    IdpConfigLoader.RawSection wrong = reaching(
+      'Holder',
+      'Account',
+      'Case',
+      'AccountId'
+    );
+    wrong.hop = 'Child';
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{ wrong }
+    );
+    Assert.areEqual(0, config.sections.size(), issues(config));
+    Assert.isTrue(issues(config).contains('has hop'), issues(config));
+  }
+
+  @IsTest
+  static void reachFromMustNameAFixedSectionOrAnObject() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        rows('Lines', 'Asset', null, null),
+        reaching('From_Rows', 'Account', 'Lines', 'AccountId'),
+        reaching('From_Nowhere', 'Account', 'Nowhere', 'AccountId'),
+        reaching('From_Self', 'Account', 'From_Self', 'ParentId')
+      }
+    );
+    Assert.areEqual(1, config.sections.size(), issues(config));
+    Assert.areEqual('Lines', config.sections[0].name);
+    String text = issues(config);
+    Assert.isTrue(text.contains('Repeating section'), text);
+    Assert.isTrue(text.contains('neither a section nor an object'), text);
+    Assert.isTrue(text.contains('from itself'), text);
+  }
+
+  @IsTest
+  static void dependentsOfSkippedSectionsAreSkipped() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        reaching('Broken', 'Account', 'Case', 'NoSuchField__c'),
+        reaching('Dependent', 'Contact', 'Broken', 'AccountId')
+      }
+    );
+    Assert.areEqual(0, config.sections.size(), issues(config));
+    Assert.isTrue(issues(config).contains('which was skipped'), issues(config));
+  }
+
+  @IsTest
+  static void cycleIsDetectedWhenEachPathIsValidOnItsOwn() {
+    IdpConfigLoader.RawSection a = reaching('A', 'Account', 'B', 'ParentId');
+    a.hop = 'Parent';
+    IdpConfigLoader.RawSection b = reaching('B', 'Account', 'A', 'ParentId');
+    b.hop = 'Parent';
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{ a, b }
+    );
+    Assert.areEqual(0, config.sections.size(), issues(config));
+    Assert.isTrue(issues(config).contains('reachFrom cycle'), issues(config));
+  }
+
+  @IsTest
+  static void parentSectionIsAnAliasOfReachFrom() {
+    IdpConfigLoader.RawSection lines = rows(
+      'Lines',
+      'Asset',
+      null,
+      'AccountId'
+    );
+    lines.parentSection = 'Customer';
+    IdpConfigLoader.RawSection both = rows(
+      'Both',
+      'Asset',
+      'Customer',
+      'AccountId'
+    );
+    both.parentSection = 'Nowhere';
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        rawSection('Customer', 'Fixed', 'Account'),
+        lines,
+        both
+      }
+    );
+    Assert.areEqual(3, config.sections.size(), issues(config));
+    Assert.areEqual('Customer', config.sections[1].parentSectionName);
+    Assert.areEqual('Customer', config.sections[1].reachFrom);
+    Assert.areEqual('AccountId', config.sections[1].relationshipField);
+    Assert.isTrue(config.sections[1].childHop);
+    Assert.areEqual('Customer', config.sections[2].reachFrom, 'reachFrom wins');
+    Assert.areEqual(1, config.issues.size(), issues(config));
+    Assert.isTrue(issues(config).contains('mean the same thing'));
+  }
+
+  @IsTest
+  static void repeatingSectionWithAmbiguousParentIsSkipped() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        rawSection('Customer', 'Fixed', 'Account'),
+        rows('Lines', 'Asset', 'Customer', null)
+      }
+    );
+    Assert.areEqual(1, config.sections.size(), issues(config));
+    Assert.isTrue(issues(config).contains('several lookups'), issues(config));
+  }
+
+  @IsTest
+  static void repeatingSectionViaMustBeOnTheRowObject() {
+    // Contact.ReportsToId is a lookup on the source, not on the rows —
+    // rows always hold the lookup to their parent.
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        rows('Cases', 'Case', 'Contact', 'ReportsToId'),
+        rows('Cases2', 'Case', 'Contact', 'ContactId')
+      }
+    );
+    Assert.areEqual(1, config.sections.size(), issues(config));
+    Assert.areEqual('Cases2', config.sections[0].name);
+    Assert.areEqual('ContactId', config.sections[0].relationshipField);
+  }
+
+  @IsTest
+  static void repeatingSectionWithNoJoinDropsTheConstraintWithAWarning() {
+    // Nothing joins Case and Opportunity.
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        rows('Cases', 'Case', 'Opportunity', null)
+      }
+    );
+    Assert.areEqual(1, config.sections.size(), issues(config));
+    Assert.isNull(config.sections[0].reachFrom);
+    Assert.isNull(config.sections[0].relationshipField);
+    Assert.isTrue(issues(config).contains('dropped'), issues(config));
+  }
+
+  @IsTest
+  static void navigationKeysAreKnownToTheKeyScreen() {
+    IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
+      rawSet(),
+      '{"sections":[{"name":"Holder","targetObject":"Account",' +
+      '"reachFrom":"Case","via":"AccountId","hop":"Parent","rules":[]}]}',
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual(0, config.issues.size(), issues(config));
+    Assert.areEqual('AccountId', config.sections[0].relationshipField);
+  }
+
+  @IsTest
+  static void multiSegmentViaExpandsIntoHiddenHops() {
+    // Case.ContactId → Contact, then Contact.AccountId → Account.
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        reaching('Holder', 'Account', 'Case', 'ContactId.AccountId')
+      }
+    );
+    Assert.areEqual(0, config.issues.size(), issues(config));
+    Assert.areEqual(2, config.sections.size());
+    IdpConfigLoader.SectionConfig hopSection = config.sections[0];
+    Assert.isTrue(hopSection.synthetic);
+    Assert.areEqual('Holder › ContactId', hopSection.name);
+    Assert.areEqual('Contact', hopSection.targetObject);
+    Assert.areEqual('Case', hopSection.sourceObject);
+    Assert.areEqual('ContactId', hopSection.relationshipField);
+    Assert.isFalse(hopSection.reachFromSection, 'starts at the Case root');
+    Assert.isTrue(hopSection.rules.isEmpty());
+    IdpConfigLoader.SectionConfig holder = config.sections[1];
+    Assert.areEqual('Holder › ContactId', holder.reachFrom);
+    Assert.isTrue(holder.reachFromSection);
+    Assert.areEqual('Contact', holder.sourceObject);
+    Assert.areEqual('AccountId', holder.relationshipField);
+    Assert.isFalse(holder.childHop);
+  }
+
+  @IsTest
+  static void multiSegmentViaRejectsBadIntermediates() {
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        reaching('Poly', 'Account', 'Case', 'OwnerId.AccountId'),
+        reaching('Typo', 'Account', 'Case', 'Nope__c.AccountId')
+      }
+    );
+    Assert.areEqual(0, config.sections.size(), issues(config));
+    String text = issues(config);
+    Assert.isTrue(text.contains('several objects'), text);
+    Assert.isTrue(
+      text.contains('Case.Nope__c is not a lookup to start a path from'),
+      text
+    );
+  }
+
+  @IsTest
+  static void rowScopeNoneDropsParentScopingOnRepeatingSectionsOnly() {
+    IdpConfigLoader.RawSection unscoped = rows(
+      'Lines',
+      'Asset',
+      'Customer',
+      'AccountId'
+    );
+    unscoped.rowScope = 'None';
+    IdpConfigLoader.RawSection fixedScope = reaching(
+      'Holder',
+      'Account',
+      'Case',
+      'AccountId'
+    );
+    fixedScope.rowScope = 'None';
+    IdpConfigLoader.RawSection bad = rows('Bad', 'Asset', null, null);
+    bad.rowScope = 'Everything';
+    IdpConfigLoader.SetConfig config = assembleAll(
+      new List<IdpConfigLoader.RawSection>{
+        rawSection('Customer', 'Fixed', 'Account'),
+        unscoped,
+        fixedScope,
+        bad
+      }
+    );
+    Assert.areEqual(4, config.sections.size(), issues(config));
+    Assert.isTrue(config.sections[1].unscopedRows);
+    Assert.isNull(config.sections[1].reachFrom, 'reachFrom is meaningless');
+    Assert.isFalse(config.sections[2].unscopedRows);
+    Assert.isFalse(config.sections[3].unscopedRows);
+    String text = issues(config);
+    Assert.isTrue(text.contains('reachFrom / via were ignored'), text);
+    Assert.isTrue(text.contains('Repeating sections only'), text);
+    Assert.isTrue(text.contains('unknown rowScope value'), text);
+  }
+
+  @IsTest
+  static void hubObjectIsCheckedAgainstTheSchema() {
+    IdpConfigLoader.RawSet withHub = rawSet();
+    withHub.hubObject = 'case';
+    IdpConfigLoader.SetConfig config = assemble(
+      withHub,
+      new List<IdpConfigLoader.RawSection>(),
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.areEqual('Case', config.hubObject, 'canonical API name');
+
+    IdpConfigLoader.RawSet badHub = rawSet();
+    badHub.hubObject = 'Nope__c';
+    config = assemble(
+      badHub,
+      new List<IdpConfigLoader.RawSection>(),
+      new Map<String, IdpValueTypes.Config>()
+    );
+    Assert.isNull(config.hubObject, 'falls back to the default hub');
+    Assert.isTrue(issues(config).contains('Hub Object'), issues(config));
+  }
+
   @IsTest
   static void unknownValueTypeSkipsTheRule() {
     IdpConfigLoader.RawRule rule = rawRule('Typed_Rule', 'x', 'Description');
@@ -541,5 +975,92 @@ private class IdpConfigLoaderTest {
       'a broken dictionary maps nothing rather than mapping wrongly'
     );
     Assert.areEqual(0, IdpConfigLoader.parseMapEntries(null).size());
+  }
+
+  // ───────────────── IDP Configuration Builder contract ─────────────────
+
+  /** Stands in for a real custom handler — validateDefinition only checks
+   *  that a handlerClass resolves and instantiates, it never calls handle(). */
+  public class ContractHandler implements IIdpFieldHandler {
+    public void handle(IdpFieldContext context) {
+    }
+  }
+
+  /**
+   * ADR-0001 (force-app/idp/main/config/docs) commits the builder to two
+   * rules stricter than the engine requires: every hop is its own node —
+   * no multi-segment via — and every creation policy is written, never
+   * inferred. This is the reference definition that shape produces,
+   * hand-written the way an admin's clicks would assemble it, covering
+   * every gesture the canvas and panel expose. It is the builder's
+   * contract with the engine: if this ever stops loading clean, the
+   * builder's write path and this test must change together.
+   *
+   *   Header (Case, the hub)
+   *     ├─rule: valueTypeName omitted on purpose — SuppliedEmail is an
+   *     │  Email field, so the derived type is already strict; no base
+   *     │  value type ships with the engine itself to name here.
+   *     └─via Case.AccountId──> Applicant (Account)            whenNoAnchor: Create
+   *          ├─via Account.OwnerId──> OwnerLink (User)          pass-through, no rules
+   *          │    └─via User.ProfileId──> OwnerProfile (Profile)
+   *          └─via Asset.AccountId, hop Child──> Lines (Asset, Repeating)  unmatchedRows: Create
+   *   Warranties (Asset, Repeating, rowScope None — matched by key alone,
+   *     so no reachFrom/via: the engine warns when the two are combined)
+   */
+  @IsTest
+  static void builderContractDefinitionLoadsClean() {
+    String definition =
+      '{"sections":[' +
+      '{"name":"Header","label":"Header","sectionType":"Fixed",' +
+      '"targetObject":"Case","recordFilter":"IsClosed = false","rules":[' +
+      '{"name":"Email","label":"Applicant Email","jsonPath":"applicant.email",' +
+      '"targetField":"SuppliedEmail",' +
+      '"overwritePolicy":"Only if blank","minGrade":"Inferred",' +
+      '"minConfidence":0.6,"confidenceWeight":2,"required":true,' +
+      '"anchorFilter":"IsClosed = false","active":true},' +
+      '{"name":"Stamp","label":"Reviewer Stamp","jsonPath":"applicant.reviewer",' +
+      '"targetField":"Description","mode":"Custom",' +
+      '"handlerClass":"IdpConfigLoaderTest.ContractHandler","active":true}' +
+      ']},' +
+      '{"name":"Applicant","label":"Applicant Account","sectionType":"Fixed",' +
+      '"targetObject":"Account","reachFrom":"Header","via":"Case.AccountId",' +
+      '"hop":"Parent","whenNoAnchor":"Create","rules":[' +
+      '{"name":"AcctName","jsonPath":"applicant.name","targetField":"Name",' +
+      '"overwritePolicy":"Only if blank"}' +
+      ']},' +
+      '{"name":"OwnerLink","label":"Applicant Owner","sectionType":"Fixed",' +
+      '"targetObject":"User","reachFrom":"Applicant","via":"Account.OwnerId",' +
+      '"hop":"Parent","rules":[]},' +
+      '{"name":"OwnerProfile","label":"Owner Profile","sectionType":"Fixed",' +
+      '"targetObject":"Profile","reachFrom":"OwnerLink","via":"User.ProfileId",' +
+      '"hop":"Parent","rules":[' +
+      '{"name":"ProfileName","jsonPath":"applicant.profileNote",' +
+      '"targetField":"Name","overwritePolicy":"Only if blank"}' +
+      ']},' +
+      '{"name":"Lines","label":"Invoice Lines","sectionType":"Repeating",' +
+      '"targetObject":"Asset","reachFrom":"Applicant","via":"Asset.AccountId",' +
+      '"hop":"Child","rowPath":"lines","matchField":"SerialNumber",' +
+      '"matchValue":"INV-{json:invoiceNumber}-{row:number}",' +
+      '"unmatchedRows":"Create","rules":[' +
+      '{"name":"LineQty","jsonPath":"quantity","targetField":"Quantity",' +
+      '"overwritePolicy":"Always"}' +
+      ']},' +
+      '{"name":"Warranties","label":"Asset Warranties","sectionType":"Repeating",' +
+      '"targetObject":"Asset","rowPath":"warranties","matchField":"SerialNumber",' +
+      '"matchValue":"WAR-{row:index}","rowScope":"None","rules":[' +
+      '{"name":"WarrantyNote","jsonPath":"note","targetField":"Description",' +
+      '"overwritePolicy":"Only if blank"}' +
+      ']}' +
+      ']}';
+
+    List<IdpResult.Finding> findings = IdpConfigLoader.validateDefinition(
+      'Builder_Contract_Set',
+      definition
+    );
+    Assert.areEqual(
+      0,
+      findings.size(),
+      'the builder\'s reference definition must load clean: ' + findings
+    );
   }
 }

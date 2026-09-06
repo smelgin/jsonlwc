@@ -1,7 +1,8 @@
 /**
  * Tests for bulk anchor resolution: several documents resolve in a fixed
- * number of queries, parent and child hops walk the same schema paths as
- * v1, and a document can be seeded from a record instead of a file.
+ * number of queries, parent and child hops walk the one lookup joining
+ * two objects, explicit hops keep one anchor per section, and a document
+ * can be seeded from a record instead of a file.
  */
 @IsTest
 private class IdpContextResolverTest {
@@ -154,6 +155,128 @@ private class IdpContextResolverTest {
     Assert.isFalse(
       missing.anchors.containsKey('Account'),
       'a filter that matches nothing anchors nothing'
+    );
+  }
+
+  @IsTest
+  static void explicitHopsKeepTwoAnchorsOfOneObject() {
+    Account owner = new Account(Name = 'Owner');
+    Account servicer = new Account(Name = 'Servicer');
+    insert new List<Account>{ owner, servicer };
+    Asset asset = new Asset(
+      Name = 'Fund',
+      AccountId = owner.Id,
+      AssetServicedById = servicer.Id
+    );
+    insert asset;
+    IdpContextResolver.DocContext doc = docFor(
+      IdpTestData.linkFile(asset.Id, 'Statement')
+    );
+
+    IdpContextResolver.Plan plan = new IdpContextResolver.Plan();
+    // Implicit Account: three lookups from Asset, so never guessed.
+    plan.byObject.put('Account', new IdpContextResolver.AnchorSpec());
+    plan.bySection.put(
+      'Owner',
+      explicitSpec('Account', 'Asset', 'AccountId', false)
+    );
+    plan.bySection.put(
+      'Servicer',
+      explicitSpec('Account', 'Asset', 'AssetServicedById', false)
+    );
+    plan.sectionOrder.addAll(new List<String>{ 'Owner', 'Servicer' });
+
+    Test.startTest();
+    IdpContextResolver.resolveAll(
+      new List<IdpContextResolver.DocContext>{ doc },
+      plan
+    );
+    Test.stopTest();
+
+    Assert.areEqual(owner.Id, doc.anchorsBySection.get('Owner').Id);
+    Assert.areEqual(servicer.Id, doc.anchorsBySection.get('Servicer').Id);
+    Assert.isFalse(
+      doc.anchors.containsKey('Account'),
+      'the implicit walk does not pick one of several lookups'
+    );
+    Assert.isTrue(
+      doc.ambiguities.get('Account').contains('AssetServicedById'),
+      'and says which lookups competed: ' + doc.ambiguities
+    );
+    Assert.areEqual(owner.Id, doc.anchorFor('Owner').Id);
+    Assert.areEqual(asset.Id, doc.anchorFor('Asset').Id, 'pool fallback');
+  }
+
+  @IsTest
+  static void explicitChildHopChainsFromAnExplicitSection() {
+    IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
+    Asset holding = new Asset(Name = 'Fund', AccountId = data.account.Id);
+    insert holding;
+    IdpContextResolver.DocContext doc = docFor(data.contentDocumentId);
+
+    IdpContextResolver.Plan plan = new IdpContextResolver.Plan();
+    // Case (root) --AccountId--> Account (section Holder)
+    //   --Asset.AccountId (child hop)--> Asset (section Holding)
+    plan.bySection.put(
+      'Holder',
+      explicitSpec('Account', 'Case', 'AccountId', false)
+    );
+    plan.bySection.put(
+      'Holding',
+      explicitSpec('Asset', 'Holder', 'AccountId', true)
+    );
+    plan.sectionOrder.addAll(new List<String>{ 'Holder', 'Holding' });
+
+    Test.startTest();
+    Integer before = Limits.getQueries();
+    IdpContextResolver.resolveAll(
+      new List<IdpContextResolver.DocContext>{ doc },
+      plan
+    );
+    Integer used = Limits.getQueries() - before;
+    Test.stopTest();
+
+    Assert.areEqual(data.account.Id, doc.anchorsBySection.get('Holder').Id);
+    Assert.areEqual(holding.Id, doc.anchorsBySection.get('Holding').Id);
+    Assert.isTrue(
+      used <= 4,
+      'links + case root + two explicit hops in one pass; used ' + used
+    );
+  }
+
+  private static IdpContextResolver.AnchorSpec explicitSpec(
+    String objectName,
+    String sourceKey,
+    String relationshipField,
+    Boolean childHop
+  ) {
+    IdpContextResolver.AnchorSpec spec = new IdpContextResolver.AnchorSpec();
+    spec.objectName = objectName;
+    spec.sourceKey = sourceKey;
+    spec.relationshipField = relationshipField;
+    spec.childHop = childHop;
+    return spec;
+  }
+
+  @IsTest
+  static void hubObjectExpandsTheNamedRootsLookups() {
+    IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
+    IdpContextResolver.DocContext doc = docFor(data.contentDocumentId);
+    IdpContextResolver.Plan plan = new IdpContextResolver.Plan();
+    plan.hubObject = 'Case'; // nothing is requested; the hub alone drives it
+
+    Test.startTest();
+    IdpContextResolver.resolveAll(
+      new List<IdpContextResolver.DocContext>{ doc },
+      plan
+    );
+    Test.stopTest();
+
+    Assert.areEqual(data.caseRecord.Id, doc.anchors.get('Case').Id);
+    Assert.areEqual(
+      data.account.Id,
+      doc.anchors.get('Account').Id,
+      'the hub\'s AccountId parent is anchored as a stepping stone'
     );
   }
 
