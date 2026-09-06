@@ -2,11 +2,35 @@
   "packageDirectories": [
     {
       "path": "force-app/idp/main",
-      "default": true
+      "default": true,
+      "package": "IDP Engine",
+      "versionName": "ver 0.1",
+      "versionNumber": "0.1.0.NEXT",
+      "versionDescription": "Intelligent Document Automations with i18n"
+    },
+    {
+      "versionName": "ver 0.1",
+      "versionNumber": "0.1.0.NEXT",
+      "path": "force-app/idp/examples",
+      "default": false,
+      "package": "IDP Examples",
+      "versionDescription": "Examples from the IDP Engine",
+      "dependencies": [
+        {
+          "package": "IDP Engine",
+          "versionNumber": "0.1.0.LATEST"
+        }
+      ]
     }
   ],
   "name": "JsonLwc",
   "namespace": "",
   "sfdcLoginUrl": "https://login.salesforce.com",
-  "sourceApiVersion": "66.0"
+  "sourceApiVersion": "66.0",
+  "packageAliases": {
+    "IDP Engine": "0HoHp00000007mBKAQ",
+    "IDP Engine@0.1.0-1": "04tHp000001wnOaIAI",
+    "IDP Examples": "0HoHp00000007mGKAQ",
+    "IDP Examples@0.1.0-1": "04tHp000001wnOkIAI"
+  }
 }

@@ -12,3 +12,11 @@ package.xml
 **/__tests__/**
 
 node_modules/
+
+# Examples -- No deployable 
+force-app/idp/examples/**/data/**
+force-app/idp/examples/**/sample/**
+force-app/idp/examples/**/scripts/**
+force-app/idp/examples/**/documents/**
+force-app/idp/examples/tools/**
+force-app/idp/examples/**/README.md
