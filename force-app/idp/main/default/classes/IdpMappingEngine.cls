@@ -69,8 +69,28 @@ public inherited sharing class IdpMappingEngine {
     String mode,
     String findingHandler
   ) {
+    return run(
+      works,
+      IdpConfigLoader.load(mappingSetName),
+      mode,
+      findingHandler
+    );
+  }
+
+  /**
+   * The same run against a config that is already assembled, so a
+   * definition can be tried before it is saved. Everything after this
+   * point is identical either way — the config is the only thing a stored
+   * set contributes, so a draft that assembles to the same config runs
+   * the same.
+   */
+  public static List<IdpResult.Result> run(
+    List<DocumentWork> works,
+    IdpConfigLoader.SetConfig config,
+    String mode,
+    String findingHandler
+  ) {
     List<IdpResult.Result> results = new List<IdpResult.Result>();
-    IdpConfigLoader.SetConfig config = IdpConfigLoader.load(mappingSetName);
     for (DocumentWork work : works) {
       work.result = new IdpResult.Result();
       work.result.contentDocumentId = asString(work.contentDocumentId);

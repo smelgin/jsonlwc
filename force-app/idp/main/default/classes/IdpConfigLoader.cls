@@ -211,6 +211,37 @@ public inherited sharing class IdpConfigLoader {
    * run would. Returns the issues it would raise; an empty list means the
    * definition loads cleanly.
    */
+  /**
+   * A config assembled from a definition that has not been saved.
+   *
+   * The set record is still read, because everything about a run other
+   * than the sections lives there — the hub object the walk starts from,
+   * the default mode, the finding handler. Only the definition is
+   * substituted. That is what lets a draft preview and a real run of the
+   * same document type agree: the only difference between them is the one
+   * thing being previewed.
+   *
+   * A name that matches no set still works, so a document type can be
+   * drafted before it exists.
+   */
+  public static SetConfig loadDraft(
+    String mappingSetName,
+    String definitionJson
+  ) {
+    RawSet stored = querySet(mappingSetName);
+    RawSet raw = stored;
+    if (raw == null) {
+      raw = new RawSet();
+      raw.name = String.isBlank(mappingSetName) ? 'Draft' : mappingSetName;
+      raw.label = raw.name;
+    }
+    return assemble(
+      raw,
+      definitionJson,
+      new Map<String, IdpValueTypes.Config>()
+    );
+  }
+
   public static List<IdpResult.Finding> validateDefinition(
     String mappingSetName,
     String definitionJson

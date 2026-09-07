@@ -140,6 +140,41 @@ public with sharing class IdpMappingController {
     }
   }
 
+  /**
+   * The full Extraction pipeline, DML skipped, against a definition that
+   * has not been saved.
+   *
+   * Seeded from a record rather than a file: the builder is editing
+   * configuration, not processing a document, and what it needs to show
+   * is which records the wiring would reach and what each rule would
+   * write. The sample document supplies the readings.
+   *
+   * Custom handlers do not run in Preview — they are arbitrary Apex with
+   * side effects — and the result says which rules were skipped for that
+   * reason, so the preview is honest about being incomplete.
+   */
+  @AuraEnabled
+  public static IdpResult.Result previewDraft(
+    String mappingSetName,
+    String definition,
+    String jsonString,
+    Id seedRecordId
+  ) {
+    try {
+      IdpMappingEngine.DocumentWork work = new IdpMappingEngine.DocumentWork();
+      work.seedRecordId = seedRecordId;
+      work.jsonString = jsonString;
+      return IdpMappingEngine.run(
+        new List<IdpMappingEngine.DocumentWork>{ work },
+        IdpConfigLoader.loadDraft(mappingSetName, definition),
+        IdpMappingEngine.MODE_PREVIEW,
+        null
+      )[0];
+    } catch (Exception e) {
+      throw new AuraHandledException(e.getMessage());
+    }
+  }
+
   private static IdpResult.Result runOne(
     Id contentDocumentId,
     String jsonString,
