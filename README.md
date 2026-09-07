@@ -1,9 +1,9 @@
-# Intelligent Document Processing - IDP
+# AIDA - App for Intelligent Document Automations
 
 Welcome to the wiki of Intelligent Document Processing, the home of intelligent automations for digitized documents.
 Once you digitize documents, what do you plan to do with the recognized data?
 
-**IDP offers extraction, compliancy check and intelligent mapping, all in one pack.**
+**AIDA offers extraction, compliancy check and intelligent mapping, all in one pack.**
 
 ## Documentation
 
