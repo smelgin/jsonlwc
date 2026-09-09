@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>One document-text to stored-value pair of a ValueMap-kind IDP Value Type, e.g. &quot;Pty Ltd&quot; / &quot;(PTY) LTD&quot; / &quot;Proprietary Limited&quot; all mapping to the picklist value &quot;Private Company&quot;.</description>
-    <label>IDP Value Map Entry</label>
-    <pluralLabel>IDP Value Map Entries</pluralLabel>
-    <visibility>Public</visibility>
-</CustomObject>
