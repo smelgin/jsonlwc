@@ -164,9 +164,31 @@ public inherited sharing class IdpMappingEngine {
     }
 
     IdpContextResolver.Plan plan = buildPlan(config);
+    // An anchor whose filter reads document values (referencesDocument)
+    // resolves with one query per document instead of one grouped query
+    // for the whole run — see IdpContextResolver's docBound query paths —
+    // so it must be weighted by document count, not treated like a
+    // grouped anchor.
+    Integer groupedAnchors = 0;
+    Integer docBoundAnchors = 0;
+    for (IdpContextResolver.AnchorSpec spec : plan.byObject.values()) {
+      if (IdpFilterBinder.referencesDocument(spec.filter)) {
+        docBoundAnchors++;
+      } else {
+        groupedAnchors++;
+      }
+    }
+    for (IdpContextResolver.AnchorSpec spec : plan.bySection.values()) {
+      if (IdpFilterBinder.referencesDocument(spec.filter)) {
+        docBoundAnchors++;
+      } else {
+        groupedAnchors++;
+      }
+    }
     Integer estimate =
       BASE_QUERIES +
-      plan.size() * QUERIES_PER_ANCHOR +
+      groupedAnchors * QUERIES_PER_ANCHOR +
+      docBoundAnchors * eligible.size() +
       config.sections.size();
     if (!IdpLimitsGuard.hasQueryHeadroom(estimate)) {
       for (DocumentWork work : eligible) {

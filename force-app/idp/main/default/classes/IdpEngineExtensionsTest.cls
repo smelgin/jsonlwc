@@ -486,6 +486,87 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /** D-3 regression: a run creating two object types interleaves them in
+   *  staging order (Asset, Contact, Asset, Contact, ...) — past ~6
+   *  documents that used to exceed Apex's 10-chunk DML limit when the
+   *  whole list was inserted as staged, un-grouped by type. */
+  @IsTest
+  static void creatingTwoObjectTypesAcrossSixDocumentsDoesNotExceedTheDmlChunkLimit() {
+    Integer bulkSize = 6;
+    List<IdpTestData.CaseWithFile> docs = new List<IdpTestData.CaseWithFile>();
+    for (Integer i = 0; i < bulkSize; i++) {
+      docs.add(IdpTestData.caseWithFile('Bulk Holder ' + i, '555-000' + i));
+    }
+
+    IdpConfigLoader.RawSection customer = section('Customer', 'Account');
+    IdpConfigLoader.RawSection holding = section('Holding', 'Asset');
+    holding.whenNoAnchor = 'Create';
+    holding.reachFrom = 'Customer';
+    holding.via = 'AccountId';
+    holding.rules.add(rule('H1_Name', 'holding.name', 'Name'));
+    holding.rules.add(rule('H2_Serial', 'holding.serial', 'SerialNumber'));
+    IdpConfigLoader.RawSection contactDetails = section(
+      'Contact_Details',
+      'Contact'
+    );
+    contactDetails.whenNoAnchor = 'Create';
+    contactDetails.reachFrom = 'Customer';
+    contactDetails.via = 'AccountId';
+    contactDetails.rules.add(
+      rule('C1_LastName', 'contact.lastName', 'LastName')
+    );
+    install(
+      new List<IdpConfigLoader.RawSection>{ customer, holding, contactDetails }
+    );
+
+    List<IdpMappingEngine.DocumentWork> works = new List<IdpMappingEngine.DocumentWork>();
+    for (Integer i = 0; i < bulkSize; i++) {
+      IdpMappingEngine.DocumentWork work = new IdpMappingEngine.DocumentWork();
+      work.contentDocumentId = docs[i].contentDocumentId;
+      work.jsonString = JSON.serialize(
+        new Map<String, Object>{
+          'holding' => new Map<String, Object>{
+            'name' => 'Fund ' + i,
+            'serial' => 'MM-' + i
+          },
+          'contact' => new Map<String, Object>{ 'lastName' => 'Doe ' + i }
+        }
+      );
+      works.add(work);
+    }
+
+    Test.startTest();
+    List<IdpResult.Result> results = IdpMappingEngine.run(
+      works,
+      SET_NAME,
+      'Extraction',
+      null
+    );
+    Test.stopTest();
+
+    for (Integer i = 0; i < results.size(); i++) {
+      Assert.isTrue(
+        results[i].success,
+        'doc ' + i + ': ' + JSON.serialize(results[i].findings)
+      );
+      Assert.areEqual(
+        2,
+        results[i].createdRecordIds.size(),
+        'each document creates one Asset and one Contact'
+      );
+    }
+    Assert.areEqual(
+      bulkSize,
+      [SELECT COUNT() FROM Asset WHERE SerialNumber LIKE 'MM-%'],
+      'every document created its Asset'
+    );
+    Assert.areEqual(
+      bulkSize,
+      [SELECT COUNT() FROM Contact WHERE LastName LIKE 'Doe %'],
+      'every document created its Contact'
+    );
+  }
+
   @IsTest
   static void withoutThePolicyAMissingAnchorStaysAnError() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();

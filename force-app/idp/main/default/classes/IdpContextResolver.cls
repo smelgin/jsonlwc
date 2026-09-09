@@ -149,21 +149,33 @@ public inherited sharing class IdpContextResolver {
         spec.objectName = objectName;
       }
     }
+    // Documents that bind the same filter values to the same query (a
+    // shared status code, say) share one query instead of one per
+    // document — see queryOneForDoc.
+    Map<String, SObject> resultCache = new Map<String, SObject>();
     collectRootCandidates(docs);
-    fetchRoots(docs, plan);
-    expandHubs(docs, plan);
+    fetchRoots(docs, plan, resultCache);
+    expandHubs(docs, plan, resultCache);
     for (Integer pass = 0; pass < MAX_PASSES; pass++) {
       Boolean progressed = false;
       for (String target : plan.byObject.keySet()) {
-        if (resolveParentHops(target, docs, plan)) {
+        if (resolveParentHops(target, docs, plan, resultCache)) {
           progressed = true;
         }
-        if (resolveChildHops(target, docs, plan)) {
+        if (resolveChildHops(target, docs, plan, resultCache)) {
           progressed = true;
         }
       }
       for (String key : plan.sectionOrder) {
-        if (resolveExplicitHop(key, plan.bySection.get(key), docs, plan)) {
+        if (
+          resolveExplicitHop(
+            key,
+            plan.bySection.get(key),
+            docs,
+            plan,
+            resultCache
+          )
+        ) {
           progressed = true;
         }
       }
@@ -208,7 +220,11 @@ public inherited sharing class IdpContextResolver {
   /** Fetches root candidates grouped per object; each document anchors
    *  the first of its candidates that survives the query (and filter). A
    *  filter binding {json:} values queries per document instead. */
-  private static void fetchRoots(List<DocContext> docs, Plan plan) {
+  private static void fetchRoots(
+    List<DocContext> docs,
+    Plan plan,
+    Map<String, SObject> resultCache
+  ) {
     Set<String> objectNames = new Set<String>();
     for (DocContext doc : docs) {
       objectNames.addAll(doc.rootCandidates.keySet());
@@ -230,7 +246,8 @@ public inherited sharing class IdpContextResolver {
               spec,
               doc.jsonRoot,
               false,
-              plan
+              plan,
+              resultCache
             );
             if (record != null) {
               doc.anchor(objectName, record);
@@ -277,7 +294,11 @@ public inherited sharing class IdpContextResolver {
    *  the intermediate object is not itself targeted. A parent type the
    *  hub reaches through several lookups is ambiguous, not followed —
    *  a section chooses one with reachFrom: "Document__c", via: "…". */
-  private static void expandHubs(List<DocContext> docs, Plan plan) {
+  private static void expandHubs(
+    List<DocContext> docs,
+    Plan plan,
+    Map<String, SObject> resultCache
+  ) {
     Map<String, Schema.SObjectField> hubFields = IdpSchemaCache.fieldsOf(
       hubOf(plan)
     );
@@ -338,7 +359,7 @@ public inherited sharing class IdpContextResolver {
         }
       }
     }
-    fetchWanted(wanted, docs, plan);
+    fetchWanted(wanted, docs, plan, resultCache);
   }
 
   // ─────────────────────── implicit passes ────────────────────────
@@ -348,7 +369,8 @@ public inherited sharing class IdpContextResolver {
   private static Boolean resolveParentHops(
     String target,
     List<DocContext> docs,
-    Plan plan
+    Plan plan,
+    Map<String, SObject> resultCache
   ) {
     Map<String, Map<Id, List<DocContext>>> wanted = new Map<String, Map<Id, List<DocContext>>>();
     for (DocContext doc : docs) {
@@ -371,7 +393,7 @@ public inherited sharing class IdpContextResolver {
         }
       }
     }
-    return fetchWanted(wanted, docs, plan);
+    return fetchWanted(wanted, docs, plan, resultCache);
   }
 
   /** The target holds the one lookup back to an anchored record
@@ -379,7 +401,8 @@ public inherited sharing class IdpContextResolver {
   private static Boolean resolveChildHops(
     String target,
     List<DocContext> docs,
-    Plan plan
+    Plan plan,
+    Map<String, SObject> resultCache
   ) {
     AnchorSpec spec = plan.byObject.get(target);
     Boolean progressed = false;
@@ -410,7 +433,8 @@ public inherited sharing class IdpContextResolver {
             spec,
             doc.jsonRoot,
             true,
-            plan
+            plan,
+            resultCache
           );
           if (record != null) {
             doc.anchor(target, record);
@@ -465,7 +489,8 @@ public inherited sharing class IdpContextResolver {
     String key,
     AnchorSpec spec,
     List<DocContext> docs,
-    Plan plan
+    Plan plan,
+    Map<String, SObject> resultCache
   ) {
     Boolean docBound = IdpFilterBinder.referencesDocument(spec.filter);
     Boolean progressed = false;
@@ -494,7 +519,8 @@ public inherited sharing class IdpContextResolver {
           spec,
           doc.jsonRoot,
           spec.childHop,
-          plan
+          plan,
+          resultCache
         );
         if (record != null) {
           doc.anchorsBySection.put(key, record);
@@ -540,7 +566,8 @@ public inherited sharing class IdpContextResolver {
   private static Boolean fetchWanted(
     Map<String, Map<Id, List<DocContext>>> wanted,
     List<DocContext> docs,
-    Plan plan
+    Plan plan,
+    Map<String, SObject> resultCache
   ) {
     Boolean progressed = false;
     for (String objectName : wanted.keySet()) {
@@ -560,7 +587,8 @@ public inherited sharing class IdpContextResolver {
               spec,
               doc.jsonRoot,
               false,
-              plan
+              plan,
+              resultCache
             );
             if (record != null) {
               doc.anchor(objectName, record);
@@ -687,7 +715,10 @@ public inherited sharing class IdpContextResolver {
   }
 
   /** v1's queryFirstWhere: one record for one document, filter bound
-   *  against that document's JSON. */
+   *  against that document's JSON. Several documents commonly resolve the
+   *  same filter to the same values (a shared status code, say); resultCache
+   *  keys on the query text plus its bound values, so those documents reuse
+   *  one query result instead of each issuing their own. */
   private static SObject queryOneForDoc(
     String key,
     String objectName,
@@ -696,7 +727,8 @@ public inherited sharing class IdpContextResolver {
     AnchorSpec spec,
     Object jsonRoot,
     Boolean newestFirst,
-    Plan plan
+    Plan plan,
+    Map<String, SObject> resultCache
   ) {
     if (value == null || IdpSchemaCache.typeOf(objectName) == null) {
       return null;
@@ -724,16 +756,24 @@ public inherited sharing class IdpContextResolver {
       whereClause +
       (newestFirst ? ' ORDER BY CreatedDate DESC' : '') +
       ' LIMIT 1';
+
+    String cacheKey = soql + '|' + JSON.serialize(binds);
+    if (resultCache.containsKey(cacheKey)) {
+      return resultCache.get(cacheKey);
+    }
+    SObject result;
     try {
       List<SObject> rows = Database.queryWithBinds(
         soql,
         binds,
         AccessLevel.USER_MODE
       );
-      return rows.isEmpty() ? null : rows[0];
+      result = rows.isEmpty() ? null : rows[0];
     } catch (Exception e) {
-      return null;
+      result = null;
     }
+    resultCache.put(cacheKey, result);
+    return result;
   }
 
   /**

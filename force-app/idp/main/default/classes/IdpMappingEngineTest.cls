@@ -153,6 +153,27 @@ private class IdpMappingEngineTest {
     return raw;
   }
 
+  /** A single Fixed section whose anchor filter reads a document value
+   *  ({json:status}), so it resolves through IdpContextResolver's
+   *  per-document query paths instead of one grouped query. */
+  private static void installDocBoundCaseFilterConfig() {
+    IdpConfigLoader.RawSection details = section('Case_Details', 'Case');
+    details.recordFilter = 'Status = {json:status}';
+    install(
+      new List<IdpConfigLoader.RawSection>{ details },
+      new List<Spec>{
+        rule(
+          'R1_Name',
+          'Case_Details',
+          'applicant.name',
+          'Case',
+          'SuppliedName'
+        )
+      },
+      new Map<String, IdpValueTypes.Config>()
+    );
+  }
+
   // ───────────────────────── extraction ───────────────────────────
 
   @IsTest
@@ -759,6 +780,145 @@ private class IdpMappingEngineTest {
       queriesUsed
     );
     Assert.areEqual(1, dmlUsed, 'one partial-success update for the whole run');
+  }
+
+  /** The bulk query budget at the platform's real batch scope, not the
+   *  3-document sample above: query count must stay flat as document
+   *  count rises, or every scaling defect this class of test would catch
+   *  is invisible below the threshold where it manifests. */
+  @IsTest
+  static void queryCountStaysFlatAcross200Documents() {
+    Integer bulkSize = 200;
+    List<Account> accounts = new List<Account>();
+    for (Integer i = 0; i < bulkSize; i++) {
+      accounts.add(new Account(Name = 'Bulk Holder ' + i, Phone = '555-' + i));
+    }
+    insert accounts;
+    List<Case> cases = new List<Case>();
+    for (Integer i = 0; i < bulkSize; i++) {
+      cases.add(
+        new Case(AccountId = accounts[i].Id, Subject = 'Estate intake')
+      );
+    }
+    insert cases;
+    installEstateConfig();
+
+    List<IdpMappingEngine.DocumentWork> works = new List<IdpMappingEngine.DocumentWork>();
+    for (Integer i = 0; i < bulkSize; i++) {
+      IdpMappingEngine.DocumentWork work = new IdpMappingEngine.DocumentWork();
+      work.seedRecordId = cases[i].Id;
+      work.jsonString = estateJson('Person ' + i, '555-100' + i);
+      works.add(work);
+    }
+
+    Test.startTest();
+    Integer queriesBefore = Limits.getQueries();
+    List<IdpResult.Result> results = IdpMappingEngine.run(
+      works,
+      SET_NAME,
+      null,
+      null
+    );
+    Integer queriesUsed = Limits.getQueries() - queriesBefore;
+    Test.stopTest();
+
+    for (Integer i = 0; i < results.size(); i++) {
+      Assert.isTrue(
+        results[i].success,
+        'doc ' + i + ': ' + JSON.serialize(results[i].findings)
+      );
+    }
+    Assert.isTrue(
+      queriesUsed <= 5,
+      'query count must not scale with document count at real batch scope; used ' +
+      queriesUsed
+    );
+  }
+
+  /** D-1/D-2 regression: many documents whose anchor filter reads a
+   *  document value ({json:status}) but resolve to identical bound values
+   *  reuse one query instead of issuing one per document. */
+  @IsTest
+  static void documentBoundFilterReusesQueriesForSharedValues() {
+    Case sharedCase = new Case(Subject = 'Estate intake', Status = 'New');
+    insert sharedCase;
+    installDocBoundCaseFilterConfig();
+
+    Integer bulkSize = 20;
+    List<IdpMappingEngine.DocumentWork> works = new List<IdpMappingEngine.DocumentWork>();
+    for (Integer i = 0; i < bulkSize; i++) {
+      IdpMappingEngine.DocumentWork work = new IdpMappingEngine.DocumentWork();
+      work.seedRecordId = sharedCase.Id;
+      work.jsonString = JSON.serialize(
+        new Map<String, Object>{
+          'applicant' => new Map<String, Object>{ 'name' => 'Person ' + i },
+          'status' => 'New'
+        }
+      );
+      works.add(work);
+    }
+
+    Test.startTest();
+    Integer queriesBefore = Limits.getQueries();
+    List<IdpResult.Result> results = IdpMappingEngine.run(
+      works,
+      SET_NAME,
+      null,
+      null
+    );
+    Integer queriesUsed = Limits.getQueries() - queriesBefore;
+    Test.stopTest();
+
+    for (IdpResult.Result result : results) {
+      Assert.isTrue(result.success, JSON.serialize(result.findings));
+    }
+    Assert.isTrue(
+      queriesUsed <= 5,
+      '20 documents sharing one filter value must not cost 20 separate per-document queries; used ' +
+      queriesUsed
+    );
+  }
+
+  /** D-2 regression: at real batch scope, a document-bound anchor filter
+   *  must defer gracefully (rerunnable, reported) rather than exhaust the
+   *  query limit mid-resolution — the headroom estimate now scales with
+   *  document count instead of ignoring it. */
+  @IsTest
+  static void documentBoundFilterDefersInsteadOfExceedingTheQueryLimitAt200Documents() {
+    Case sharedCase = new Case(Subject = 'Estate intake', Status = 'New');
+    insert sharedCase;
+    installDocBoundCaseFilterConfig();
+
+    Integer bulkSize = 200;
+    List<IdpMappingEngine.DocumentWork> works = new List<IdpMappingEngine.DocumentWork>();
+    for (Integer i = 0; i < bulkSize; i++) {
+      IdpMappingEngine.DocumentWork work = new IdpMappingEngine.DocumentWork();
+      work.seedRecordId = sharedCase.Id;
+      work.jsonString = JSON.serialize(
+        new Map<String, Object>{
+          'applicant' => new Map<String, Object>{ 'name' => 'Person ' + i },
+          'status' => 'New'
+        }
+      );
+      works.add(work);
+    }
+
+    Test.startTest();
+    List<IdpResult.Result> results = IdpMappingEngine.run(
+      works,
+      SET_NAME,
+      null,
+      null
+    );
+    Test.stopTest();
+
+    for (IdpResult.Result result : results) {
+      Assert.isTrue(result.deferred, JSON.serialize(result.findings));
+      Assert.areEqual(
+        1,
+        result.findingsWith(IdpResult.CODE_DOC_DEFERRED).size()
+      );
+    }
   }
 
   @IsTest
