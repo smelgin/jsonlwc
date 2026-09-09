@@ -148,71 +148,92 @@ public inherited sharing class IdpDmlExecutor {
     flushUpdates();
   }
 
+  /** Apex rejects a DML list that chunks (by contiguous SObjectType) into
+   *  more than 10 runs, so a run creating more than one object type must
+   *  insert (and update) one type at a time rather than in staging order. */
   private void flushInserts() {
     if (pendingInserts.isEmpty()) {
       return;
     }
-    List<SObject> records = new List<SObject>();
+    Map<Schema.SObjectType, List<String>> keysByType = new Map<Schema.SObjectType, List<String>>();
     for (String dedupeKey : insertOrder) {
-      records.add(pendingInserts.get(dedupeKey));
+      Schema.SObjectType recordType = pendingInserts.get(dedupeKey)
+        .getSObjectType();
+      List<String> keys = keysByType.get(recordType);
+      if (keys == null) {
+        keys = new List<String>();
+        keysByType.put(recordType, keys);
+      }
+      keys.add(dedupeKey);
     }
 
-    SObjectAccessDecision decision = Security.stripInaccessible(
-      AccessType.CREATABLE,
-      records
-    );
-    reportRemovedInsertFields(decision.getRemovedFields());
-
-    List<SObject> writable = decision.getRecords();
-    List<Database.SaveResult> saveResults = Database.insert(writable, false);
     Map<String, Id> createdIds = new Map<String, Id>();
-    for (Integer i = 0; i < saveResults.size(); i++) {
-      String objectName = writable[i].getSObjectType().getDescribe().getName();
-      if (saveResults[i].isSuccess()) {
-        createdIds.put(insertOrder[i], saveResults[i].getId());
+    for (List<String> keysForType : keysByType.values()) {
+      List<SObject> records = new List<SObject>();
+      for (String dedupeKey : keysForType) {
+        records.add(pendingInserts.get(dedupeKey));
       }
-      for (Contribution contribution : insertContributors.get(insertOrder[i])) {
+
+      SObjectAccessDecision decision = Security.stripInaccessible(
+        AccessType.CREATABLE,
+        records
+      );
+      reportRemovedInsertFields(decision.getRemovedFields());
+
+      List<SObject> writable = decision.getRecords();
+      List<Database.SaveResult> saveResults = Database.insert(writable, false);
+      for (Integer i = 0; i < saveResults.size(); i++) {
+        String objectName = writable[i]
+          .getSObjectType()
+          .getDescribe()
+          .getName();
+        String dedupeKey = keysForType[i];
         if (saveResults[i].isSuccess()) {
-          Id recordId = saveResults[i].getId();
-          contribution.result.createdRecordIds.add(recordId);
-          if (contribution.isRow) {
-            contribution.result.rowsCreated++;
-          }
-          IdpResult.Finding created = contribution.result.add(
-            contribution.isRow
-              ? IdpResult.CODE_ROW_CREATED
-              : IdpResult.CODE_ANCHOR_CREATED,
-            IdpResult.SEV_INFO,
-            'Created ' +
-              objectName +
-              (contribution.rowKey == null
-                ? ''
-                : ' for key "' + contribution.rowKey + '"') +
-              ' (' +
-              recordId +
-              ').'
-          );
-          created.objectName = objectName;
-          created.recordId = recordId;
-          created.sectionName = contribution.sectionName;
-          created.rowIndex = contribution.rowIndex;
-          created.rowKey = contribution.rowKey;
-        } else {
-          for (Database.Error error : saveResults[i].getErrors()) {
-            IdpResult.Finding finding = contribution.result.add(
-              IdpResult.CODE_DML_FAILED,
-              IdpResult.SEV_ERROR,
-              objectName +
+          createdIds.put(dedupeKey, saveResults[i].getId());
+        }
+        for (Contribution contribution : insertContributors.get(dedupeKey)) {
+          if (saveResults[i].isSuccess()) {
+            Id recordId = saveResults[i].getId();
+            contribution.result.createdRecordIds.add(recordId);
+            if (contribution.isRow) {
+              contribution.result.rowsCreated++;
+            }
+            IdpResult.Finding created = contribution.result.add(
+              contribution.isRow
+                ? IdpResult.CODE_ROW_CREATED
+                : IdpResult.CODE_ANCHOR_CREATED,
+              IdpResult.SEV_INFO,
+              'Created ' +
+                objectName +
                 (contribution.rowKey == null
                   ? ''
                   : ' for key "' + contribution.rowKey + '"') +
-                ' could not be created: ' +
-                error.getMessage()
+                ' (' +
+                recordId +
+                ').'
             );
-            finding.objectName = objectName;
-            finding.sectionName = contribution.sectionName;
-            finding.rowIndex = contribution.rowIndex;
-            finding.rowKey = contribution.rowKey;
+            created.objectName = objectName;
+            created.recordId = recordId;
+            created.sectionName = contribution.sectionName;
+            created.rowIndex = contribution.rowIndex;
+            created.rowKey = contribution.rowKey;
+          } else {
+            for (Database.Error error : saveResults[i].getErrors()) {
+              IdpResult.Finding finding = contribution.result.add(
+                IdpResult.CODE_DML_FAILED,
+                IdpResult.SEV_ERROR,
+                objectName +
+                  (contribution.rowKey == null
+                    ? ''
+                    : ' for key "' + contribution.rowKey + '"') +
+                  ' could not be created: ' +
+                  error.getMessage()
+              );
+              finding.objectName = objectName;
+              finding.sectionName = contribution.sectionName;
+              finding.rowIndex = contribution.rowIndex;
+              finding.rowKey = contribution.rowKey;
+            }
           }
         }
       }
@@ -240,49 +261,61 @@ public inherited sharing class IdpDmlExecutor {
     if (pending.isEmpty()) {
       return;
     }
-    List<Id> order = new List<Id>(pending.keySet());
-    List<SObject> records = new List<SObject>();
-    for (Id recordId : order) {
-      records.add(pending.get(recordId));
+    Map<Schema.SObjectType, List<Id>> idsByType = new Map<Schema.SObjectType, List<Id>>();
+    for (Id recordId : pending.keySet()) {
+      Schema.SObjectType recordType = pending.get(recordId).getSObjectType();
+      List<Id> ids = idsByType.get(recordType);
+      if (ids == null) {
+        ids = new List<Id>();
+        idsByType.put(recordType, ids);
+      }
+      ids.add(recordId);
     }
 
-    SObjectAccessDecision decision = Security.stripInaccessible(
-      AccessType.UPDATABLE,
-      records
-    );
-    reportRemovedFields(decision.getRemovedFields());
-
-    List<SObject> writable = decision.getRecords();
-    List<Database.SaveResult> saveResults = Database.update(writable, false);
-    for (Integer i = 0; i < saveResults.size(); i++) {
-      Id recordId = writable[i].Id;
-      List<Contribution> contributions = contributors.get(recordId);
-      if (contributions == null) {
-        continue;
+    for (List<Id> order : idsByType.values()) {
+      List<SObject> records = new List<SObject>();
+      for (Id recordId : order) {
+        records.add(pending.get(recordId));
       }
-      if (saveResults[i].isSuccess()) {
-        for (Contribution contribution : contributions) {
-          if (!contribution.result.updatedRecordIds.contains(recordId)) {
-            contribution.result.updatedRecordIds.add(recordId);
-          }
-          if (contribution.isRow) {
-            contribution.result.rowsUpdated++;
-          }
+
+      SObjectAccessDecision decision = Security.stripInaccessible(
+        AccessType.UPDATABLE,
+        records
+      );
+      reportRemovedFields(decision.getRemovedFields());
+
+      List<SObject> writable = decision.getRecords();
+      List<Database.SaveResult> saveResults = Database.update(writable, false);
+      for (Integer i = 0; i < saveResults.size(); i++) {
+        Id recordId = writable[i].Id;
+        List<Contribution> contributions = contributors.get(recordId);
+        if (contributions == null) {
+          continue;
         }
-      } else {
-        String objectName = writable[i]
-          .getSObjectType()
-          .getDescribe()
-          .getName();
-        for (Database.Error error : saveResults[i].getErrors()) {
+        if (saveResults[i].isSuccess()) {
           for (Contribution contribution : contributions) {
-            IdpResult.Finding finding = contribution.result.add(
-              IdpResult.CODE_DML_FAILED,
-              IdpResult.SEV_ERROR,
-              objectName + ': ' + error.getMessage()
-            );
-            finding.objectName = objectName;
-            finding.recordId = recordId;
+            if (!contribution.result.updatedRecordIds.contains(recordId)) {
+              contribution.result.updatedRecordIds.add(recordId);
+            }
+            if (contribution.isRow) {
+              contribution.result.rowsUpdated++;
+            }
+          }
+        } else {
+          String objectName = writable[i]
+            .getSObjectType()
+            .getDescribe()
+            .getName();
+          for (Database.Error error : saveResults[i].getErrors()) {
+            for (Contribution contribution : contributions) {
+              IdpResult.Finding finding = contribution.result.add(
+                IdpResult.CODE_DML_FAILED,
+                IdpResult.SEV_ERROR,
+                objectName + ': ' + error.getMessage()
+              );
+              finding.objectName = objectName;
+              finding.recordId = recordId;
+            }
           }
         }
       }
