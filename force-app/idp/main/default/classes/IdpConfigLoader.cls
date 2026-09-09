@@ -44,6 +44,13 @@ public inherited sharing class IdpConfigLoader {
     public String hubObject;
     public List<SectionConfig> sections = new List<SectionConfig>();
     public List<IdpResult.Finding> issues = new List<IdpResult.Finding>();
+    /** Where assembly currently is. issue() stamps these onto the finding
+     *  it raises, so a configuration problem names the section and rule
+     *  that caused it without every call site having to pass them. Both
+     *  are null wherever assembly cannot say, because a finding pinned to
+     *  the wrong row is worse than one pinned to none. */
+    public String atSection;
+    public String atRule;
   }
 
   public class SectionConfig {
@@ -314,7 +321,11 @@ public inherited sharing class IdpConfigLoader {
         kept.add(raw);
       }
     }
+    config.atSection = null;
+    config.atRule = null;
     resolveNavigation(config, sectionsByName, kept);
+    config.atSection = null;
+    config.atRule = null;
 
     loadReferencedValueTypes(kept, valueTypes);
     for (RawSection raw : kept) {
@@ -327,7 +338,10 @@ public inherited sharing class IdpConfigLoader {
           assembleRule(rule, section, valueTypes, config);
         }
       }
+      config.atRule = null;
     }
+    config.atSection = null;
+    config.atRule = null;
     return config;
   }
 
@@ -498,6 +512,8 @@ public inherited sharing class IdpConfigLoader {
     RawSection raw,
     SetConfig config
   ) {
+    config.atSection = String.isBlank(raw.name) ? null : raw.name;
+    config.atRule = null;
     SectionConfig section = new SectionConfig();
     section.name = raw.name;
     section.label = String.isBlank(raw.label) ? raw.name : raw.label;
@@ -677,6 +693,7 @@ public inherited sharing class IdpConfigLoader {
     }
     Set<String> skipped = new Set<String>();
     for (SectionConfig section : config.sections) {
+      config.atSection = section.name;
       if (section.reachFrom == null) {
         continue;
       }
@@ -714,6 +731,7 @@ public inherited sharing class IdpConfigLoader {
     while (changed) {
       changed = false;
       for (SectionConfig section : config.sections) {
+        config.atSection = section.name;
         if (skipped.contains(section.name) || !section.reachFromSection) {
           continue;
         }
@@ -1214,6 +1232,8 @@ public inherited sharing class IdpConfigLoader {
     String ruleName = String.isBlank(raw.name)
       ? '(unnamed, in section ' + section.name + ')'
       : raw.name;
+    config.atSection = section == null ? null : section.name;
+    config.atRule = String.isBlank(raw.name) ? null : raw.name;
     String targetField = bareField(raw.targetField);
 
     if (String.isBlank(raw.jsonPath) || String.isBlank(targetField)) {
@@ -1540,6 +1560,8 @@ public inherited sharing class IdpConfigLoader {
     finding.code = IdpResult.CODE_CONFIG_ISSUE;
     finding.severity = severity;
     finding.message = message;
+    finding.sectionName = config.atSection;
+    finding.ruleName = config.atRule;
     config.issues.add(finding);
   }
 

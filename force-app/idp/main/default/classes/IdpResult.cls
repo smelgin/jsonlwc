@@ -136,6 +136,10 @@ public inherited sharing class IdpResult {
 
     @InvocableVariable
     @AuraEnabled
+    public String ruleName;
+
+    @InvocableVariable
+    @AuraEnabled
     public Integer rowIndex;
 
     @InvocableVariable
