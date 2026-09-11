@@ -183,6 +183,11 @@ export default class FileJsonReviewMappingDemo extends LightningElement {
                 `${result.fieldsApplied} field(s) applied to ${result.updatedRecordIds.length} record(s)`
             );
         }
+        if (result.rowsCreated > 0) {
+            parts.push(
+                `${result.rowsCreated} record(s) created`
+            );
+        }
         if (result.fieldsCompared > 0) {
             parts.push(
                 `${result.fieldsCompared} field(s) checked, ${this.mismatchFindings(result).length} mismatch(es)`

@@ -8,6 +8,7 @@
   "xml.preferences.showSchemaDocumentationType": "none",
   "salesforce.agentforceVibesAutocomplete.enableAutocompletions": true,
   "workbench.colorCustomizations": {
+    "activityBar.background": "#8c1004",
     "statusBar.background": "#0b5cab",
     "statusBar.foreground": "#ffffff",
     "statusBar.border": "#1b96ff",

@@ -4,15 +4,15 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
 >
-    <label>LX: Date (legal documents)</label>
+    <label>LX: Contact Number (South Africa)</label>
     <protected>false</protected>
     <values>
         <field>Description__c</field>
-        <value xsi:type="xsd:string">Dates as printed on Master's Office letters: 08/04/2026, 8 April 2026, 1 Maart 2027 (Afrikaans), or ISO.</value>
+        <value xsi:type="xsd:string">Phone numbers as written on Master's Office correspondence — with or without a leading 0, spaces, dashes or a bracketed trunk code — normalized to E.164.</value>
     </values>
     <values>
         <field>Kind__c</field>
-        <value xsi:type="xsd:string">Date</value>
+        <value xsi:type="xsd:string">Phone</value>
     </values>
     <values>
         <field>Handler_Class__c</field>
@@ -20,19 +20,19 @@
     </values>
     <values>
         <field>Locale__c</field>
-        <value xsi:type="xsd:string">af</value>
+        <value xsi:nil="true" />
     </values>
     <values>
         <field>Formats__c</field>
-        <value xsi:type="xsd:string">dd/MM/yyyy|d MMMM yyyy|dd MMMM yyyy|yyyy-MM-dd</value>
+        <value xsi:nil="true" />
     </values>
     <values>
         <field>Output_Format__c</field>
-        <value xsi:nil="true" />
+        <value xsi:type="xsd:string">e164</value>
     </values>
     <values>
         <field>Region__c</field>
-        <value xsi:nil="true" />
+        <value xsi:type="xsd:string">ZA</value>
     </values>
     <values>
         <field>Scale_Factor__c</field>

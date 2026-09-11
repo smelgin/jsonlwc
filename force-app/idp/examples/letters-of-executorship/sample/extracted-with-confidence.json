@@ -1,19 +1,66 @@
 {
   "letters": {
     "formNumber": "J238",
-    "estateNumber": { "value": "004521/2026", "confidence": 0.98 },
-    "issuedDate": { "value": "08/04/2026", "confidence": 0.91 },
-    "mastersOffice": "Cape Town",
+    "estateNumber": { "value": "007842/2027", "confidence": 0.97 },
+    "issuedDate": { "value": "1 Maart 2027", "confidence": 0.89 },
+    "mastersOffice": "Bloemfontein",
     "actReference": "Section 13 and 14 of the Administration of Estates Act, No 66 of 1965"
   },
   "executor": {
-    "fullName": "Nomsa Patience Dlamini",
-    "identityNumber": { "value": "8203155009087", "confidence": 0.96 },
-    "capacity": "Executrix"
+    "fullName": "Johan Coenraad Steyn",
+    "identityNumber": { "value": "7205125123086", "confidence": 0.95 },
+    "capacity": "Executor"
   },
   "deceased": {
-    "fullName": "Johannes Petrus van der Merwe",
-    "identityNumber": { "value": "5107085042083", "confidence": 0.74 },
-    "dateOfDeath": { "value": "14/02/2026", "confidence": 0.88 }
-  }
+    "fullName": "Gideon Petrus Botha",
+    "identityNumber": { "value": "5606125678089", "confidence": 0.72 },
+    "dateOfDeath": { "value": "12/11/2026", "confidence": 0.92 }
+  },
+  "relatedParties": [
+    {
+      "partyRef": "EXE-1",
+      "role": "Executor",
+      "fullName": "Johan Coenraad Steyn",
+      "identityNumber": "7205125123086",
+      "contactNumber": "+27 51 522 1000",
+      "address": "14 President Boulevard, Bloemfontein, 9301"
+    },
+    {
+      "partyRef": "EXE-2",
+      "role": "Executor",
+      "fullName": "Adriana Magdalena Botha",
+      "identityNumber": "6803210456082",
+      "contactNumber": "051 522 1000",
+      "address": "22 Vaal Street, Bloemfontein, 9301"
+    },
+    {
+      "partyRef": "SPS-1",
+      "role": "Spouse",
+      "fullName": "Petra Elizabeth Botha",
+      "identityNumber": "6205300234083",
+      "contactNumber": "082 555 1234",
+      "address": "22 Vaal Street, Bloemfontein, 9301"
+    },
+    {
+      "partyRef": "HEIR-1",
+      "role": "Heir",
+      "fullName": "Marnus Botha",
+      "identityNumber": "9202155123081",
+      "contactNumber": "(011) 234 5678",
+      "address": "8 Kloof Road, Sandton, 2196"
+    },
+    {
+      "partyRef": "HEIR-2",
+      "role": "Heir",
+      "fullName": "Lindiwe Botha",
+      "address": "Flat 4, Riverside Court, 221 High Street, Manchester, M1 4EX, United Kingdom"
+    },
+    {
+      "partyRef": "ATT-1",
+      "role": "Attorney",
+      "fullName": "Adv. Karin Nel (Van Wyk & Steyn Attorneys)",
+      "contactNumber": "011-234-5678",
+      "address": "PO Box 445, Kimberley, 8300"
+    }
+  ]
 }

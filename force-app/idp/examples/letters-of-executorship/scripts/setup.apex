@@ -9,7 +9,7 @@
  *
  *   sf apex run --file force-app/idp/examples/letters-of-executorship/scripts/setup.apex --target-org <alias>
  */
-final String CASE_SUBJECT = 'Letters of Executorship received - Estate Late J P van der Merwe';
+final String CASE_SUBJECT = 'Letters of Executorship received - Estate Late G P Botha';
 final String FILE_TITLE = 'Letters of Executorship';
 
 List<Case> seeded = [
@@ -56,6 +56,15 @@ if (estates.isEmpty()) {
   );
 }
 Estate_Case__c estate = estates[0];
+
+// Related_Party__c has no seed data at all — the repeating section creates
+// every row itself, so a non-zero count here would mean a previous run
+// already applied the mapping.
+Integer relatedPartyCount = [
+  SELECT COUNT()
+  FROM Related_Party__c
+  WHERE Estate_Case__c = :estate.Id
+];
 
 List<ContentDocumentLink> links = [
   SELECT ContentDocumentId
@@ -127,3 +136,7 @@ System.debug(LoggingLevel.ERROR, '  Capacity            : ' + estate.Appointment
 System.debug(LoggingLevel.ERROR, '  Deceased name       : ' + estate.Deceased_Full_Name__c);
 System.debug(LoggingLevel.ERROR, '  Deceased ID         : ' + estate.Deceased_ID_Number__c);
 System.debug(LoggingLevel.ERROR, '  Date of death       : ' + estate.Date_Of_Death__c);
+System.debug(
+  LoggingLevel.ERROR,
+  '  Related Party rows  : ' + relatedPartyCount + ' (should be 0 before the run)'
+);
