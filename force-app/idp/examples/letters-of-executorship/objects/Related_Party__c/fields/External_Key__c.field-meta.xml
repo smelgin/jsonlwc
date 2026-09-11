@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>External_Key__c</fullName>
+    <externalId>false</externalId>
+    <label>External Key</label>
+    <length>60</length>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+    <description>The Letters_Related_Parties section's matchField — holds the document's partyRef so a re-run updates the same row instead of duplicating it. Not meant for manual entry.</description>
+</CustomField>

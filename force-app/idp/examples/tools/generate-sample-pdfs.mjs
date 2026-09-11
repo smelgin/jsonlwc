@@ -4,7 +4,10 @@
  * The examples need a real file to preview in `fileJsonReview`, and a real
  * file has to be a real PDF — so rather than committing a binary nobody can
  * diff, each document is described here as plain text and written out as a
- * minimal, dependency-free PDF 1.4 (Helvetica only, one page, no compression).
+ * minimal, dependency-free PDF 1.4 (Helvetica only, no compression). A
+ * document paginates automatically once its lines run past the bottom
+ * margin — add `{ pageBreak: true }` to force a break earlier (e.g. before
+ * an annexure).
  *
  * Run from the repository root after editing a document:
  *
@@ -25,14 +28,16 @@ const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const MARGIN_X = 56;
 const TOP_Y = 786;
+const BOTTOM_Y = 56;
 
 /**
  * A line of the document. One of:
- *   { text }     a run of text; `center: true` centres it, `x` places it
- *   { pair }     [label, value] laid out in two columns
- *   { columns }  cells at the fixed column stops
- *   { rule }     a horizontal rule
- *   { gap }      vertical space, in points
+ *   { text }       a run of text; `center: true` centres it, `x` places it
+ *   { pair }       [label, value] laid out in two columns
+ *   { columns }    cells at the fixed column stops
+ *   { rule }       a horizontal rule
+ *   { gap }        vertical space, in points
+ *   { pageBreak }  forces a new page here, regardless of remaining space
  * `size` and `bold` apply to text, pair and column lines.
  */
 const documents = [
@@ -225,22 +230,26 @@ const documents = [
         center: true
       },
       { gap: 26 },
-      { pair: ["Estate No:", "004521/2026"] },
+      { pair: ["Estate No:", "007842/2027"] },
       { gap: 18 },
       { text: "THIS IS TO CERTIFY that", size: 11, bold: true, center: true },
       { gap: 16 },
+      { text: "JOHAN COENRAAD STEYN", size: 13, bold: true, center: true },
+      { gap: 4 },
+      { text: "Identity no: 7205125123086", size: 10, center: true },
+      { gap: 10 },
       {
-        text: "NOMSA PATIENCE DLAMINI",
+        text: "ADRIANA MAGDALENA BOTHA",
         size: 13,
         bold: true,
         center: true
       },
-      { gap: 10 },
-      { text: "Identity no: 8203155009087", size: 10, center: true },
+      { gap: 4 },
+      { text: "Identity no: 6803210456082", size: 10, center: true },
       { gap: 20 },
       { text: "has/have been duly appointed", size: 10, center: true },
       { gap: 14 },
-      { text: "EXECUTRIX", size: 12, bold: true, center: true },
+      { text: "EXECUTORS", size: 12, bold: true, center: true },
       { gap: 18 },
       {
         text: "and is/are hereby authorised as such to liquidate and distribute the Estate of the late",
@@ -248,32 +257,110 @@ const documents = [
         center: true
       },
       { gap: 20 },
-      {
-        text: "JOHANNES PETRUS VAN DER MERWE",
-        size: 13,
-        bold: true,
-        center: true
-      },
+      { text: "GIDEON PETRUS BOTHA", size: 13, bold: true, center: true },
       { gap: 18 },
-      { pair: ["Identity No:", "5107085042083"] },
-      { pair: ["who died on:", "14/02/2026"] },
+      { pair: ["Identity No:", "5606125678089"] },
+      { pair: ["who died on:", "12/11/2026"] },
       { gap: 24 },
       { rule: true },
       { gap: 12 },
       { text: "Asst. Master of the High Court", size: 10, bold: true },
       { gap: 4 },
-      { pair: ["Master's Office:", "Cape Town"] },
-      { pair: ["Date stamp:", "08/04/2026"] },
+      { pair: ["Master's Office:", "Bloemfontein"] },
+      { pair: ["Datum gestempel / Date stamped:", "1 Maart 2027"] },
       { gap: 12 },
       {
         text: "Attention is directed to the provisions of section 102.",
         size: 9
       },
-      { gap: 20 },
+      { gap: 8 },
       { rule: true },
       { gap: 10 },
       {
         text: "DEPARTMENT OF JUSTICE AND CONSTITUTIONAL DEVELOPMENT",
+        size: 8
+      },
+      { gap: 8 },
+      {
+        text: "SPECIMEN - not a valid legal document. Generated for the Salesforce IDP examples.",
+        size: 8,
+        bold: true
+      },
+
+      { pageBreak: true },
+
+      {
+        text: "SPECIMEN - SAMPLE DOCUMENT FOR SYSTEM DEMONSTRATION ONLY",
+        size: 8,
+        bold: true,
+        center: true
+      },
+      { gap: 10 },
+      {
+        text: "ANNEXURE A: RELATED PARTIES",
+        size: 13,
+        bold: true,
+        center: true
+      },
+      { gap: 4 },
+      {
+        text: "Estate No: 007842/2027 - Estate Late G P Botha",
+        size: 9,
+        center: true
+      },
+      { gap: 14 },
+      { rule: true },
+      { gap: 12 },
+
+      { text: "EXECUTOR - Johan Coenraad Steyn", size: 10, bold: true },
+      { pair: ["Identity No:", "7205125123086"] },
+      { pair: ["Contact:", "+27 51 522 1000"] },
+      { pair: ["Address:", "14 President Boulevard, Bloemfontein, 9301"] },
+      { gap: 10 },
+
+      { text: "EXECUTOR - Adriana Magdalena Botha", size: 10, bold: true },
+      { pair: ["Identity No:", "6803210456082"] },
+      { pair: ["Contact:", "051 522 1000"] },
+      { pair: ["Address:", "22 Vaal Street, Bloemfontein, 9301"] },
+      { gap: 10 },
+
+      { text: "SPOUSE - Petra Elizabeth Botha", size: 10, bold: true },
+      { pair: ["Identity No:", "6205300234083"] },
+      { pair: ["Contact:", "082 555 1234"] },
+      { pair: ["Address:", "22 Vaal Street, Bloemfontein, 9301"] },
+      { gap: 10 },
+
+      { text: "HEIR - Marnus Botha", size: 10, bold: true },
+      { pair: ["Identity No:", "9202155123081"] },
+      { pair: ["Contact:", "(011) 234 5678"] },
+      { pair: ["Address:", "8 Kloof Road, Sandton, 2196"] },
+      { gap: 10 },
+
+      { text: "HEIR - Lindiwe Botha", size: 10, bold: true },
+      { pair: ["Identity No:", "(none - foreign heir)"] },
+      { pair: ["Contact:", "(none on file)"] },
+      {
+        pair: [
+          "Address:",
+          "Flat 4, Riverside Court, 221 High Street, Manchester, M1 4EX, UK"
+        ]
+      },
+      { gap: 10 },
+
+      {
+        text: "ATTORNEY - Adv. Karin Nel (Van Wyk & Steyn Attorneys)",
+        size: 10,
+        bold: true
+      },
+      { pair: ["Identity No:", "(firm - not applicable)"] },
+      { pair: ["Contact:", "011-234-5678"] },
+      { pair: ["Address:", "PO Box 445, Kimberley, 8300"] },
+      { gap: 14 },
+
+      { rule: true },
+      { gap: 10 },
+      {
+        text: "Estate reference (repeated): EST No. 007842 / 2027",
         size: 8
       },
       { gap: 8 },
@@ -308,7 +395,45 @@ function centeredX(text, size, bold) {
   return Math.max(MARGIN_X, Math.round((PAGE_WIDTH - width) / 2));
 }
 
-/** Lays the line descriptors out top-down into a content stream. */
+/** The vertical space a line descriptor takes, mirroring contentStream's own bookkeeping. */
+function lineHeight(line) {
+  if (line.gap !== undefined) return line.gap;
+  if (line.rule) return 14; // 4pt before the rule, 10pt after
+  if (line.columns) return 15;
+  if (line.pair) return 16;
+  return (line.size ?? 10) + 6;
+}
+
+/**
+ * Splits the document's line descriptors into pages, breaking whenever the
+ * next line would cross the bottom margin (or on an explicit `pageBreak`).
+ */
+function paginate(lines) {
+  const pages = [];
+  let current = [];
+  let y = TOP_Y;
+
+  for (const line of lines) {
+    if (line.pageBreak) {
+      if (current.length > 0) pages.push(current);
+      current = [];
+      y = TOP_Y;
+      continue;
+    }
+    const height = lineHeight(line);
+    if (y - height < BOTTOM_Y && current.length > 0) {
+      pages.push(current);
+      current = [];
+      y = TOP_Y;
+    }
+    current.push(line);
+    y -= height;
+  }
+  if (current.length > 0) pages.push(current);
+  return pages;
+}
+
+/** Lays one page's line descriptors out top-down into a content stream. */
 function contentStream(lines) {
   const COLUMN_X = [MARGIN_X, 176, 330, 424, 480];
   let y = TOP_Y;
@@ -349,16 +474,34 @@ function contentStream(lines) {
 
 /** Assembles objects into a PDF, computing the xref offsets as it goes. */
 function buildPdf(lines) {
-  const stream = contentStream(lines);
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] ` +
-      "/Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>",
-    `<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}endstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>"
-  ];
+  const pages = paginate(lines);
+  const numPages = pages.length;
+  // Object numbers: 1 Catalog, 2 Pages, then a (Page, Contents) pair per
+  // page, then the two shared Font objects. With one page this numbers
+  // exactly as before: 1 Catalog, 2 Pages, 3 Page, 4 Contents, 5 F1, 6 F2.
+  const f1Index = 3 + numPages * 2;
+  const f2Index = f1Index + 1;
+
+  const objects = new Array(2 + numPages * 2 + 2);
+  objects[0] = "<< /Type /Catalog /Pages 2 0 R >>";
+  const kids = pages.map((_, index) => `${3 + index * 2} 0 R`);
+  objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${numPages} >>`;
+
+  pages.forEach((pageLines, index) => {
+    const stream = contentStream(pageLines);
+    const pageObjNum = 3 + index * 2;
+    const contentsObjNum = pageObjNum + 1;
+    objects[pageObjNum - 1] =
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] ` +
+      `/Resources << /Font << /F1 ${f1Index} 0 R /F2 ${f2Index} 0 R >> >> /Contents ${contentsObjNum} 0 R >>`;
+    objects[contentsObjNum - 1] =
+      `<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}endstream`;
+  });
+
+  objects[f1Index - 1] =
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+  objects[f2Index - 1] =
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>";
 
   let pdf = "%PDF-1.4\n";
   const offsets = [];

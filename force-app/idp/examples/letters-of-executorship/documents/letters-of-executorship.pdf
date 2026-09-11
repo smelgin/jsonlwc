@@ -3,13 +3,13 @@
 << /Type /Catalog /Pages 2 0 R >>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> /Contents 4 0 R >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >> /Contents 4 0 R >>
 endobj
 4 0 obj
-<< /Length 2162 >>
+<< /Length 2304 >>
 stream
 BT /F1 9 Tf 1 0 0 1 56 786 Tm (G.P.-S 003-0317) Tj ET
 BT /F1 9 Tf 1 0 0 1 176 786 Tm () Tj ET
@@ -23,47 +23,108 @@ BT /F2 11 Tf 1 0 0 1 225 701 Tm (REPUBLIC OF SOUTH AFRICA) Tj ET
 BT /F2 16 Tf 1 0 0 1 196 668 Tm (LETTERS OF EXECUTORSHIP) Tj ET
 BT /F1 9 Tf 1 0 0 1 138 640 Tm (\(Section 13 and 14 of the Administration of Estates Act, No 66 of 1965\)) Tj ET
 BT /F1 10 Tf 1 0 0 1 56 599 Tm (Estate No:) Tj ET
-BT /F2 10 Tf 1 0 0 1 232 599 Tm (004521/2026) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 599 Tm (007842/2027) Tj ET
 BT /F2 11 Tf 1 0 0 1 228 565 Tm (THIS IS TO CERTIFY that) Tj ET
-BT /F2 13 Tf 1 0 0 1 219 532 Tm (NOMSA PATIENCE DLAMINI) Tj ET
-BT /F1 10 Tf 1 0 0 1 233 503 Tm (Identity no: 8203155009087) Tj ET
-BT /F1 10 Tf 1 0 0 1 228 467 Tm (has/have been duly appointed) Tj ET
-BT /F2 12 Tf 1 0 0 1 268 437 Tm (EXECUTRIX) Tj ET
-BT /F1 9 Tf 1 0 0 1 102 401 Tm (and is/are hereby authorised as such to liquidate and distribute the Estate of the late) Tj ET
-BT /F2 13 Tf 1 0 0 1 194 366 Tm (JOHANNES PETRUS VAN DER MERWE) Tj ET
-BT /F1 10 Tf 1 0 0 1 56 329 Tm (Identity No:) Tj ET
-BT /F2 10 Tf 1 0 0 1 232 329 Tm (5107085042083) Tj ET
-BT /F1 10 Tf 1 0 0 1 56 313 Tm (who died on:) Tj ET
-BT /F2 10 Tf 1 0 0 1 232 313 Tm (14/02/2026) Tj ET
-0.6 w 56 269 m 539 269 l S
-BT /F2 10 Tf 1 0 0 1 56 247 Tm (Asst. Master of the High Court) Tj ET
-BT /F1 10 Tf 1 0 0 1 56 227 Tm (Master's Office:) Tj ET
-BT /F2 10 Tf 1 0 0 1 232 227 Tm (Cape Town) Tj ET
-BT /F1 10 Tf 1 0 0 1 56 211 Tm (Date stamp:) Tj ET
-BT /F2 10 Tf 1 0 0 1 232 211 Tm (08/04/2026) Tj ET
-BT /F1 9 Tf 1 0 0 1 56 183 Tm (Attention is directed to the provisions of section 102.) Tj ET
-0.6 w 56 144 m 539 144 l S
-BT /F1 8 Tf 1 0 0 1 56 124 Tm (DEPARTMENT OF JUSTICE AND CONSTITUTIONAL DEVELOPMENT) Tj ET
-BT /F2 8 Tf 1 0 0 1 56 102 Tm (SPECIMEN - not a valid legal document. Generated for the Salesforce IDP examples.) Tj ET
+BT /F2 13 Tf 1 0 0 1 226 532 Tm (JOHAN COENRAAD STEYN) Tj ET
+BT /F1 10 Tf 1 0 0 1 233 509 Tm (Identity no: 7205125123086) Tj ET
+BT /F2 13 Tf 1 0 0 1 215 483 Tm (ADRIANA MAGDALENA BOTHA) Tj ET
+BT /F1 10 Tf 1 0 0 1 233 460 Tm (Identity no: 6803210456082) Tj ET
+BT /F1 10 Tf 1 0 0 1 228 424 Tm (has/have been duly appointed) Tj ET
+BT /F2 12 Tf 1 0 0 1 268 394 Tm (EXECUTORS) Tj ET
+BT /F1 9 Tf 1 0 0 1 102 358 Tm (and is/are hereby authorised as such to liquidate and distribute the Estate of the late) Tj ET
+BT /F2 13 Tf 1 0 0 1 230 323 Tm (GIDEON PETRUS BOTHA) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 286 Tm (Identity No:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 286 Tm (5606125678089) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 270 Tm (who died on:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 270 Tm (12/11/2026) Tj ET
+0.6 w 56 226 m 539 226 l S
+BT /F2 10 Tf 1 0 0 1 56 204 Tm (Asst. Master of the High Court) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 184 Tm (Master's Office:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 184 Tm (Bloemfontein) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 168 Tm (Datum gestempel / Date stamped:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 168 Tm (1 Maart 2027) Tj ET
+BT /F1 9 Tf 1 0 0 1 56 140 Tm (Attention is directed to the provisions of section 102.) Tj ET
+0.6 w 56 113 m 539 113 l S
+BT /F1 8 Tf 1 0 0 1 56 93 Tm (DEPARTMENT OF JUSTICE AND CONSTITUTIONAL DEVELOPMENT) Tj ET
+BT /F2 8 Tf 1 0 0 1 56 71 Tm (SPECIMEN - not a valid legal document. Generated for the Salesforce IDP examples.) Tj ET
 endstream
 endobj
 5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 7 0 R /F2 8 0 R >> >> /Contents 6 0 R >>
 endobj
 6 0 obj
+<< /Length 2981 >>
+stream
+BT /F2 8 Tf 1 0 0 1 174 786 Tm (SPECIMEN - SAMPLE DOCUMENT FOR SYSTEM DEMONSTRATION ONLY) Tj ET
+BT /F2 13 Tf 1 0 0 1 201 762 Tm (ANNEXURE A: RELATED PARTIES) Tj ET
+BT /F1 9 Tf 1 0 0 1 194 739 Tm (Estate No: 007842/2027 - Estate Late G P Botha) Tj ET
+0.6 w 56 706 m 539 706 l S
+BT /F2 10 Tf 1 0 0 1 56 684 Tm (EXECUTOR - Johan Coenraad Steyn) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 668 Tm (Identity No:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 668 Tm (7205125123086) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 652 Tm (Contact:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 652 Tm (+27 51 522 1000) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 636 Tm (Address:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 636 Tm (14 President Boulevard, Bloemfontein, 9301) Tj ET
+BT /F2 10 Tf 1 0 0 1 56 610 Tm (EXECUTOR - Adriana Magdalena Botha) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 594 Tm (Identity No:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 594 Tm (6803210456082) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 578 Tm (Contact:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 578 Tm (051 522 1000) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 562 Tm (Address:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 562 Tm (22 Vaal Street, Bloemfontein, 9301) Tj ET
+BT /F2 10 Tf 1 0 0 1 56 536 Tm (SPOUSE - Petra Elizabeth Botha) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 520 Tm (Identity No:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 520 Tm (6205300234083) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 504 Tm (Contact:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 504 Tm (082 555 1234) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 488 Tm (Address:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 488 Tm (22 Vaal Street, Bloemfontein, 9301) Tj ET
+BT /F2 10 Tf 1 0 0 1 56 462 Tm (HEIR - Marnus Botha) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 446 Tm (Identity No:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 446 Tm (9202155123081) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 430 Tm (Contact:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 430 Tm (\(011\) 234 5678) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 414 Tm (Address:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 414 Tm (8 Kloof Road, Sandton, 2196) Tj ET
+BT /F2 10 Tf 1 0 0 1 56 388 Tm (HEIR - Lindiwe Botha) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 372 Tm (Identity No:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 372 Tm (\(none - foreign heir\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 356 Tm (Contact:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 356 Tm (\(none on file\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 340 Tm (Address:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 340 Tm (Flat 4, Riverside Court, 221 High Street, Manchester, M1 4EX, UK) Tj ET
+BT /F2 10 Tf 1 0 0 1 56 314 Tm (ATTORNEY - Adv. Karin Nel \(Van Wyk & Steyn Attorneys\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 298 Tm (Identity No:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 298 Tm (\(firm - not applicable\)) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 282 Tm (Contact:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 282 Tm (011-234-5678) Tj ET
+BT /F1 10 Tf 1 0 0 1 56 266 Tm (Address:) Tj ET
+BT /F2 10 Tf 1 0 0 1 232 266 Tm (PO Box 445, Kimberley, 8300) Tj ET
+0.6 w 56 232 m 539 232 l S
+BT /F1 8 Tf 1 0 0 1 56 212 Tm (Estate reference \(repeated\): EST No. 007842 / 2027) Tj ET
+BT /F2 8 Tf 1 0 0 1 56 190 Tm (SPECIMEN - not a valid legal document. Generated for the Salesforce IDP examples.) Tj ET
+endstream
+endobj
+7 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>
+endobj
+8 0 obj
 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>
 endobj
 xref
-0 7
+0 9
 0000000000 65535 f 
 0000000009 00000 n 
 0000000058 00000 n 
-0000000115 00000 n 
-0000000251 00000 n 
-0000002464 00000 n 
-0000002561 00000 n 
+0000000121 00000 n 
+0000000257 00000 n 
+0000002612 00000 n 
+0000002748 00000 n 
+0000005780 00000 n 
+0000005877 00000 n 
 trailer
-<< /Size 7 /Root 1 0 R >>
+<< /Size 9 /Root 1 0 R >>
 startxref
-2663
+5979
 %%EOF
