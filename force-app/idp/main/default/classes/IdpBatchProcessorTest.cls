@@ -1,23 +1,47 @@
 /**
- * Batch tests. The JSON source field is Case.Description here purely so
- * the test runs in any org — a real org points JSON_Source_Field__c at
- * its hub object's long-text field (e.g. Document__c.Extracted_JSON__c).
+ * Unit tests for IdpBatchProcessor.
+ *
+ * Validates scope selection, idempotency through the processed marker,
+ * retry of deferred documents and refusal of unusable configuration. The
+ * JSON source field is Case.Description here purely so the test runs in
+ * any org — a real org points JSON_Source_Field__c at its hub object's
+ * long-text field, such as Document__c.Extracted_JSON__c.
  */
 @IsTest
 private class IdpBatchProcessorTest {
+  /** Mapping set the tests install into the loader cache. */
   private static final String SET_NAME = 'Batch_Test_Set';
 
+  /**
+   * Installs a Case-based set with no processed marker.
+   *
+   * @param jsonSourceField Object.Field holding the stored JSON.
+   */
   private static void install(String jsonSourceField) {
     install(jsonSourceField, null, 'Case', 'SuppliedName');
   }
 
-  /** The marker tests run against Contact (Description as stored JSON,
-   *  EmailBouncedDate as the Datetime marker) because Case carries no
-   *  universally-updateable standard Datetime field. */
+  /**
+   * Installs a Contact-based set, for the marker tests.
+   *
+   * They run against Contact — Description as stored JSON,
+   * EmailBouncedDate as the Datetime marker — because Case carries no
+   * universally-updateable standard Datetime field.
+   *
+   * @param markerField Datetime field the batch stamps, or null.
+   */
   private static void installContactSet(String markerField) {
     install('Contact.Description', markerField, 'Contact', 'LastName');
   }
 
+  /**
+   * Assembles a one-rule mapping set straight into the loader cache.
+   *
+   * @param jsonSourceField Object.Field holding the stored JSON.
+   * @param markerField Datetime field the batch stamps, or null.
+   * @param targetObject API name of the object the rule writes to.
+   * @param targetField API name of the field the rule writes to.
+   */
   private static void install(
     String jsonSourceField,
     String markerField,
@@ -58,6 +82,10 @@ private class IdpBatchProcessorTest {
     );
   }
 
+  /**
+   * Verifies that the batch reads stored JSON from the configured field
+   * and writes the extracted values.
+   */
   @IsTest
   static void processesStoredJsonFromTheConfiguredField() {
     List<Case> cases = new List<Case>();
@@ -88,6 +116,9 @@ private class IdpBatchProcessorTest {
     }
   }
 
+  /**
+   * Verifies that a caller-supplied scope query replaces the derived one.
+   */
   @IsTest
   static void acceptsAScopeQueryOverride() {
     insert new Case(
@@ -122,8 +153,14 @@ private class IdpBatchProcessorTest {
     );
   }
 
-  /** Runs one batch pass synchronously via direct start()/execute(), so a
-   *  test can sequence several passes and assert between them. */
+  /**
+   * Runs one batch pass synchronously, by calling start() then execute().
+   *
+   * Lets a test sequence several passes and assert between them.
+   *
+   * @param batch The pass to run.
+   * @return How many records that pass picked up.
+   */
   private static Integer runPass(IdpBatchProcessor batch) {
     List<SObject> scope = Database.query(batch.start(null).getQuery());
     if (!scope.isEmpty()) {
@@ -132,6 +169,9 @@ private class IdpBatchProcessorTest {
     return scope.size();
   }
 
+  /**
+   * Verifies that a stamped record is not picked up again by a rerun.
+   */
   @IsTest
   static void markerMakesRerunsIdempotent() {
     List<Contact> contacts = new List<Contact>();
@@ -188,6 +228,9 @@ private class IdpBatchProcessorTest {
     }
   }
 
+  /**
+   * Verifies that reprocessAll redoes records the marker had finished.
+   */
   @IsTest
   static void reprocessAllIgnoresTheMarker() {
     insert new Contact(
@@ -213,6 +256,10 @@ private class IdpBatchProcessorTest {
     );
   }
 
+  /**
+   * Verifies that a document the limits guard defers stays unstamped, so
+   * exactly that record is picked up by the next pass.
+   */
   @IsTest
   static void deferredDocumentsStayUnstampedForRetry() {
     insert new Contact(
@@ -242,6 +289,10 @@ private class IdpBatchProcessorTest {
     Assert.areEqual(1, retryPass, 'exactly the deferred record was retried');
   }
 
+  /**
+   * Verifies that a processed marker of the wrong type stops the batch
+   * before it starts.
+   */
   @IsTest
   static void refusesANonDatetimeMarkerField() {
     installContactSet('LastName'); // text, not Datetime
@@ -253,6 +304,10 @@ private class IdpBatchProcessorTest {
     }
   }
 
+  /**
+   * Verifies that a missing or unknown JSON source field stops the batch
+   * before it starts.
+   */
   @IsTest
   static void refusesToStartWithoutAJsonSourceField() {
     install(null);

@@ -3,8 +3,12 @@
  * requests are grouped by (mapping set, mode, handler) and each group is
  * ONE engine run, so a Flow bulk-invoking 50 interviews costs the same
  * queries as one. Results come back in input order.
+ *
+ * @group IDP Processing
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpMappingInvocable {
+  /** One document to process; field help lives in the invocable labels. */
   public class Request {
     @InvocableVariable(
       label='Content Document Id'
@@ -45,6 +49,16 @@ public inherited sharing class IdpMappingInvocable {
     public String findingHandler;
   }
 
+  /**
+   * Applies a mapping set to every requested document.
+   *
+   * Requests sharing a mapping set, mode and finding handler are collapsed
+   * into a single engine run, so a bulk-invoking Flow pays one run's query
+   * cost rather than one per interview.
+   *
+   * @param requests Documents to process, in the caller's order.
+   * @return One Result per request, aligned with the input order.
+   */
   @InvocableMethod(
     label='Apply IDP Mapping Set'
     description='Extracts values from a reviewed JSON document into the Salesforce records reachable from it, checks them for compliance, or previews the changes — driven by IDP_Mapping_Set__mdt configuration.'
@@ -91,10 +105,22 @@ public inherited sharing class IdpMappingInvocable {
     return results;
   }
 
+  /**
+   * Normalises a null to an empty string so grouping keys stay comparable.
+   *
+   * @param value Request field that may be null.
+   * @return The value, or an empty string.
+   */
   private static String blank(String value) {
     return value == null ? '' : value;
   }
 
+  /**
+   * Converts request text to an Id without failing the whole invocation.
+   *
+   * @param value Candidate Id supplied by the Flow.
+   * @return The Id, or null when the text is blank or malformed.
+   */
   private static Id asId(String value) {
     if (String.isBlank(value)) {
       return null;

@@ -23,30 +23,69 @@
  * An optional scope SOQL overrides the default query (it must select the
  * JSON source field). Aggregate counts are logged from finish(); per-chunk
  * mismatch handling goes through the usual finding handler.
+ *
+ * @group IDP Processing
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpBatchProcessor implements Database.Batchable<SObject>, Database.Stateful {
+  /** Raised when the mapping set's batch configuration is unusable. */
   public class BatchException extends Exception {
   }
 
+  /** Chained retry passes granted to documents the limits guard defers. */
   private static final Integer MAX_RETRIES = 2;
 
+  /** DeveloperName of the mapping set being reprocessed. */
   private final String mappingSetName;
+
+  /** Run mode passed through to the engine. */
   private final String mode;
+
+  /** Finding handler override, null to use the mapping set's default. */
   private final String findingHandler;
+
+  /** Caller-supplied scope query replacing the derived one. */
   private final String scopeSoql;
+
+  /** Whether already-stamped records are picked up again. */
   private final Boolean reprocessAll;
+
+  /** Retry passes still available to deferred documents. */
   private final Integer retriesRemaining;
 
+  /** Documents the engine returned a result for. */
   private Integer documentsProcessed = 0;
+
+  /** Documents whose result reported an error. */
   private Integer documentsFailed = 0;
+
+  /** Documents the limits guard held back for a later pass. */
   private Integer documentsDeferred = 0;
+
+  /** Fields written across every chunk. */
   private Integer fieldsApplied = 0;
+
+  /** Value mismatches reported across every chunk. */
   private Integer mismatches = 0;
 
+  /**
+   * Reprocesses a mapping set with its configured defaults.
+   *
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   */
   public IdpBatchProcessor(String mappingSetName) {
     this(mappingSetName, null, null, null, false);
   }
 
+  /**
+   * Reprocesses a mapping set over an optional custom scope.
+   *
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction or Compliance; null takes the set's default.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @param scopeSoql Query replacing the derived one; it must select the
+   *        JSON source field.
+   */
   public IdpBatchProcessor(
     String mappingSetName,
     String mode,
@@ -56,6 +95,16 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     this(mappingSetName, mode, findingHandler, scopeSoql, false);
   }
 
+  /**
+   * Reprocesses a mapping set, optionally ignoring the processed marker.
+   *
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction or Compliance; null takes the set's default.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @param scopeSoql Query replacing the derived one; it must select the
+   *        JSON source field.
+   * @param reprocessAll True to redo records already stamped as processed.
+   */
   public IdpBatchProcessor(
     String mappingSetName,
     String mode,
@@ -73,6 +122,16 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     );
   }
 
+  /**
+   * Creates a chained pass that carries the remaining retry allowance.
+   *
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction or Compliance; null takes the set's default.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @param scopeSoql Query replacing the derived one.
+   * @param reprocessAll True to redo records already stamped as processed.
+   * @param retriesRemaining Retry passes left before deferrals are dropped.
+   */
   private IdpBatchProcessor(
     String mappingSetName,
     String mode,
@@ -89,6 +148,17 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     this.retriesRemaining = retriesRemaining;
   }
 
+  /**
+   * Selects the stored documents this run will reprocess.
+   *
+   * Validates the mapping set's batch configuration before building the
+   * query, so a misconfigured set fails at the start rather than per chunk.
+   *
+   * @param context Batch context supplied by the platform.
+   * @return Locator over the source object's records.
+   * @throws BatchException When the JSON source or marker field is missing
+   *         or of the wrong type.
+   */
   public Database.QueryLocator start(Database.BatchableContext context) {
     String fieldName = sourceFieldName(); // validates the config
     String markerField = markerFieldName(); // validated too, null when unset
@@ -109,6 +179,17 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     return Database.getQueryLocator(soql + ' WITH USER_MODE');
   }
 
+  /**
+   * Runs one chunk as a single engine run and stamps what it finished.
+   *
+   * Records without stored JSON are skipped, and deferred documents are
+   * left unstamped so a later pass picks exactly them up.
+   *
+   * @param context Batch context supplied by the platform.
+   * @param scope Source records in this chunk.
+   * @throws BatchException When the mapping set's batch configuration is
+   *         no longer valid.
+   */
   public void execute(Database.BatchableContext context, List<SObject> scope) {
     String fieldName = sourceFieldName();
     String markerField = markerFieldName();
@@ -160,6 +241,14 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     }
   }
 
+  /**
+   * Logs the run's aggregate counts and chains a retry pass if needed.
+   *
+   * The chain only fires when a processed marker is configured; without one
+   * a rerun would redo every record rather than just the deferrals.
+   *
+   * @param context Batch context supplied by the platform.
+   */
   public void finish(Database.BatchableContext context) {
     System.debug(
       LoggingLevel.INFO,
@@ -201,16 +290,34 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     }
   }
 
+  /**
+   * Names the object whose records hold the stored JSON.
+   *
+   * @return API name of the source object.
+   * @throws BatchException When the JSON source field is unusable.
+   */
   private String sourceObjectName() {
     return qualifiedSourceField().substringBefore('.');
   }
 
+  /**
+   * Names the long-text field holding the stored JSON.
+   *
+   * @return API name of the source field.
+   * @throws BatchException When the JSON source field is unusable.
+   */
   private String sourceFieldName() {
     return qualifiedSourceField().substringAfter('.');
   }
 
-  /** Processed_Marker_Field__c, validated as an updateable Datetime on the
-   *  source object; null when the set does not use one. */
+  /**
+   * Resolves the idempotency marker the batch stamps after processing.
+   *
+   * @return API name of Processed_Marker_Field__c, or null when the
+   *         mapping set does not use one.
+   * @throws BatchException When the configured marker is not an updateable
+   *         Datetime field on the source object.
+   */
   private String markerFieldName() {
     IdpConfigLoader.SetConfig config = IdpConfigLoader.load(mappingSetName);
     String markerField = config.processedMarkerField;
@@ -237,7 +344,13 @@ public inherited sharing class IdpBatchProcessor implements Database.Batchable<S
     return field.getDescribe().getName();
   }
 
-  /** JSON_Source_Field__c, validated as a readable Object.Field pair. */
+  /**
+   * Resolves and validates the mapping set's JSON source field.
+   *
+   * @return JSON_Source_Field__c as a readable Object.Field pair.
+   * @throws BatchException When the mapping set is inactive or missing, the
+   *         field is not qualified, or it is absent or unreadable.
+   */
   private String qualifiedSourceField() {
     IdpConfigLoader.SetConfig config = IdpConfigLoader.load(mappingSetName);
     if (!config.found) {

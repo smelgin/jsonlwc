@@ -21,15 +21,29 @@
  *
  * Reads go through IdpJsonReader, so confidence envelopes are transparent
  * here too.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpFilterBinder {
+  /** Matches a {json:...} or {row:...} token and captures scope and path. */
   private static final Pattern TOKEN = Pattern.compile(
     '\\{(json|row):([^}]+)\\}'
   );
 
   /**
-   * Replaces every token in a WHERE fragment with a bind variable, adding
-   * the value to binds. Returns the rewritten fragment.
+   * Rewrites a WHERE fragment so every token becomes a bind variable.
+   *
+   * Document values never reach the query as text, so content extracted
+   * from a file cannot inject SOQL.
+   *
+   * @param fragment Configured WHERE fragment, possibly containing tokens.
+   * @param jsonRoot Reviewed document, the root for {json:...} reads.
+   * @param row Current row, the root for {row:...} reads.
+   * @param rowIndex 0-based row position, backing {row:index} and
+   *        {row:number}.
+   * @param binds Bind map the resolved values are added to.
+   * @return Fragment with each token replaced by its bind variable.
    */
   public static String bindFilter(
     String fragment,
@@ -66,9 +80,19 @@ public inherited sharing class IdpFilterBinder {
     return processed;
   }
 
-  /** Replaces every token with its value as text. Returns null when the
-   *  template is blank or any token resolves to nothing, so callers can
-   *  treat an incomplete key as "no key". */
+  /**
+   * Substitutes every token in a value template with its text form.
+   *
+   * A blank template, or any token that resolves to nothing, yields null so
+   * callers can treat an incomplete key as "no key".
+   *
+   * @param template Configured value template, such as a row Match Value.
+   * @param jsonRoot Reviewed document, the root for {json:...} reads.
+   * @param row Current row, the root for {row:...} reads.
+   * @param rowIndex 0-based row position, backing {row:index} and
+   *        {row:number}.
+   * @return Rendered text, or null when the template cannot be completed.
+   */
   public static String renderTemplate(
     String template,
     Object jsonRoot,
@@ -100,12 +124,29 @@ public inherited sharing class IdpFilterBinder {
     return processed;
   }
 
-  /** True when the fragment reads document values — such filters bind
-   *  per-document values and cannot share a grouped query. */
+  /**
+   * Reports whether a fragment reads document values.
+   *
+   * Such filters bind per-document values and so cannot share a grouped
+   * query with other documents in the run.
+   *
+   * @param fragment Configured WHERE fragment to inspect.
+   * @return True when the fragment contains at least one token.
+   */
   public static Boolean referencesDocument(String fragment) {
     return String.isNotBlank(fragment) && TOKEN.matcher(fragment).find();
   }
 
+  /**
+   * Reads the value one token stands for.
+   *
+   * @param scope Token scope, either json or row.
+   * @param path Path within that scope, or the index/number keyword.
+   * @param jsonRoot Reviewed document, the root for json reads.
+   * @param row Current row, the root for row reads.
+   * @param rowIndex 0-based row position.
+   * @return Value behind the token, null when the path is absent.
+   */
   private static Object resolveToken(
     String scope,
     String path,
@@ -125,8 +166,15 @@ public inherited sharing class IdpFilterBinder {
     return IdpJsonReader.read(row, path);
   }
 
-  /** Whole numbers must not pick up a decimal point on the way into a key:
-   *  line 2 is "2", never "2.0". */
+  /**
+   * Renders a resolved token value as key text.
+   *
+   * Whole numbers must not pick up a decimal point on the way into a key:
+   * line 2 is "2", never "2.0".
+   *
+   * @param value Resolved token value.
+   * @return Text form safe to embed in a match key.
+   */
   private static String stringify(Object value) {
     if (value instanceof Decimal) {
       Decimal numeric = (Decimal) value;

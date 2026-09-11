@@ -11,22 +11,43 @@
  *
  * A missing path reads as null — callers treat that as "value absent",
  * never as an error.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpJsonReader {
+  /** Envelope key holding the wrapped value. */
   private static final String KEY_VALUE = 'value';
+
+  /** Envelope key holding the OCR confidence. */
   private static final String KEY_CONFIDENCE = 'confidence';
 
   /** A read value together with the confidence its envelope carried, if any. */
   public class ValueAt {
+    /** Value found at the path, null when the path is absent. */
     public Object value;
+    /** Innermost envelope confidence, null when the document carried none. */
     public Decimal confidence;
   }
 
-  /** Plain read — envelopes unwrapped, confidence discarded. */
+  /**
+   * Reads a path, unwrapping envelopes and discarding confidence.
+   *
+   * @param root Deserialized JSON structure to read from.
+   * @param path Dot notation path, optionally with array indexes.
+   * @return Value at the path, or null when the path is absent.
+   */
   public static Object read(Object root, String path) {
     return readWithConfidence(root, path).value;
   }
 
+  /**
+   * Reads a path, keeping the confidence its envelopes reported.
+   *
+   * @param root Deserialized JSON structure to read from.
+   * @param path Dot notation path, optionally with array indexes.
+   * @return Value at the path plus the innermost confidence met on the way.
+   */
   public static ValueAt readWithConfidence(Object root, String path) {
     ValueAt result = new ValueAt();
     if (root == null || String.isBlank(path)) {
@@ -69,7 +90,13 @@ public inherited sharing class IdpJsonReader {
     return result;
   }
 
-  /** Steps through a confidence envelope, keeping the innermost confidence. */
+  /**
+   * Steps through nested confidence envelopes down to the real value.
+   *
+   * @param node Node that may be wrapped in one or more envelopes.
+   * @param result Accumulator updated with the innermost confidence.
+   * @return The unwrapped node.
+   */
   private static Object unwrap(Object node, ValueAt result) {
     while (isEnvelope(node)) {
       Map<String, Object> envelope = (Map<String, Object>) node;
@@ -82,8 +109,15 @@ public inherited sharing class IdpJsonReader {
     return node;
   }
 
-  /** Only the exact two-key {value, confidence} shape is an envelope, so a
-   *  legitimate business field named "value" can never be swallowed. */
+  /**
+   * Decides whether a node is a confidence envelope.
+   *
+   * Only the exact two-key {value, confidence} shape qualifies, so a
+   * legitimate business field named "value" can never be swallowed.
+   *
+   * @param node Node to inspect.
+   * @return True when the node is an envelope around a value.
+   */
   private static Boolean isEnvelope(Object node) {
     if (!(node instanceof Map<String, Object>)) {
       return false;
@@ -96,6 +130,12 @@ public inherited sharing class IdpJsonReader {
       asDecimal(candidate.get(KEY_CONFIDENCE)) != null);
   }
 
+  /**
+   * Widens any JSON numeric to Decimal.
+   *
+   * @param value Node deserialized from the document.
+   * @return Decimal form, or null when the node is not numeric.
+   */
   private static Decimal asDecimal(Object value) {
     if (value instanceof Decimal) {
       return (Decimal) value;
@@ -112,6 +152,12 @@ public inherited sharing class IdpJsonReader {
     return null;
   }
 
+  /**
+   * Reports an absent path while keeping any confidence already collected.
+   *
+   * @param result Accumulator built so far.
+   * @return The same accumulator with its value cleared.
+   */
   private static ValueAt blank(ValueAt result) {
     result.value = null;
     return result;

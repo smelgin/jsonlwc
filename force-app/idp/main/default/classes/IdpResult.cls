@@ -13,17 +13,31 @@
  * readings, FAILED no reading at all. CompareOutcome is the three-state
  * compliance verdict: MATCH, NEAR (within the type's tolerance — for a
  * human to glance at), MISMATCH.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpResult {
+  /**
+   * How sure a value type is of the reading it produced.
+   */
   public enum Grade {
+    /** Deterministic parse. */
     EXACT,
+    /** Heuristic parse the configuration allowed. */
     INFERRED,
+    /** Several readings are equally defensible. */
     AMBIGUOUS,
+    /** No reading at all. */
     FAILED
   }
 
+  /**
+   * Three-state compliance verdict for one compared field.
+   */
   public enum CompareOutcome {
     MATCH,
+    /** Within the value type's tolerance — worth a human glance. */
     NEAR,
     MISMATCH
   }
@@ -63,7 +77,12 @@ public inherited sharing class IdpResult {
   public static final String CODE_HANDLER_SKIPPED = 'HANDLER_SKIPPED';
   public static final String CODE_DOC_DEFERRED = 'DOC_DEFERRED';
 
-  /** Human-readable grade label for findings and planned changes. */
+  /**
+   * Names a grade for findings and planned changes.
+   *
+   * @param grade Grade a value type awarded the parse.
+   * @return Human-readable label, such as Exact.
+   */
   public static String label(Grade grade) {
     switch on grade {
       when EXACT {
@@ -81,7 +100,12 @@ public inherited sharing class IdpResult {
     }
   }
 
-  /** Rank for Min Grade gating: lower is better. */
+  /**
+   * Orders grades so Min Grade gating can compare them.
+   *
+   * @param grade Grade a value type awarded the parse.
+   * @return Rank where lower is a better parse.
+   */
   public static Integer rank(Grade grade) {
     switch on grade {
       when EXACT {
@@ -102,46 +126,57 @@ public inherited sharing class IdpResult {
   /** One noteworthy event of a run. Only code, severity and message are
    *  always present; the rest is context filled where it applies. */
   public class Finding {
+    /** Machine-readable code, one of the CODE_* constants. */
     @InvocableVariable
     @AuraEnabled
     public String code;
 
+    /** Info, Warning or Error. */
     @InvocableVariable
     @AuraEnabled
     public String severity;
 
+    /** Explanation written for whoever reviews the run. */
     @InvocableVariable
     @AuraEnabled
     public String message;
 
+    /** API name of the object the finding concerns. */
     @InvocableVariable
     @AuraEnabled
     public String objectName;
 
+    /** Record the finding concerns, null before an insert lands. */
     @InvocableVariable
     @AuraEnabled
     public String recordId;
 
+    /** API name of the field the finding concerns. */
     @InvocableVariable
     @AuraEnabled
     public String fieldName;
 
+    /** JSON Path the value was read from. */
     @InvocableVariable
     @AuraEnabled
     public String jsonPath;
 
+    /** Section of the mapping set the finding arose in. */
     @InvocableVariable
     @AuraEnabled
     public String sectionName;
 
+    /** Rule the finding arose from. */
     @InvocableVariable
     @AuraEnabled
     public String ruleName;
 
+    /** Row position within a repeating section; null for fixed sections. */
     @InvocableVariable
     @AuraEnabled
     public Integer rowIndex;
 
+    /** Row match key within a repeating section; null for fixed sections. */
     @InvocableVariable
     @AuraEnabled
     public String rowKey;
@@ -179,34 +214,42 @@ public inherited sharing class IdpResult {
 
   /** One planned (or applied) field write — the Preview payload. */
   public class PlannedChange {
+    /** API name of the object being written. */
     @InvocableVariable
     @AuraEnabled
     public String objectName;
 
+    /** Record being written, null while the run still plans to create it. */
     @InvocableVariable
     @AuraEnabled
     public String recordId;
 
+    /** API name of the field being written. */
     @InvocableVariable
     @AuraEnabled
     public String fieldName;
 
+    /** Value the record holds today. */
     @InvocableVariable
     @AuraEnabled
     public String oldValue;
 
+    /** Value the run would write. */
     @InvocableVariable
     @AuraEnabled
     public String newValue;
 
+    /** Parse grade behind the new value. */
     @InvocableVariable
     @AuraEnabled
     public String grade;
 
+    /** Section of the mapping set the write comes from. */
     @InvocableVariable
     @AuraEnabled
     public String sectionName;
 
+    /** Row position within a repeating section; null for fixed sections. */
     @InvocableVariable
     @AuraEnabled
     public Integer rowIndex;
@@ -220,6 +263,7 @@ public inherited sharing class IdpResult {
 
   /** Per-document outcome. */
   public class Result {
+    /** Reviewed file, when the run was seeded from one. */
     @InvocableVariable
     @AuraEnabled
     public String contentDocumentId;
@@ -229,14 +273,17 @@ public inherited sharing class IdpResult {
     @AuraEnabled
     public String seedRecordId;
 
+    /** Mode the document ran under. */
     @InvocableVariable
     @AuraEnabled
     public String mode;
 
+    /** False once the document collected an Error finding. */
     @InvocableVariable
     @AuraEnabled
     public Boolean success = true;
 
+    /** False once a value mismatch was found; Near matches do not clear it. */
     @InvocableVariable
     @AuraEnabled
     public Boolean compliant = true;
@@ -246,22 +293,27 @@ public inherited sharing class IdpResult {
     @AuraEnabled
     public Boolean deferred = false;
 
+    /** Fields written by Extraction rules. */
     @InvocableVariable
     @AuraEnabled
     public Integer fieldsApplied = 0;
 
+    /** Fields weighed by Compliance rules. */
     @InvocableVariable
     @AuraEnabled
     public Integer fieldsCompared = 0;
 
+    /** Document rows matched to an existing record. */
     @InvocableVariable
     @AuraEnabled
     public Integer rowsMatched = 0;
 
+    /** Matched rows whose record the run changed. */
     @InvocableVariable
     @AuraEnabled
     public Integer rowsUpdated = 0;
 
+    /** Rows the run inserted a record for. */
     @InvocableVariable
     @AuraEnabled
     public Integer rowsCreated = 0;
@@ -275,35 +327,47 @@ public inherited sharing class IdpResult {
     @AuraEnabled
     public Decimal documentConfidence;
 
+    /** Records the run changed. */
     @InvocableVariable
     @AuraEnabled
     public List<String> updatedRecordIds = new List<String>();
 
+    /** Records the run inserted. */
     @InvocableVariable
     @AuraEnabled
     public List<String> createdRecordIds = new List<String>();
 
+    /** Row keys from the document that matched no record. */
     @InvocableVariable
     @AuraEnabled
     public List<String> unmatchedRowKeys = new List<String>();
 
+    /** Everything noteworthy the document's run observed. */
     @InvocableVariable
     @AuraEnabled
     public List<Finding> findings = new List<Finding>();
 
+    /** Field writes, planned in Preview and applied otherwise. */
     @InvocableVariable
     @AuraEnabled
     public List<PlannedChange> plannedChanges = new List<PlannedChange>();
 
-    // ENG-9 accumulators — Σ(weight × confidence) and Σ(weight) over the
-    // weighted fields that resolved with a confidence. Not serialized to
-    // callers; documentConfidence is the published number.
+    /** ENG-9 accumulator: Σ(weight × confidence) over weighted fields that
+     *  resolved with a confidence. Not serialized to callers. */
     private Decimal confidenceWeightedSum = 0;
+
+    /** ENG-9 accumulator: Σ(weight) over the same fields. Not serialized;
+     *  documentConfidence is the published number. */
     private Decimal confidenceWeightTotal = 0;
 
     /**
-     * Records one weighted field confidence. Both 0.93 and 93 are accepted
-     * (IDP services report either scale), matching jsonForm's convention.
+     * Records one weighted field confidence.
+     *
+     * Both 0.93 and 93 are accepted, since IDP services report either
+     * scale, matching jsonForm's convention.
+     *
+     * @param weight Confidence Weight configured on the rule.
+     * @param confidence Confidence the document reported for the field.
      */
     public void addConfidenceSample(Decimal weight, Decimal confidence) {
       if (weight == null || weight <= 0 || confidence == null) {
@@ -314,14 +378,26 @@ public inherited sharing class IdpResult {
       confidenceWeightTotal += weight;
     }
 
-    /** Rolls the samples up into documentConfidence; null when no weighted
-     *  field yielded a confidence. The engine calls this once per run. */
+    /**
+     * Rolls the collected samples up into documentConfidence.
+     *
+     * Leaves the score null when no weighted field yielded a confidence.
+     * The engine calls this once per run.
+     */
     public void finalizeDocumentConfidence() {
       documentConfidence = confidenceWeightTotal > 0
         ? (confidenceWeightedSum / confidenceWeightTotal).setScale(4)
         : null;
     }
 
+    /**
+     * Attaches a finding and updates the document's success and compliance.
+     *
+     * @param code One of the CODE_* constants.
+     * @param severity Info, Warning or Error.
+     * @param message Explanation for whoever reviews the run.
+     * @return The new finding, so the caller can add its context.
+     */
     public Finding add(String code, String severity, String message) {
       Finding finding = new Finding();
       finding.code = code;
@@ -337,6 +413,12 @@ public inherited sharing class IdpResult {
       return finding;
     }
 
+    /**
+     * Selects this document's findings carrying one code.
+     *
+     * @param code One of the CODE_* constants.
+     * @return Matching findings, empty when there are none.
+     */
     public List<Finding> findingsWith(String code) {
       List<Finding> matched = new List<Finding>();
       for (Finding finding : findings) {
@@ -347,6 +429,11 @@ public inherited sharing class IdpResult {
       return matched;
     }
 
+    /**
+     * Selects this document's findings that failed the run.
+     *
+     * @return Findings whose severity is Error.
+     */
     public List<Finding> errors() {
       List<Finding> matched = new List<Finding>();
       for (Finding finding : findings) {
@@ -360,10 +447,19 @@ public inherited sharing class IdpResult {
 
   /** Payload handed to IIdpFindingHandler implementations. */
   public class RunReport {
+    /** DeveloperName of the mapping set the run applied. */
     public String mappingSetName;
+    /** Mode the run executed under. */
     public String mode;
+    /** One Result per document in the run. */
     public List<Result> results = new List<Result>();
 
+    /**
+     * Selects findings carrying one code across every document in the run.
+     *
+     * @param code One of the CODE_* constants.
+     * @return Matching findings, empty when there are none.
+     */
     public List<Finding> allFindingsWith(String code) {
       List<Finding> matched = new List<Finding>();
       for (Result result : results) {

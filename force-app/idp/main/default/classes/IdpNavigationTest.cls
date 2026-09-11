@@ -1,11 +1,13 @@
 /**
- * Engine-level tests for explicit relationship navigation (reachFrom /
- * via / hop): two sections reaching two different Accounts of one record
- * through two lookups, an implicit target that is ambiguous being
- * reported rather than guessed, chains through named sections, child
- * hops, created anchors linked in either direction, and row scoping
- * through a chosen lookup. Config is injected the way the other engine
- * tests do it — Raw* DTOs through the real loader, priming the cache.
+ * Engine-level unit tests for explicit relationship navigation.
+ *
+ * Validates reachFrom, via and hop: two sections reaching two different
+ * Accounts of one record through two lookups, an implicit target that is
+ * ambiguous being reported rather than guessed, chains through named
+ * sections, child hops, created anchors linked in either direction, and
+ * row scoping through a chosen lookup. Config is injected the way the
+ * other engine tests do it — Raw* DTOs through the real loader, priming
+ * the cache.
  *
  * Asset is the standard object of choice because it carries three
  * lookups to Account (AccountId, AssetProvidedById, AssetServicedById):
@@ -13,8 +15,16 @@
  */
 @IsTest
 private class IdpNavigationTest {
+  /** Mapping set the tests install into the loader cache. */
   private static final String SET_NAME = 'Navigation_Test_Set';
 
+  /**
+   * Builds a Fixed section reached by the implicit walk.
+   *
+   * @param name Section name.
+   * @param targetObject API name of the object it writes to.
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection section(
     String name,
     String targetObject
@@ -27,6 +37,15 @@ private class IdpNavigationTest {
     return raw;
   }
 
+  /**
+   * Builds a Fixed section reached through a declared path.
+   *
+   * @param name Section name.
+   * @param targetObject API name of the object it writes to.
+   * @param reachFrom Anchor the section is reached from.
+   * @param via Lookup the hop follows.
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection section(
     String name,
     String targetObject,
@@ -39,6 +58,14 @@ private class IdpNavigationTest {
     return raw;
   }
 
+  /**
+   * Builds an always-overwriting extraction rule.
+   *
+   * @param name Rule name.
+   * @param jsonPath Path the value is read from.
+   * @param targetField API name of the field it writes to.
+   * @return The raw rule.
+   */
   private static IdpConfigLoader.RawRule rule(
     String name,
     String jsonPath,
@@ -53,6 +80,12 @@ private class IdpNavigationTest {
     return raw;
   }
 
+  /**
+   * Assembles the sections through the real loader and primes the cache.
+   *
+   * @param sections Sections making up the mapping set.
+   * @return The assembled configuration, issues included.
+   */
   private static IdpConfigLoader.SetConfig install(
     List<IdpConfigLoader.RawSection> sections
   ) {
@@ -68,6 +101,14 @@ private class IdpNavigationTest {
     return config;
   }
 
+  /**
+   * Runs the installed set against one document.
+   *
+   * @param contentDocumentId Reviewed file the run is seeded from.
+   * @param jsonString The reviewed JSON payload.
+   * @param mode Mode the run executes under.
+   * @return That document's result.
+   */
   private static IdpResult.Result runOne(
     Id contentDocumentId,
     String jsonString,
@@ -84,6 +125,13 @@ private class IdpNavigationTest {
     )[0];
   }
 
+  /**
+   * Reports whether a result carries a finding of one code.
+   *
+   * @param result Result to inspect.
+   * @param code One of the CODE_* constants.
+   * @return True when at least one finding carries that code.
+   */
   private static Boolean hasFinding(IdpResult.Result result, String code) {
     return !result.findingsWith(code).isEmpty();
   }
@@ -91,12 +139,22 @@ private class IdpNavigationTest {
   /** An Asset owned by one Account and serviced by another, with a file
    *  linked to the Asset — the "two lookups to the same object" shape. */
   private class ServicedAsset {
+    /** Account holding the Asset through AccountId. */
     public Account owner;
+    /** Account holding it through AssetServicedById. */
     public Account servicer;
+    /** The Asset both Accounts are joined to. */
     public Asset asset;
+    /** File linked to the Asset. */
     public Id contentDocumentId;
   }
 
+  /**
+   * Inserts the two-lookups-to-one-object fixture.
+   *
+   * @return An Asset owned by one Account and serviced by another, with a
+   *         file linked to the Asset.
+   */
   private static ServicedAsset servicedAsset() {
     ServicedAsset data = new ServicedAsset();
     data.owner = new Account(Name = 'Owner');
@@ -112,10 +170,13 @@ private class IdpNavigationTest {
     return data;
   }
 
+  /** A document stating a different phone for each of the two Accounts. */
   private static final String TWO_PHONES = '{"owner":{"phone":"0110000001"},"servicer":{"phone":"0110000002"}}';
 
-  // ───────────────── several lookups to one object ────────────────
-
+  /**
+   * Verifies that two sections write to two different Accounts of one Asset,
+   * each through the lookup it named.
+   */
   @IsTest
   static void twoSectionsReachTwoAccountsThroughTwoLookups() {
     ServicedAsset data = servicedAsset();
@@ -166,6 +227,10 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that an object reachable through several lookups yields an
+   * ambiguity finding naming them, and writes nothing.
+   */
   @IsTest
   static void anImplicitTargetWithSeveralLookupsIsReportedNotGuessed() {
     ServicedAsset data = servicedAsset();
@@ -199,6 +264,10 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that rows whose parent is ambiguous are skipped and reported
+   * rather than matched against the wrong record.
+   */
   @IsTest
   static void unscopedRowsUnderAnAmbiguousParentAreReportedNotRun() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -238,8 +307,10 @@ private class IdpNavigationTest {
     );
   }
 
-  // ─────────────────── chains, directions, roots ──────────────────
-
+  /**
+   * Verifies that one source section can be the start of paths to two
+   * different objects.
+   */
   @IsTest
   static void twoLookupsToDifferentObjectsFromOneSection() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -291,6 +362,10 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that a declared child hop from a root object anchors the most
+   * recently created child.
+   */
   @IsTest
   static void explicitChildHopFromARootObjectTakesTheNewestChild() {
     Account account = new Account(Name = 'Holder');
@@ -336,6 +411,9 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that a lookup holding no value reports which hop came up empty.
+   */
   @IsTest
   static void anEmptyLookupIsUnreachableAndSaysWhichHop() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile(); // no ContactId
@@ -366,6 +444,10 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that a source anchor nothing reaches is reported for both Fixed
+   * and Repeating sections.
+   */
   @IsTest
   static void anUnresolvedSourceIsReportedForFixedAndRepeatingSections() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -412,6 +494,10 @@ private class IdpNavigationTest {
     Assert.areEqual(0, result.rowsMatched);
   }
 
+  /**
+   * Verifies that rowScope "None" matches rows by key without a parent
+   * constraint.
+   */
   @IsTest
   static void rowScopeNoneMatchesRowsByKeyAlone() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -449,6 +535,10 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that a multi-segment via reaches its target through an
+   * intermediate record no section targets.
+   */
   @IsTest
   static void multiSegmentViaCrossesAnUntargetedIntermediate() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -493,8 +583,10 @@ private class IdpNavigationTest {
     );
   }
 
-  // ───────────────────── creating and linking ─────────────────────
-
+  /**
+   * Verifies that an anchor created on a parent hop is written back into the
+   * source record's lookup once the insert lands.
+   */
   @IsTest
   static void aCreatedAnchorOnAParentHopBackLinksItsSource() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile(); // no ContactId
@@ -549,6 +641,9 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that a section whose source was never reached creates nothing.
+   */
   @IsTest
   static void aCreatedAnchorNeedsItsSourceResolved() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -578,6 +673,10 @@ private class IdpNavigationTest {
     );
   }
 
+  /**
+   * Verifies that rows scoped through a chosen lookup ignore same-keyed rows
+   * hanging off the other Account.
+   */
   @IsTest
   static void rowsScopedThroughAChosenLookupIgnoreTheOtherAccountsRows() {
     ServicedAsset data = servicedAsset(); // asset serviced by 'Servicer'

@@ -6,8 +6,22 @@
  * results go to the finding handler, not the caller); previewValue() lets
  * an admin test a value type's configuration against sample text without
  * deploying anything or touching a record.
+ *
+ * @group IDP Processing
+ * @author Ernesto S Melgin
  */
 public with sharing class IdpMappingController {
+  /**
+   * Applies a mapping set to one reviewed document.
+   *
+   * @param contentDocumentId Reviewed file the run is seeded from.
+   * @param jsonString The reviewed JSON payload.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction, Compliance or Preview; a rule's own Mode wins.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @return Result of the single document, including its findings.
+   * @throws AuraHandledException When the run cannot be completed.
+   */
   @AuraEnabled
   public static IdpResult.Result apply(
     Id contentDocumentId,
@@ -29,6 +43,15 @@ public with sharing class IdpMappingController {
     }
   }
 
+  /**
+   * Replays the pipeline without DML so the UI can show planned changes.
+   *
+   * @param contentDocumentId Reviewed file the run is seeded from.
+   * @param jsonString The reviewed JSON payload.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @return Result carrying the old to new changes Save would write.
+   * @throws AuraHandledException When the run cannot be completed.
+   */
   @AuraEnabled
   public static IdpResult.Result preview(
     Id contentDocumentId,
@@ -49,11 +72,20 @@ public with sharing class IdpMappingController {
   }
 
   /**
-   * ENG-4: the answer to a deferred apply(). Runs the same document as a
-   * Queueable with a fresh set of governor limits and returns the job Id.
-   * Results are delivered through the finding handler — Preview is
-   * refused, because its entire output is the plan this method cannot
-   * return.
+   * Re-runs a deferred document as a Queueable (ENG-4).
+   *
+   * The document gets a fresh set of governor limits and its results are
+   * delivered through the finding handler. Preview is refused, because its
+   * entire output is the plan this method cannot return.
+   *
+   * @param contentDocumentId Reviewed file the run is seeded from.
+   * @param jsonString The reviewed JSON payload.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction or Compliance; Preview is rejected.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @return Id of the enqueued job.
+   * @throws AuraHandledException When Preview is requested, the mapping set
+   *         is not active, or the job cannot be enqueued.
    */
   @AuraEnabled
   public static Id applyAsync(
@@ -95,22 +127,37 @@ public with sharing class IdpMappingController {
     }
   }
 
+  /** Outcome of parsing sample text through a value type configuration. */
   public class ValuePreview {
+    /** Canonical value as text, null when the text did not parse. */
     @AuraEnabled
     public String value;
 
+    /** Parse grade label, such as Exact or Inferred. */
     @AuraEnabled
     public String grade;
 
+    /** Explanation the value type attached to the parse. */
     @AuraEnabled
     public String note;
 
+    /** Canonical value formatted through the type's output format. */
     @AuraEnabled
     public String rendered;
   }
 
-  /** Parses rawText through the named IDP_Value_Type__mdt and reports the
-   *  canonical value, the grade and the rendered output. */
+  /**
+   * Tries a value type's configuration against sample text.
+   *
+   * Lets an admin see the canonical value, the grade and the rendered
+   * output without deploying anything or touching a record.
+   *
+   * @param valueTypeName DeveloperName of the IDP_Value_Type__mdt to use.
+   * @param rawText Sample document text to parse.
+   * @return Parse outcome with value, grade, note and rendered output.
+   * @throws AuraHandledException When the value type is unknown or its
+   *         implementation cannot be resolved.
+   */
   @AuraEnabled
   public static ValuePreview previewValue(
     String valueTypeName,
@@ -152,6 +199,13 @@ public with sharing class IdpMappingController {
    * Custom handlers do not run in Preview — they are arbitrary Apex with
    * side effects — and the result says which rules were skipped for that
    * reason, so the preview is honest about being incomplete.
+   *
+   * @param mappingSetName Name the draft definition is previewed under.
+   * @param definition Unsaved mapping set definition to evaluate.
+   * @param jsonString Sample document supplying the readings.
+   * @param seedRecordId Record the wiring is resolved from.
+   * @return Result listing the records reached and the planned writes.
+   * @throws AuraHandledException When the draft cannot be evaluated.
    */
   @AuraEnabled
   public static IdpResult.Result previewDraft(
@@ -175,6 +229,16 @@ public with sharing class IdpMappingController {
     }
   }
 
+  /**
+   * Drives the bulk engine with a single document.
+   *
+   * @param contentDocumentId Reviewed file the run is seeded from.
+   * @param jsonString The reviewed JSON payload.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction, Compliance or Preview.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @return Result of the only document in the run.
+   */
   private static IdpResult.Result runOne(
     Id contentDocumentId,
     String jsonString,

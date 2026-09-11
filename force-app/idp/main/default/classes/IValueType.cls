@@ -18,17 +18,49 @@
  *                shown in findings, per Output_Format__c.
  *
  * Implementations must be stateless: one instance serves all rules.
+ *
+ * @group IDP Extensibility
+ * @author Ernesto S Melgin
  */
 public interface IValueType {
+  /**
+   * Turns document text into a canonical typed value.
+   *
+   * @param raw Value as the document carried it, envelopes already unwrapped.
+   * @param cfg Value type configuration driving parse behaviour.
+   * @return Parsed value together with the Grade earned by the parse.
+   */
   IdpValueTypes.ParseResult parse(Object raw, IdpValueTypes.Config cfg);
 
+  /**
+   * Reduces either side of a comparison to its comparable form.
+   *
+   * @param value Extracted or stored value to canonicalize.
+   * @param cfg Value type configuration driving canonicalization.
+   * @return Canonical form, comparable across document and record spelling.
+   */
   Object canonical(Object value, IdpValueTypes.Config cfg);
 
+  /**
+   * Weighs a document value against the value already stored on the record.
+   *
+   * @param extracted Canonical value taken from the document.
+   * @param stored Canonical value read from the target field.
+   * @param cfg Value type configuration, including the NEAR tolerance.
+   * @return MATCH, NEAR or MISMATCH verdict.
+   */
   IdpResult.CompareOutcome compare(
     Object extracted,
     Object stored,
     IdpValueTypes.Config cfg
   );
 
+  /**
+   * Formats a canonical value for text targets and findings.
+   *
+   * @param canonicalValue Value already reduced to canonical form.
+   * @param cfg Value type configuration supplying the output format.
+   * @return Text written to the target field and surfaced in findings.
+   */
   String render(Object canonicalValue, IdpValueTypes.Config cfg);
 }

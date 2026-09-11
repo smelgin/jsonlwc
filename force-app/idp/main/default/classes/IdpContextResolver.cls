@@ -28,16 +28,28 @@
  * targets drop to per-document queries; constant filters stay grouped.
  * All queries run in USER_MODE. A record that cannot be reached is simply
  * absent from the map — the engine reports it per section.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpContextResolver {
+  /** Hub object assumed when a mapping set names none. */
   private static final String DEFAULT_HUB_OBJECT = 'Document__c';
+
+  /** Hop passes attempted before the walk gives up. */
   private static final Integer MAX_PASSES = 3;
+
+  /** Ceiling on rows fetched by one grouped child query. */
   private static final Integer CHILD_QUERY_LIMIT = 2000;
+
+  /** File link targets that are never business records. */
   private static final Set<String> SKIPPED_LINK_TYPES = new Set<String>{
     'User',
     'Group',
     'ContentWorkspace'
   };
+
+  /** Parent types the hub walk ignores, being platform rather than data. */
   private static final Set<String> SKIPPED_PARENT_TYPES = new Set<String>{
     'User',
     'Group',
@@ -50,12 +62,15 @@ public inherited sharing class IdpContextResolver {
     /** Target object; the map key for implicit specs, so may be left
      *  null there. */
     public String objectName;
+    /** Fields the target's rules need, added to the select list. */
     public Set<String> fields = new Set<String>();
+    /** WHERE fragment narrowing the anchor, possibly document-bound. */
     public String filter;
-    /** Explicit navigation (bySection specs only): the anchor key the
-     *  hop starts from — an explicit section's name, or an implicit
-     *  object's API name — and the lookup it follows. */
+    /** Explicit navigation (bySection specs only): the anchor key the hop
+     *  starts from — an explicit section's name, or an implicit object's
+     *  API name. */
     public String sourceKey;
+    /** Lookup the explicit hop follows between source and target. */
     public String relationshipField;
     /** True: the target holds relationshipField pointing at the source
      *  (newest child wins). False: the source holds it. */
@@ -75,6 +90,11 @@ public inherited sharing class IdpContextResolver {
      *  (Hub_Object__c); null means Document__c. */
     public String hubObject;
 
+    /**
+     * Counts the targets the plan asks for.
+     *
+     * @return Implicit plus explicit targets.
+     */
     public Integer size() {
       return byObject.size() + bySection.size();
     }
@@ -82,11 +102,15 @@ public inherited sharing class IdpContextResolver {
 
   /** One document's resolution state; owned by the engine's DocumentWork. */
   public class DocContext {
+    /** Reviewed file the document was seeded from. */
     public Id contentDocumentId;
+    /** Record the document was seeded from instead of a file. */
     public Id seedRecordId;
+    /** Deserialized reviewed JSON, read by document-bound filters. */
     public Object jsonRoot;
     /** Implicit anchors: one record per object API name. */
     public Map<String, SObject> anchors = new Map<String, SObject>();
+    /** Object names in the order their anchors were resolved. */
     public List<String> anchorOrder = new List<String>();
     /** Explicit anchors, keyed by section name. */
     public Map<String, SObject> anchorsBySection = new Map<String, SObject>();
@@ -96,13 +120,25 @@ public inherited sharing class IdpContextResolver {
     /** Root candidates per object, in link order, before fetching. */
     private Map<String, List<Id>> rootCandidates = new Map<String, List<Id>>();
 
-    /** The anchor behind a key: an explicit section's record first, else
-     *  the implicit record of that object. */
+    /**
+     * Resolves the record behind an anchor key.
+     *
+     * An explicit section's record wins over the implicit record of an
+     * object with the same key.
+     *
+     * @param key Section name or object API name.
+     * @return Anchored record, or null when nothing reached it.
+     */
     public SObject anchorFor(String key) {
       SObject record = anchorsBySection.get(key);
       return record != null ? record : anchors.get(key);
     }
 
+    /**
+     * Notes a linked record as a possible root, in link order.
+     *
+     * @param recordId Record the file is linked to.
+     */
     private void addRootCandidate(Id recordId) {
       String entityType = recordId.getSObjectType().getDescribe().getName();
       if (SKIPPED_LINK_TYPES.contains(entityType)) {
@@ -114,6 +150,12 @@ public inherited sharing class IdpContextResolver {
       rootCandidates.get(entityType).add(recordId);
     }
 
+    /**
+     * Claims the implicit anchor for an object; the first record wins.
+     *
+     * @param objectName API name of the anchored object.
+     * @param record Record to anchor.
+     */
     private void anchor(String objectName, SObject record) {
       if (!anchors.containsKey(objectName)) {
         anchors.put(objectName, record);
@@ -121,6 +163,12 @@ public inherited sharing class IdpContextResolver {
       }
     }
 
+    /**
+     * Records why an object was left unanchored rather than guessed at.
+     *
+     * @param objectName API name of the object in question.
+     * @param reason Explanation the engine reports per section.
+     */
     private void noteAmbiguity(String objectName, String reason) {
       if (!ambiguities.containsKey(objectName)) {
         ambiguities.put(objectName, reason);
@@ -128,8 +176,14 @@ public inherited sharing class IdpContextResolver {
     }
   }
 
-  /** Implicit targets only — the shape callers used before explicit
-   *  navigation existed. */
+  /**
+   * Resolves implicit targets only.
+   *
+   * The shape callers used before explicit navigation existed.
+   *
+   * @param docs Documents of the run, resolved in place.
+   * @param requests Anchor specs keyed by object API name.
+   */
   public static void resolveAll(
     List<DocContext> docs,
     Map<String, AnchorSpec> requests
@@ -139,6 +193,16 @@ public inherited sharing class IdpContextResolver {
     resolveAll(docs, plan);
   }
 
+  /**
+   * Resolves every target of a plan, for the whole run at once.
+   *
+   * Roots come first, then hub expansion, then up to MAX_PASSES of
+   * implicit and explicit hops; the walk stops as soon as a pass anchors
+   * nothing new.
+   *
+   * @param docs Documents of the run, resolved in place.
+   * @param plan Implicit and explicit targets the run needs.
+   */
   public static void resolveAll(List<DocContext> docs, Plan plan) {
     if (docs.isEmpty()) {
       return;
@@ -185,9 +249,13 @@ public inherited sharing class IdpContextResolver {
     }
   }
 
-  // ─────────────────────────── roots ──────────────────────────────
-
-  /** ONE ContentDocumentLink query covers every file of the run. */
+  /**
+   * Collects each document's root candidates from its seed or its file.
+   *
+   * One ContentDocumentLink query covers every file of the run.
+   *
+   * @param docs Documents of the run, updated in place.
+   */
   private static void collectRootCandidates(List<DocContext> docs) {
     Map<Id, List<DocContext>> docsByFile = new Map<Id, List<DocContext>>();
     for (DocContext doc : docs) {
@@ -217,9 +285,16 @@ public inherited sharing class IdpContextResolver {
     }
   }
 
-  /** Fetches root candidates grouped per object; each document anchors
-   *  the first of its candidates that survives the query (and filter). A
-   *  filter binding {json:} values queries per document instead. */
+  /**
+   * Anchors each document's first surviving root candidate.
+   *
+   * Candidates are fetched grouped per object; a filter binding {json:}
+   * values queries per document instead.
+   *
+   * @param docs Documents of the run, anchored in place.
+   * @param plan Targets the run needs, supplying fields and filters.
+   * @param resultCache Shared cache of per-document query results.
+   */
   private static void fetchRoots(
     List<DocContext> docs,
     Plan plan,
@@ -287,13 +362,18 @@ public inherited sharing class IdpContextResolver {
     }
   }
 
-  // ──────────────────────── hub expansion ─────────────────────────
-
-  /** The hub's lookups define the context graph: anchor every parent
-   *  Document__c points to, so multi-hop targets stay reachable even when
-   *  the intermediate object is not itself targeted. A parent type the
-   *  hub reaches through several lookups is ambiguous, not followed —
-   *  a section chooses one with reachFrom: "Document__c", via: "…". */
+  /**
+   * Anchors every parent the hub record points at.
+   *
+   * The hub's lookups define the context graph, so multi-hop targets stay
+   * reachable even when the intermediate object is not itself targeted. A
+   * parent type the hub reaches through several lookups is ambiguous and
+   * not followed — a section chooses one with reachFrom and via.
+   *
+   * @param docs Documents of the run, anchored in place.
+   * @param plan Targets the run needs, naming the hub object.
+   * @param resultCache Shared cache of per-document query results.
+   */
   private static void expandHubs(
     List<DocContext> docs,
     Plan plan,
@@ -362,10 +442,17 @@ public inherited sharing class IdpContextResolver {
     fetchWanted(wanted, docs, plan, resultCache);
   }
 
-  // ─────────────────────── implicit passes ────────────────────────
-
-  /** An anchored record holds the one lookup to the target
-   *  (Document__c.Case__c → Case, Case.AccountId → Account). */
+  /**
+   * Follows the one lookup from an anchored record to the target.
+   *
+   * Reaches Case from Document__c.Case__c, or Account from Case.AccountId.
+   *
+   * @param target API name of the object being anchored.
+   * @param docs Documents of the run, anchored in place.
+   * @param plan Targets the run needs, supplying fields and filters.
+   * @param resultCache Shared cache of per-document query results.
+   * @return True when at least one document gained an anchor.
+   */
   private static Boolean resolveParentHops(
     String target,
     List<DocContext> docs,
@@ -396,8 +483,17 @@ public inherited sharing class IdpContextResolver {
     return fetchWanted(wanted, docs, plan, resultCache);
   }
 
-  /** The target holds the one lookup back to an anchored record
-   *  (Estate_Case__c.Case__c = :caseId), newest record first. */
+  /**
+   * Follows the one lookup from the target back to an anchored record.
+   *
+   * Reaches Estate_Case__c through Estate_Case__c.Case__c, newest first.
+   *
+   * @param target API name of the object being anchored.
+   * @param docs Documents of the run, anchored in place.
+   * @param plan Targets the run needs, supplying fields and filters.
+   * @param resultCache Shared cache of per-document query results.
+   * @return True when at least one document gained an anchor.
+   */
   private static Boolean resolveChildHops(
     String target,
     List<DocContext> docs,
@@ -476,14 +572,21 @@ public inherited sharing class IdpContextResolver {
     return progressed;
   }
 
-  // ─────────────────────── explicit hops ──────────────────────────
-
   /**
-   * One section's declared relationship, for every document whose source
-   * anchor is resolved: a parent hop reads the source's lookup and fetches
-   * those Ids in one query; a child hop queries the target's children of
-   * all the sources in one query, newest first. Filters that bind
-   * document values query per document, as everywhere else.
+   * Follows one section's declared relationship across the run.
+   *
+   * Applies to every document whose source anchor is resolved: a parent
+   * hop reads the source's lookup and fetches those Ids in one query; a
+   * child hop queries the target's children of all the sources in one
+   * query, newest first. Filters that bind document values query per
+   * document, as everywhere else.
+   *
+   * @param key Section name the anchor is stored under.
+   * @param spec The section's declared source, lookup and direction.
+   * @param docs Documents of the run, anchored in place.
+   * @param plan Targets the run needs, supplying fields and filters.
+   * @param resultCache Shared cache of per-document query results.
+   * @return True when at least one document gained an anchor.
    */
   private static Boolean resolveExplicitHop(
     String key,
@@ -558,11 +661,19 @@ public inherited sharing class IdpContextResolver {
     return progressed;
   }
 
-  // ─────────────────────────── queries ────────────────────────────
-
-  /** Fetch of wanted (object → id → docs) into the implicit map; returns
-   *  whether any document gained an anchor. Grouped per object; a filter
-   *  binding {json:} values resolves per (record, document) pair. */
+  /**
+   * Fetches wanted records and anchors them on the documents that asked.
+   *
+   * Grouped per object; a filter binding {json:} values resolves per
+   * record and document pair instead.
+   *
+   * @param wanted Record Ids per object, each mapped to the documents
+   *        waiting for it.
+   * @param docs Documents of the run, anchored in place.
+   * @param plan Targets the run needs, supplying fields and filters.
+   * @param resultCache Shared cache of per-document query results.
+   * @return True when at least one document gained an anchor.
+   */
   private static Boolean fetchWanted(
     Map<String, Map<Id, List<DocContext>>> wanted,
     List<DocContext> docs,
@@ -621,7 +732,16 @@ public inherited sharing class IdpContextResolver {
     return progressed;
   }
 
-  /** Records by Id in one query, with the constant filter applied. */
+  /**
+   * Reads many records by Id in one query, applying a constant filter.
+   *
+   * @param key Anchor key the select list is built for.
+   * @param objectName API name of the object being queried.
+   * @param ids Records to fetch.
+   * @param spec Anchor spec supplying fields and the filter; may be null.
+   * @param plan Targets the run needs, used to widen the select list.
+   * @return Records by Id; absent when filtered out or unreadable.
+   */
   private static Map<Id, SObject> fetchByIds(
     String key,
     String objectName,
@@ -664,8 +784,20 @@ public inherited sharing class IdpContextResolver {
     return byId;
   }
 
-  /** Children of many parents in one query; the newest child per parent
-   *  wins, matching v1's ORDER BY CreatedDate DESC LIMIT 1. */
+  /**
+   * Reads the children of many parents in one query.
+   *
+   * The newest child per parent wins, matching v1's ORDER BY CreatedDate
+   * DESC LIMIT 1 taken one parent at a time.
+   *
+   * @param key Anchor key the select list is built for.
+   * @param objectName API name of the child object.
+   * @param lookupField Lookup on the child pointing at the parent.
+   * @param parentIds Parents whose children are wanted.
+   * @param spec Anchor spec supplying fields and the filter; may be null.
+   * @param plan Targets the run needs, used to widen the select list.
+   * @return Newest child per parent Id.
+   */
   private static Map<Id, SObject> queryChildren(
     String key,
     String objectName,
@@ -714,11 +846,25 @@ public inherited sharing class IdpContextResolver {
     return newestByParent;
   }
 
-  /** v1's queryFirstWhere: one record for one document, filter bound
-   *  against that document's JSON. Several documents commonly resolve the
-   *  same filter to the same values (a shared status code, say); resultCache
-   *  keys on the query text plus its bound values, so those documents reuse
-   *  one query result instead of each issuing their own. */
+  /**
+   * Resolves one record for one document, binding that document's values.
+   *
+   * Several documents commonly resolve the same filter to the same values,
+   * such as a shared status code; the cache keys on the query text plus
+   * its bound values, so those documents reuse one query result instead of
+   * each issuing their own.
+   *
+   * @param key Anchor key the select list is built for.
+   * @param objectName API name of the object being queried.
+   * @param whereField Field matched against the supplied value.
+   * @param value Id the query matches on.
+   * @param spec Anchor spec supplying fields and the document-bound filter.
+   * @param jsonRoot Reviewed document the filter tokens read from.
+   * @param newestFirst True to prefer the most recently created record.
+   * @param plan Targets the run needs, used to widen the select list.
+   * @param resultCache Shared cache of per-document query results.
+   * @return The matching record, or null when nothing survives the filter.
+   */
   private static SObject queryOneForDoc(
     String key,
     String objectName,
@@ -777,11 +923,20 @@ public inherited sharing class IdpContextResolver {
   }
 
   /**
-   * The select list for a record anchored under `key`: the fields its
-   * rules need (validated + accessible), the lookups later hops read —
-   * the one lookup to each implicit target, and the `via` of every
-   * explicit parent hop that starts here — and for the hub every
-   * reference field (they drive expandHubs).
+   * Builds the select list for a record anchored under one key.
+   *
+   * Covers the fields its rules need, validated and accessible; the
+   * lookups later hops read — the one lookup to each implicit target, and
+   * the `via` of every explicit parent hop that starts here; and, for the
+   * hub, every reference field, since those drive hub expansion.
+   *
+   * @param key Anchor key the record is stored under.
+   * @param objectName API name of the object being queried.
+   * @param spec Anchor spec naming the fields its rules need; may be null.
+   * @param extraField Further field the query itself needs, such as the
+   *        lookup a child hop matches on.
+   * @param plan Targets the run needs, deciding which lookups to carry.
+   * @return Comma-separated select list, always including Id.
    */
   private static String selectList(
     String key,
@@ -838,12 +993,23 @@ public inherited sharing class IdpContextResolver {
     return String.join(new List<String>(selected), ', ');
   }
 
-  // ─────────────────────────── helpers ────────────────────────────
-
+  /**
+   * Names the hub object whose lookups the walk follows wholesale.
+   *
+   * @param plan Targets the run needs.
+   * @return Configured hub object, or Document__c when none is set.
+   */
   private static String hubOf(Plan plan) {
     return String.isBlank(plan.hubObject) ? DEFAULT_HUB_OBJECT : plan.hubObject;
   }
 
+  /**
+   * Adds a field to the select list when the running user can read it.
+   *
+   * @param selected Select list being built.
+   * @param described Field map of the object being queried.
+   * @param fieldName Candidate field; null is ignored.
+   */
   private static void addIfAccessible(
     Set<String> selected,
     Map<String, Schema.SObjectField> described,
@@ -858,6 +1024,14 @@ public inherited sharing class IdpContextResolver {
     }
   }
 
+  /**
+   * Phrases an ambiguity the walk refused to resolve.
+   *
+   * @param fromObject Object holding the competing lookups.
+   * @param toObject Object they all point at.
+   * @param lookups Candidate field names.
+   * @return Explanation the engine reports against the section.
+   */
   private static String severalLookups(
     String fromObject,
     String toObject,
@@ -871,6 +1045,14 @@ public inherited sharing class IdpContextResolver {
       ')';
   }
 
+  /**
+   * Registers that a document is waiting for one record of one object.
+   *
+   * @param wanted Pending fetches, keyed by object then record Id.
+   * @param objectName API name of the object being fetched.
+   * @param recordId Record the document is waiting for.
+   * @param doc Document that wants it.
+   */
   private static void want(
     Map<String, Map<Id, List<DocContext>>> wanted,
     String objectName,
@@ -883,6 +1065,13 @@ public inherited sharing class IdpContextResolver {
     want1(wanted.get(objectName), recordId, doc);
   }
 
+  /**
+   * Registers a document against one record Id within a single group.
+   *
+   * @param byId Pending fetches for one object, keyed by record Id.
+   * @param recordId Record the document is waiting for.
+   * @param doc Document that wants it.
+   */
   private static void want1(
     Map<Id, List<DocContext>> byId,
     Id recordId,
@@ -894,6 +1083,13 @@ public inherited sharing class IdpContextResolver {
     byId.get(recordId).add(doc);
   }
 
+  /**
+   * Reads a lookup that may not have been queried.
+   *
+   * @param record Record to read from.
+   * @param fieldName API name of the lookup field.
+   * @return Referenced Id, or null when the field is unavailable.
+   */
   private static Id idValue(SObject record, String fieldName) {
     try {
       return (Id) record.get(fieldName);

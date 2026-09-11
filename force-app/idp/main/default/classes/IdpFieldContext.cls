@@ -10,6 +10,9 @@
  * update and a handler never needs (and should never perform) DML of its
  * own. On a record the run is about to create (record.Id == null) the
  * mutations ride along on the insert.
+ *
+ * @group IDP Extensibility
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpFieldContext {
   /** The rule's JSON Path, as configured. */

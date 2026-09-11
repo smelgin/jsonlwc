@@ -5,15 +5,28 @@
  * a write (Extraction / Preview) or compare both sides through the type
  * (Compliance). Every outcome that is not a clean write or a clean match
  * becomes a Finding with full context.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpRuleEvaluator {
   /** Which row of a repeating section a finding belongs to; null for
    *  fixed sections. */
   public class RowInfo {
+    /** Section the row belongs to. */
     public String sectionName;
+    /** 0-based row position within the section. */
     public Integer index;
+    /** Row match key, as rendered from the section's template. */
     public String key;
 
+    /**
+     * Places a finding on one row of a repeating section.
+     *
+     * @param sectionName Section the row belongs to.
+     * @param index 0-based row position.
+     * @param key Row match key.
+     */
     public RowInfo(String sectionName, Integer index, String key) {
       this.sectionName = sectionName;
       this.index = index;
@@ -21,11 +34,30 @@ public inherited sharing class IdpRuleEvaluator {
     }
   }
 
+  /**
+   * Evaluates one rule against one record.
+   *
+   * Reads the JSON, parses through the rule's value type and applies the
+   * Required, Minimum Confidence and Minimum Grade gates, then stages a
+   * write, hands the field to custom Apex, or compares both sides. Every
+   * outcome that is neither a clean write nor a clean match becomes a
+   * Finding carrying full context.
+   *
+   * @param rule Rule being evaluated.
+   * @param effectiveMode Mode this rule runs under, after any override.
+   * @param previewing True when no DML may happen.
+   * @param scope JSON root for fixed sections, the row for repeating ones.
+   * @param record Target record, mutated in memory before it is staged.
+   * @param objectName API name of the target object.
+   * @param row Row the rule belongs to; null for fixed sections.
+   * @param result Document result collecting findings and planned changes.
+   * @param executor Executor the write is staged through.
+   */
   public static void apply(
     IdpConfigLoader.RuleConfig rule,
     String effectiveMode,
     Boolean previewing,
-    Object scope, // the JSON root for fixed sections, the row for repeating
+    Object scope,
     SObject record,
     String objectName,
     RowInfo row,
@@ -301,12 +333,22 @@ public inherited sharing class IdpRuleEvaluator {
   }
 
   /**
-   * Mode = Custom (ENG-1): hand the parsed field to the rule's
-   * IIdpFieldHandler. The handler mutates the record in memory; every
-   * field it changed is staged through the executor afterwards, so the
-   * run's single FLS-stripped update still holds. On a record the run is
-   * creating, the mutations ride along on the insert and no diff is
-   * needed. A thrown exception becomes a HANDLER_FAILED finding.
+   * Hands a parsed field to the rule's IIdpFieldHandler (ENG-1).
+   *
+   * The handler mutates the record in memory; every field it changed is
+   * staged through the executor afterwards, so the run's single
+   * FLS-stripped update still holds. On a record the run is creating, the
+   * mutations ride along on the insert and no diff is needed. A thrown
+   * exception becomes a HANDLER_FAILED finding.
+   *
+   * @param rule Rule naming the handler class.
+   * @param parsed Parse outcome handed to the handler.
+   * @param read Raw value and confidence read from the document.
+   * @param record Target record the handler may mutate.
+   * @param objectName API name of the target object.
+   * @param row Row the rule belongs to; null for fixed sections.
+   * @param result Document result collecting findings.
+   * @param executor Executor the diffed writes are staged through.
    */
   private static void runFieldHandler(
     IdpConfigLoader.RuleConfig rule,
@@ -373,9 +415,23 @@ public inherited sharing class IdpRuleEvaluator {
     }
   }
 
-  /** Compliance: both sides go through the type's canonical form; the
-   *  verdict is three-state. A blank stored field cannot confirm the
-   *  document, so it is a mismatch. */
+  /**
+   * Weighs a document value against the value the record already holds.
+   *
+   * Both sides go through the type's canonical form and the verdict is
+   * three-state. A blank stored field cannot confirm the document, so it
+   * counts as a mismatch.
+   *
+   * @param rule Rule being compared.
+   * @param type Value type resolving both sides.
+   * @param typeConfig Configuration driving the comparison.
+   * @param parsed Parse outcome for the document value.
+   * @param read Raw value and confidence read from the document.
+   * @param record Record holding the stored value.
+   * @param objectName API name of the target object.
+   * @param row Row the rule belongs to; null for fixed sections.
+   * @param result Document result collecting findings.
+   */
   private static void compare(
     IdpConfigLoader.RuleConfig rule,
     IValueType type,
@@ -425,6 +481,18 @@ public inherited sharing class IdpRuleEvaluator {
     contextualize(finding, rule, objectName, record, row);
   }
 
+  /**
+   * Keeps a value out of a restricted picklist unless it is an active entry.
+   *
+   * @param describe Describe of the target field.
+   * @param coerced Value about to be written.
+   * @param rule Rule supplying the value.
+   * @param objectName API name of the target object.
+   * @param record Target record, for finding context.
+   * @param row Row the rule belongs to; null for fixed sections.
+   * @param result Document result collecting findings.
+   * @return True when the write may proceed.
+   */
   private static Boolean validatePicklist(
     Schema.DescribeFieldResult describe,
     Object coerced,
@@ -467,6 +535,15 @@ public inherited sharing class IdpRuleEvaluator {
     return false;
   }
 
+  /**
+   * Attaches the rule, record and row a finding arose from.
+   *
+   * @param finding Finding to enrich.
+   * @param rule Rule being evaluated.
+   * @param objectName API name of the target object.
+   * @param record Target record; may be null.
+   * @param row Row the rule belongs to; null for fixed sections.
+   */
   private static void contextualize(
     IdpResult.Finding finding,
     IdpConfigLoader.RuleConfig rule,
@@ -485,6 +562,13 @@ public inherited sharing class IdpRuleEvaluator {
     }
   }
 
+  /**
+   * Reads a field that may not have been queried.
+   *
+   * @param record Record to read from.
+   * @param fieldName API name of the field.
+   * @return Stored value, or null when the field is unavailable.
+   */
   private static Object currentValue(SObject record, String fieldName) {
     try {
       return record.get(fieldName);

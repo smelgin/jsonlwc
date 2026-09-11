@@ -1,18 +1,37 @@
 import { LightningElement, api } from 'lwc';
 import { FlowAttributeChangeEvent } from 'lightning/flowSupport';
 
+/** Base class of a label textbox. */
 const LABEL_INPUT_CLASS = 'label-input';
+
+/** Base class of a value textbox. */
 const VALUE_INPUT_CLASS = 'value-input';
+
+/** Marks a textbox holding something other than what it loaded with. */
 const MODIFIED_CLASS = 'field-modified';
+
+/** Marks a textbox whose value no longer parses as its loaded type. */
 const INVALID_CLASS = 'field-invalid';
 
+/** Node holding named members. */
 const KIND_OBJECT = 'object';
+
+/** Node holding positional members. */
 const KIND_ARRAY = 'array';
+
+/** Node holding a scalar value. */
 const KIND_LEAF = 'leaf';
 
+/** Leaf carrying text. */
 const TYPE_TEXT = 'string';
+
+/** Leaf carrying a number. */
 const TYPE_NUMBER = 'number';
+
+/** Leaf carrying true or false. */
 const TYPE_BOOLEAN = 'boolean';
+
+/** Leaf carrying nothing at all. */
 const TYPE_NULL = 'null';
 
 /** Choices offered when adding a field. Mirrors what JSON can hold. */
@@ -31,9 +50,16 @@ const CONTAINER_OPTIONS = [
     { label: 'List', value: KIND_ARRAY }
 ];
 
+/** Confidence at or above which a field counts as reliable. */
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.8;
 
-/** Flow and App Builder hand booleans over as the strings "true"/"false". */
+/**
+ * Reads a boolean the way Flow and App Builder supply it, as the strings
+ * "true" and "false" rather than as a boolean.
+ *
+ * @param {boolean|string} value Value as the host set it.
+ * @returns {boolean} Whether the flag is on.
+ */
 function toBoolean(value) {
     return value === true || value === 'true';
 }
@@ -61,38 +87,79 @@ function toBoolean(value) {
  *  - searchable     filter the form by field name or value
  *  - showConfidence unwrap {value, confidence} envelopes and badge them
  *  - validateTypes  flag values that no longer parse as their loaded type
+ *
+ * @module jsonForm
+ * @extends LightningElement
  */
 export default class JsonForm extends LightningElement {
+    /** Flattened, currently visible rows of the tree. */
     rows = [];
+
+    /** Field types offered when adding a field. */
     typeOptions = TYPE_OPTIONS;
+
+    /** Container kinds a leaf may be converted into. */
     containerOptions = CONTAINER_OPTIONS;
 
+    /** Root of the node tree; undefined for a scalar document. */
     _root;
+
+    /** The document itself when it is a bare scalar. */
     _scalar;
+
+    /** Rendered rows by node id, for in-place refreshes. */
     _rowsById = new Map();
+
+    /** Every node by id, so a keystroke resolves without a tree walk. */
     _nodesById = new Map();
+
+    /** Source of the next node id. */
     _idCounter = 0;
+
+    /** Document as a string, when the host set it that way. */
     _jsonInput;
 
+    /** Whether object keys may be renamed. */
     _editLabels = false;
+
+    /** Whether fields may be added and deleted. */
     _editStructure = false;
+
+    /** Whether groups and lists may be collapsed. */
     _collapsible = false;
+
+    /** Whether the search box is shown. */
     _searchable = false;
+
+    /** Whether confidence envelopes are unwrapped and badged. */
     _showConfidence = false;
+
+    /** Whether values are checked against their loaded type. */
     _validateTypes = false;
+
+    /** Confidence below which a field is badged in red. */
     _confidenceThreshold = DEFAULT_CONFIDENCE_THRESHOLD;
 
+    /** Current search term, empty when nothing is being filtered. */
     _searchTerm = '';
-    _addTargetId;
-    _addName = '';
-    _addType = TYPE_TEXT;
-    _addContainerKind = KIND_OBJECT;
-    _addError;
-    _confirmDeleteId;
 
-    // ---------------------------------------------------------------------
-    // Public API
-    // ---------------------------------------------------------------------
+    /** Node the add form is open on. */
+    _addTargetId;
+
+    /** Name typed into the add form. */
+    _addName = '';
+
+    /** Type chosen in the add form. */
+    _addType = TYPE_TEXT;
+
+    /** Container kind a leaf would be converted into. */
+    _addContainerKind = KIND_OBJECT;
+
+    /** Why the add form cannot be confirmed. */
+    _addError;
+
+    /** Node whose deletion is awaiting confirmation. */
+    _confirmDeleteId;
 
     /**
      * Whether object keys may be renamed. Off by default: most hosts want the
@@ -236,7 +303,12 @@ export default class JsonForm extends LightningElement {
         return this._root ? this.serialize(this._root) : this._scalar;
     }
 
-    /** Returns the current (possibly modified) JSON as a formatted string. */
+    /**
+     * Returns the current, possibly modified, JSON as a formatted string.
+     *
+     * @param {number} [indent] Spaces per level; three by default.
+     * @returns {string} The document, pretty-printed.
+     */
     @api
     getJsonString(indent = 3) {
         return JSON.stringify(this.getJson(), null, indent);
@@ -253,6 +325,14 @@ export default class JsonForm extends LightningElement {
     // Loading
     // ---------------------------------------------------------------------
 
+    /**
+     * Loads a document, discarding whatever was being edited.
+     *
+     * Unparseable text leaves the form empty rather than throwing, since the
+     * host may be typing the document in.
+     *
+     * @param {object|string} value Document as an object or a JSON string.
+     */
     applyJson(value) {
         let parsed = value;
         if (typeof value === 'string') {
@@ -281,9 +361,17 @@ export default class JsonForm extends LightningElement {
     }
 
     /**
-     * Builds one node and its descendants. `key` is the object key the node
-     * sits under, or its index when the parent is an array — array items have
-     * no name of their own, so their baseline key stays null.
+     * Builds one node and its descendants.
+     *
+     * Array items have no name of their own, so their baseline key stays
+     * null and a positional label is rendered instead.
+     *
+     * @param {*} raw Member of the document this node represents.
+     * @param {string|number} key Object key the node sits under, or its
+     *        index when the parent is an array.
+     * @param {boolean} isArrayItem Whether the parent is a list.
+     * @param {object} parent Node this one hangs off; null at the root.
+     * @returns {object} The new node, already indexed.
      */
     buildNode(raw, key, isArrayItem, parent) {
         const node = {
@@ -328,9 +416,14 @@ export default class JsonForm extends LightningElement {
     }
 
     /**
-     * Only the exact two-key {value, confidence} shape is an envelope, so a
+     * Decides whether a member is a confidence envelope.
+     *
+     * Only the exact two-key {value, confidence} shape qualifies, so a
      * legitimate business field named "value" can never be swallowed. Kept
      * deliberately identical to IdpJsonReader.isEnvelope.
+     *
+     * @param {*} node Member of the document to inspect.
+     * @returns {boolean} True when it wraps a value.
      */
     isEnvelope(node) {
         if (node === null || typeof node !== 'object' || Array.isArray(node)) {
@@ -345,7 +438,12 @@ export default class JsonForm extends LightningElement {
         );
     }
 
-    /** Rebuilds the JSON from the tree, restoring any envelope it came in. */
+    /**
+     * Rebuilds the JSON from the tree, restoring any envelope it came in.
+     *
+     * @param {object} node Node to serialize, with its descendants.
+     * @returns {*} That subtree as plain JSON.
+     */
     serialize(node) {
         let out;
         if (node.kind === KIND_OBJECT) {
@@ -368,6 +466,9 @@ export default class JsonForm extends LightningElement {
     // Row building
     // ---------------------------------------------------------------------
 
+    /**
+     * Rebuilds the visible rows from the tree, honouring search and collapse.
+     */
     rebuildRows() {
         const rows = [];
         this._rowsById = new Map();
@@ -380,6 +481,16 @@ export default class JsonForm extends LightningElement {
         this.rows = rows;
     }
 
+    /**
+     * Walks one node's children, appending the rows that should be visible.
+     *
+     * @param {object} node Node whose children are being walked.
+     * @param {number} level Indentation depth of those children.
+     * @param {Array<object>} rows Accumulator the rows are pushed onto.
+     * @param {object} [matches] Search hits; undefined when not searching.
+     * @param {boolean} ancestorMatched Whether an ancestor matched, which
+     *        keeps a matched group's whole subtree visible.
+     */
     collectRows(node, level, rows, matches, ancestorMatched) {
         node.children.forEach((child, index) => {
             const selfMatch = matches ? matches.self.has(child.id) : false;
@@ -409,8 +520,13 @@ export default class JsonForm extends LightningElement {
         });
     }
 
-    /** Ids of the nodes matching the search term, and of those with a
-     *  matching descendant (kept so a match is shown in context). */
+    /**
+     * Finds the nodes the search term reaches.
+     *
+     * @returns {{self:Set,descendant:Set}} Ids of the nodes that match, and
+     *          of those with a matching descendant, kept so a match is shown
+     *          in context.
+     */
     computeMatches() {
         const term = this._searchTerm.toLowerCase();
         const self = new Set();
@@ -446,10 +562,25 @@ export default class JsonForm extends LightningElement {
         return { self, descendant };
     }
 
+    /**
+     * Names a node: its key, or its position when the parent is a list.
+     *
+     * @param {object} node Node to label.
+     * @param {number} index Position among its siblings.
+     * @returns {string} Label shown to the user.
+     */
     labelOf(node, index) {
         return node.isArrayItem ? `Item ${index + 1}` : String(node.key);
     }
 
+    /**
+     * Builds the row a template renders for one node.
+     *
+     * @param {object} node Node to render.
+     * @param {number} index Position among its siblings.
+     * @param {number} level Indentation depth.
+     * @returns {object} The row, also indexed for later in-place refreshes.
+     */
     makeRow(node, index, level) {
         const isBranch = node.kind !== KIND_LEAF;
         // JF-13: a leaf can take a child too, by becoming a container first.
@@ -491,6 +622,12 @@ export default class JsonForm extends LightningElement {
         return row;
     }
 
+    /**
+     * Names the add action for a node, which depends on what it holds.
+     *
+     * @param {object} node Node the add button sits on.
+     * @returns {string} Button title.
+     */
     addTitleFor(node) {
         if (node.kind === KIND_ARRAY) {
             return 'Add item';
@@ -498,8 +635,15 @@ export default class JsonForm extends LightningElement {
         return node.kind === KIND_OBJECT ? 'Add field' : 'Add child field';
     }
 
-    /** Warning shown before a leaf is turned into a container. The value it
-     *  holds is named outright, because adding the child discards it. */
+    /**
+     * Warns before a leaf is turned into a container.
+     *
+     * The value it holds is named outright, because adding the child
+     * discards it.
+     *
+     * @param {object} node Leaf about to be converted.
+     * @returns {string} Warning shown in the add form.
+     */
     conversionMessageFor(node) {
         const held =
             node.text === '' || node.text === undefined
@@ -508,6 +652,12 @@ export default class JsonForm extends LightningElement {
         return `This field holds a value. Adding a child turns it into a container and discards ${held}.`;
     }
 
+    /**
+     * Labels a container with what it holds.
+     *
+     * @param {object} node Group or list node.
+     * @returns {string} Badge text.
+     */
     badgeFor(node) {
         if (node.kind === KIND_ARRAY) {
             const count = node.children.length;
@@ -516,6 +666,13 @@ export default class JsonForm extends LightningElement {
         return 'Group';
     }
 
+    /**
+     * Asks before a subtree is deleted.
+     *
+     * @param {object} node Node about to be deleted.
+     * @returns {string|undefined} The question, or undefined when the node
+     *          holds nothing worth confirming.
+     */
     confirmMessageFor(node) {
         if (node.kind === KIND_LEAF || !node.children.length) {
             return undefined;
@@ -531,6 +688,9 @@ export default class JsonForm extends LightningElement {
      * the red invalid outline and message, and the confidence badge. Split
      * out of makeRow so an ordinary keystroke can refresh one row in place
      * instead of rebuilding the whole form.
+     *
+     * @param {object} row Row to decorate.
+     * @param {object} node Node the row renders.
      */
     decorate(row, node) {
         const labelEdited =
@@ -578,8 +738,14 @@ export default class JsonForm extends LightningElement {
         }
     }
 
-    /** Re-decorates one row in place, reassigning `rows` only when something
-     *  visible actually changed, so typing does not re-render the form. */
+    /**
+     * Re-decorates one row in place.
+     *
+     * Reassigns `rows` only when something visible actually changed, so
+     * typing does not re-render the whole form.
+     *
+     * @param {object} node Node whose row is refreshed.
+     */
     refreshRow(node) {
         const row = this._rowsById.get(node.id);
         if (!row) {
@@ -593,58 +759,66 @@ export default class JsonForm extends LightningElement {
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Template state
-    // ---------------------------------------------------------------------
-
+    /** Whether anything is currently visible. */
     get hasRows() {
         return this.rows.length > 0;
     }
 
+    /** Whether the toolbar has anything to offer. */
     get hasToolbar() {
         return this._searchable || this._collapsible || this.canAddToRoot;
     }
 
+    /** Whether a field may be added at the top level. */
     get canAddToRoot() {
         return this._editStructure && !!this._root;
     }
 
+    /** Whether the add form is open at the top level. */
     get isAddingToRoot() {
         return !!this._root && this._addTargetId === this._root.id;
     }
 
+    /** Whether a field added at the top level needs a name. */
     get rootNeedsName() {
         return !!this._root && this._root.kind === KIND_OBJECT;
     }
 
+    /** Name currently typed into the add form. */
     get addName() {
         return this._addName;
     }
 
+    /** Type currently chosen in the add form. */
     get addType() {
         return this._addType;
     }
 
+    /** Why the add form cannot be confirmed. */
     get addError() {
         return this._addError;
     }
 
+    /** Current search term. */
     get searchTerm() {
         return this._searchTerm;
     }
 
+    /** Whether a search is running and found nothing. */
     get noMatches() {
         return !this.hasRows && !!this._searchTerm;
     }
 
+    /** Whether the form holds no document at all. */
     get isEmpty() {
         return !this.hasRows && !this._searchTerm;
     }
 
-    // ---------------------------------------------------------------------
-    // Value and label editing
-    // ---------------------------------------------------------------------
-
+    /**
+     * Applies an edit to one field's value.
+     *
+     * @param {Event} event Change event from a value textbox.
+     */
     handleValueChange(event) {
         const node = this.nodeFor(event.target.dataset.id);
         if (!node) {
@@ -658,6 +832,11 @@ export default class JsonForm extends LightningElement {
         this.notifyChange();
     }
 
+    /**
+     * Applies a rename to one field's key.
+     *
+     * @param {Event} event Change event from a label textbox.
+     */
     handleLabelChange(event) {
         const node = this.nodeFor(event.target.dataset.id);
         if (!node) {
@@ -673,8 +852,12 @@ export default class JsonForm extends LightningElement {
         this.notifyChange();
     }
 
-    // If a rename could not be applied (empty or duplicate key), snap the
-    // textbox back to the key actually stored in the JSON when leaving it.
+    /**
+     * Snaps a label textbox back to the key actually stored in the JSON, so
+     * a rename that was refused does not linger on screen.
+     *
+     * @param {FocusEvent} event Blur event from a label textbox.
+     */
     handleLabelBlur(event) {
         const node = this.nodeFor(event.target.dataset.id);
         if (node && event.target.value !== node.key) {
@@ -683,9 +866,15 @@ export default class JsonForm extends LightningElement {
     }
 
     /**
-     * Renames an object key. Key order needs no special handling any more:
-     * the tree holds children in order, so renaming one is just a relabel.
-     * Returns false when the new key is empty or already taken by a sibling.
+     * Renames an object key.
+     *
+     * Key order needs no special handling: the tree holds children in order,
+     * so renaming one is just a relabel.
+     *
+     * @param {object} node Node being renamed.
+     * @param {string} newKey Key the user typed.
+     * @returns {boolean} False when the key is empty, unchanged, or already
+     *          taken by a sibling.
      */
     applyRename(node, newKey) {
         if (newKey === node.key) {
@@ -698,6 +887,14 @@ export default class JsonForm extends LightningElement {
         return true;
     }
 
+    /**
+     * Reports whether a key is already taken among a node's children.
+     *
+     * @param {object} parent Node whose children are checked.
+     * @param {string} key Key being claimed.
+     * @param {object} [except] Node allowed to keep the key, when renaming.
+     * @returns {boolean} True when the key clashes.
+     */
     hasSibling(parent, key, except) {
         return parent.children.some(
             (child) => child !== except && child.key === key
@@ -706,8 +903,12 @@ export default class JsonForm extends LightningElement {
 
     /**
      * Converts the textbox string back to the value's original JSON type so
-     * numbers stay numbers and booleans stay booleans. Falls back to the raw
-     * string when the text no longer parses as that type.
+     * numbers stay numbers and booleans stay booleans.
+     *
+     * @param {string} raw Text as typed.
+     * @param {string} valueType Type the field arrived with.
+     * @returns {*} The typed value, or the raw string when the text no
+     *          longer parses as that type.
      */
     coerce(raw, valueType) {
         if (valueType === TYPE_NUMBER) {
@@ -730,9 +931,17 @@ export default class JsonForm extends LightningElement {
         return raw;
     }
 
-    /** The validation message for a field, or undefined when it is fine.
-     *  Text and empty fields can hold anything, so only numbers and booleans
-     *  can fail — that is the whole of "the type it arrived with". */
+    /**
+     * Checks a field against the type it arrived with.
+     *
+     * Text and empty fields can hold anything, so only numbers and booleans
+     * can fail — that is the whole of "the type it arrived with".
+     *
+     * @param {object} node Node being checked.
+     * @param {string} text Text as typed.
+     * @returns {string|undefined} The message to show, or undefined when the
+     *          field is fine.
+     */
     errorFor(node, text) {
         if (!this._validateTypes) {
             return undefined;
@@ -751,6 +960,9 @@ export default class JsonForm extends LightningElement {
         return undefined;
     }
 
+    /**
+     * Re-checks every field, after validation is switched on or off.
+     */
     revalidate() {
         this.eachNode((node) => {
             if (node.kind === KIND_LEAF) {
@@ -759,6 +971,11 @@ export default class JsonForm extends LightningElement {
         });
     }
 
+    /**
+     * Collects the fields currently failing validation.
+     *
+     * @returns {Array<object>} Nodes carrying an error.
+     */
     invalidNodes() {
         const invalid = [];
         this.eachNode((node) => {
@@ -769,6 +986,11 @@ export default class JsonForm extends LightningElement {
         return invalid;
     }
 
+    /**
+     * Visits every node of the tree, root included.
+     *
+     * @param {Function} callback Called once per node.
+     */
     eachNode(callback) {
         const walk = (node) => {
             callback(node);
@@ -781,10 +1003,11 @@ export default class JsonForm extends LightningElement {
         }
     }
 
-    // ---------------------------------------------------------------------
-    // Collapse and search
-    // ---------------------------------------------------------------------
-
+    /**
+     * Collapses or expands one group.
+     *
+     * @param {Event} event Click event from a toggle button.
+     */
     handleToggleCollapse(event) {
         const node = this.nodeFor(event.target.dataset.id);
         if (node) {
@@ -793,14 +1016,25 @@ export default class JsonForm extends LightningElement {
         }
     }
 
+    /**
+     * Expands every group.
+     */
     handleExpandAll() {
         this.setCollapsedAll(false);
     }
 
+    /**
+     * Collapses every group.
+     */
     handleCollapseAll() {
         this.setCollapsedAll(true);
     }
 
+    /**
+     * Collapses or expands every group at once.
+     *
+     * @param {boolean} collapsed Whether groups end up closed.
+     */
     setCollapsedAll(collapsed) {
         this.eachNode((node) => {
             if (node.kind !== KIND_LEAF && node !== this._root) {
@@ -810,23 +1044,37 @@ export default class JsonForm extends LightningElement {
         this.rebuildRows();
     }
 
+    /**
+     * Filters the form by field name or value.
+     *
+     * @param {Event} event Change event from the search box.
+     */
     handleSearch(event) {
         this._searchTerm = (event.target.value || '').trim();
         this.rebuildRows();
     }
 
-    // ---------------------------------------------------------------------
-    // Adding and deleting
-    // ---------------------------------------------------------------------
-
+    /**
+     * Opens the add form under one node.
+     *
+     * @param {Event} event Click event from an add button.
+     */
     handleAddClick(event) {
         this.openAddForm(event.target.dataset.id);
     }
 
+    /**
+     * Opens the add form at the top level.
+     */
     handleAddRootClick() {
         this.openAddForm(this._root.id);
     }
 
+    /**
+     * Opens the add form on a node, clearing whatever it last held.
+     *
+     * @param {string} nodeId Node the new field goes under.
+     */
     openAddForm(nodeId) {
         this._addTargetId = nodeId;
         this._addName = '';
@@ -837,26 +1085,48 @@ export default class JsonForm extends LightningElement {
         this.rebuildRows();
     }
 
+    /**
+     * Closes the add form without adding anything.
+     */
     handleAddCancel() {
         this._addTargetId = undefined;
         this._addError = undefined;
         this.rebuildRows();
     }
 
+    /**
+     * Tracks the name typed into the add form.
+     *
+     * @param {Event} event Change event from the name textbox.
+     */
     handleAddNameChange(event) {
         this._addName = event.target.value;
     }
 
+    /**
+     * Tracks the type chosen in the add form.
+     *
+     * @param {CustomEvent} event Change event from the type picker.
+     */
     handleAddTypeChange(event) {
         this._addType = event.detail.value;
     }
 
+    /**
+     * Tracks the container kind a leaf would be converted into.
+     *
+     * @param {CustomEvent} event Change event from the container picker.
+     */
     handleAddContainerChange(event) {
         this._addContainerKind = event.detail.value;
         // Whether a name is needed depends on this, so the form must redraw.
         this.rebuildRows();
     }
 
+    /**
+     * Adds the field the user described, converting a leaf into a container
+     * first when the field is going underneath one.
+     */
     handleAddConfirm() {
         const parent = this.nodeFor(this._addTargetId);
         if (!parent) {
@@ -903,6 +1173,9 @@ export default class JsonForm extends LightningElement {
      * same field, now holding structure instead of a scalar. The scalar and
      * any confidence envelope that described it are dropped: the envelope
      * measured a value that no longer exists.
+     *
+     * @param {object} node Leaf being converted.
+     * @param {string} kind Container kind it becomes.
      */
     convertToContainer(node, kind) {
         node.kind = kind;
@@ -917,7 +1190,15 @@ export default class JsonForm extends LightningElement {
         node.error = undefined;
     }
 
-    /** A brand-new node: no baselines, so it renders as edited from birth. */
+    /**
+     * Builds a brand-new node, with no baselines, so it renders as edited
+     * from birth.
+     *
+     * @param {string|number} key Key or position the node takes.
+     * @param {string} type Field type or container kind.
+     * @param {object} parent Node it goes under.
+     * @returns {object} The new node, already indexed.
+     */
     createNode(key, type, parent) {
         const isArrayItem = parent.kind === KIND_ARRAY;
         const node = {
@@ -954,6 +1235,11 @@ export default class JsonForm extends LightningElement {
         return node;
     }
 
+    /**
+     * Deletes a field, asking first when a whole subtree would go with it.
+     *
+     * @param {Event} event Click event from a delete button.
+     */
     handleDeleteClick(event) {
         const node = this.nodeFor(event.target.dataset.id);
         if (!node) {
@@ -970,6 +1256,11 @@ export default class JsonForm extends LightningElement {
         this.removeNode(node);
     }
 
+    /**
+     * Deletes the subtree the user has just confirmed.
+     *
+     * @param {Event} event Click event from the confirm button.
+     */
     handleDeleteConfirm(event) {
         const node = this.nodeFor(event.target.dataset.id);
         if (node) {
@@ -977,11 +1268,19 @@ export default class JsonForm extends LightningElement {
         }
     }
 
+    /**
+     * Keeps the subtree the user decided against deleting.
+     */
     handleDeleteCancel() {
         this._confirmDeleteId = undefined;
         this.rebuildRows();
     }
 
+    /**
+     * Detaches a node from the tree and re-keys list siblings after it.
+     *
+     * @param {object} node Node to remove.
+     */
     removeNode(node) {
         const siblings = node.parent.children;
         const at = siblings.indexOf(node);
@@ -1003,12 +1302,15 @@ export default class JsonForm extends LightningElement {
         this.notifyChange();
     }
 
-    // ---------------------------------------------------------------------
-    // Plumbing
-    // ---------------------------------------------------------------------
-
-    /** Nodes are looked up by id on every keystroke, so they are indexed as
-     *  they are built rather than found by walking the tree each time. */
+    /**
+     * Resolves a node by id.
+     *
+     * Nodes are looked up on every keystroke, so they are indexed as they
+     * are built rather than found by walking the tree each time.
+     *
+     * @param {string} id Node id, as carried on the element's dataset.
+     * @returns {object|undefined} The node, or undefined when it is gone.
+     */
     nodeFor(id) {
         if (id === undefined || id === null) {
             return undefined;
@@ -1016,8 +1318,12 @@ export default class JsonForm extends LightningElement {
         return this._nodesById.get(id);
     }
 
-    /** Drops a detached node and its descendants from the index, so a stale
-     *  id can never resolve to a node that is no longer in the tree. */
+    /**
+     * Drops a detached node and its descendants from the index, so a stale
+     * id can never resolve to a node that is no longer in the tree.
+     *
+     * @param {object} node Node that has left the tree.
+     */
     forget(node) {
         this._nodesById.delete(node.id);
         if (node.children) {
@@ -1025,6 +1331,9 @@ export default class JsonForm extends LightningElement {
         }
     }
 
+    /**
+     * Emits the edited document and refreshes the Flow output attribute.
+     */
     notifyChange() {
         // One walk of the tree, not three: getJson(), getJsonString() and
         // jsonOutput would each re-serialize it on every keystroke.

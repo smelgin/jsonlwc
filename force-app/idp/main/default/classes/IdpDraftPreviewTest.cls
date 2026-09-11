@@ -1,22 +1,32 @@
 /**
- * The Phase 5 gate: previewing a draft must agree with previewing the
- * saved set it was drafted from.
+ * Unit tests for previewing an unsaved mapping set definition.
  *
- * That is the whole claim of previewDraft — that the only difference
- * between it and a real run is the definition being substituted. If the
- * two ever disagree on a definition that is byte-identical to what is
- * stored, the preview is lying about what a save would do, which is worse
- * than having no preview.
+ * The Phase 5 gate: previewing a draft must agree with previewing the
+ * saved set it was drafted from. That is the whole claim of previewDraft —
+ * that the only difference between it and a real run is the definition
+ * being substituted. If the two ever disagree on a definition that is
+ * byte-identical to what is stored, the preview is lying about what a save
+ * would do, which is worse than having no preview.
  */
 @IsTest
 private class IdpDraftPreviewTest {
+  /**
+   * Inserts the record a preview is seeded from.
+   *
+   * @return The inserted Account.
+   */
   private static Account seedAccount() {
     Account account = new Account(Name = 'Preview Co');
     insert account;
     return account;
   }
 
-  /** The stored definition of a shipped set, as the loader holds it. */
+  /**
+   * Reads a shipped set's stored definition, as the loader holds it.
+   *
+   * @param setName DeveloperName of the mapping set.
+   * @return Its Definition__c text, or null when the set is absent.
+   */
   private static String storedDefinitionOf(String setName) {
     List<IDP_Mapping_Set__mdt> records = [
       SELECT Definition__c
@@ -27,6 +37,12 @@ private class IdpDraftPreviewTest {
     return records.isEmpty() ? null : records[0].Definition__c;
   }
 
+  /**
+   * Reduces a result's findings to a sorted, comparable fingerprint.
+   *
+   * @param result Result to fingerprint.
+   * @return Sorted code and severity pairs.
+   */
   private static List<String> codesOf(IdpResult.Result result) {
     List<String> codes = new List<String>();
     for (IdpResult.Finding finding : result.findings) {
@@ -36,6 +52,10 @@ private class IdpDraftPreviewTest {
     return codes;
   }
 
+  /**
+   * Verifies that every shipped set previews identically as a draft of its
+   * own stored definition.
+   */
   @IsTest
   static void aDraftOfTheStoredDefinitionPreviewsTheSame() {
     // A Long Text Area cannot be filtered in SOQL, so the ones without a
@@ -79,12 +99,16 @@ private class IdpDraftPreviewTest {
         codesOf(fromSaved),
         codesOf(fromDraft),
         record.DeveloperName +
-          ' previews differently as a draft than as the set it came from'
+        ' previews differently as a draft than as the set it came from'
       );
     }
     Test.stopTest();
   }
 
+  /**
+   * Verifies that previewing an edited draft leaves the stored definition
+   * untouched.
+   */
   @IsTest
   static void anEditedDraftPreviewsWithoutTouchingWhatIsStored() {
     String stored = storedDefinitionOf('Estate_Intake');
@@ -117,6 +141,11 @@ private class IdpDraftPreviewTest {
     );
   }
 
+  /**
+   * Verifies that a draft under a name no mapping set holds previews
+   * without raising an error, so a document type can be built from
+   * nothing.
+   */
   @IsTest
   static void aDraftForASetThatDoesNotExistStillPreviews() {
     // A document type can be drafted before the record exists, which is
@@ -147,6 +176,10 @@ private class IdpDraftPreviewTest {
     }
   }
 
+  /**
+   * Verifies that unreadable draft JSON becomes a finding on the result
+   * rather than an exception at the editor.
+   */
   @IsTest
   static void aDraftThatWillNotLoadReportsRatherThanThrows() {
     Account seed = seedAccount();
@@ -170,6 +203,9 @@ private class IdpDraftPreviewTest {
     );
   }
 
+  /**
+   * Verifies that a preview plans a field change without writing it.
+   */
   @IsTest
   static void previewSkipsTheDmlAndSaysSo() {
     Account seed = seedAccount();

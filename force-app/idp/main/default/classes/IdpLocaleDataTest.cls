@@ -1,14 +1,18 @@
 /**
- * Tests for the metadata-backed locale reference data. These run against
- * the seeded IDP_Country__mdt / IDP_Language__mdt records, so they also
+ * Unit tests for IdpLocaleData.
+ *
+ * Validates dial codes, decimal separators and month-name reading against
+ * the seeded IDP_Country__mdt and IDP_Language__mdt records, so they also
  * assert the seed itself is sane — a mistyped dial code fails here rather
  * than in production. Tests that need data the seed does not carry prime
  * the transaction cache instead.
  */
 @IsTest
 private class IdpLocaleDataTest {
-  // ────────────────────────── dial codes ──────────────────────────
-
+  /**
+   * Verifies that dial codes come from IDP_Country__mdt, with an unknown
+   * or unseeded country reporting nothing.
+   */
   @IsTest
   static void readsDialCodesFromMetadata() {
     Assert.areEqual('27', IdpLocaleData.dialCodeFor('ZA'));
@@ -29,8 +33,10 @@ private class IdpLocaleDataTest {
     Assert.isFalse(IdpLocaleData.isKnownCountry('XX'));
   }
 
-  // ─────────────────────── decimal separators ─────────────────────
-
+  /**
+   * Verifies that a locale's country subtag decides the decimal separator
+   * ahead of its language.
+   */
   @IsTest
   static void resolvesDecimalSeparatorCountryBeforeLanguage() {
     Assert.areEqual(
@@ -58,6 +64,10 @@ private class IdpLocaleDataTest {
     Assert.isNull(IdpLocaleData.decimalSeparatorFor(null));
   }
 
+  /**
+   * Verifies that a locale counts as known when either its language or its
+   * country is seeded.
+   */
   @IsTest
   static void reportsWhetherALocaleIsSeeded() {
     Assert.isTrue(IdpLocaleData.isKnownLocale('pt-ZA'));
@@ -73,8 +83,10 @@ private class IdpLocaleDataTest {
     Assert.isFalse(IdpLocaleData.isKnownLocale(null));
   }
 
-  // ───────────────────────── month names ──────────────────────────
-
+  /**
+   * Verifies that month names are read in the locale's own language, case
+   * and accent blind.
+   */
   @IsTest
   static void readsMonthNamesPerLanguage() {
     Assert.areEqual(3, IdpLocaleData.monthNumberFor('March', 'en'));
@@ -100,6 +112,10 @@ private class IdpLocaleDataTest {
     );
   }
 
+  /**
+   * Verifies that março and maio are told apart by three letters but stay
+   * undecidable at two.
+   */
   @IsTest
   static void resolvesPortugueseThreeLetterPrefixesAndRefusesTwo() {
     // The collision the impact assessment flagged: março and maio share
@@ -114,6 +130,10 @@ private class IdpLocaleDataTest {
     );
   }
 
+  /**
+   * Verifies that a prefix two months answer to yields no reading, while a
+   * whole name that prefixes a longer one still wins.
+   */
   @IsTest
   static void refusesAPrefixTwoMonthsShare() {
     Assert.isNull(
@@ -139,6 +159,10 @@ private class IdpLocaleDataTest {
     Assert.areEqual(7, IdpLocaleData.monthNumberFor('červenec', 'cs'));
   }
 
+  /**
+   * Verifies that a language the org has not seeded, or one declaring no
+   * months, still reads English month names.
+   */
   @IsTest
   static void fallsBackToEnglishForUnknownOrMonthlessLanguages() {
     Assert.areEqual(
@@ -171,8 +195,10 @@ private class IdpLocaleDataTest {
     Assert.isNull(IdpLocaleData.monthNumberFor('Nonsuch', 'en'));
   }
 
-  // ─────────────────────── seeded data integrity ──────────────────
-
+  /**
+   * Verifies the seed itself: every language with month names declares
+   * twelve of them, none ambiguous.
+   */
   @IsTest
   static void everySeededLanguageDeclaresTwelveUnambiguousMonths() {
     // Month_Names__c is a long text area, so it cannot be filtered in the
@@ -208,6 +234,10 @@ private class IdpLocaleDataTest {
     }
   }
 
+  /**
+   * Verifies the seed itself: every country carries a plausible E.164 dial
+   * code.
+   */
   @IsTest
   static void everySeededCountryCarriesAPlausibleDialCode() {
     for (IDP_Country__mdt record : [
@@ -231,8 +261,10 @@ private class IdpLocaleDataTest {
     }
   }
 
-  // ──────────────────────── compilation rules ─────────────────────
-
+  /**
+   * Verifies that a month list of the wrong length compiles to nothing
+   * rather than to a partial calendar.
+   */
   @IsTest
   static void ignoresAMonthListThatIsNotTwelveEntries() {
     Assert.isTrue(
@@ -249,6 +281,10 @@ private class IdpLocaleDataTest {
     );
   }
 
+  /**
+   * Verifies that an org with no reference data at all still reads English
+   * month names.
+   */
   @IsTest
   static void anOrgWithNoSeedDegradesToEnglishNotToNothing() {
     IdpLocaleData.countryCache = new Map<String, IdpLocaleData.Country>();
@@ -262,6 +298,10 @@ private class IdpLocaleDataTest {
     Assert.isNull(IdpLocaleData.decimalSeparatorFor('en-ZA'));
   }
 
+  /**
+   * Verifies that reference data primed into the transaction cache is read
+   * the same as seeded records.
+   */
   @IsTest
   static void readsAnInjectedCountryAndLanguage() {
     IdpLocaleData.Country utopia = new IdpLocaleData.Country();

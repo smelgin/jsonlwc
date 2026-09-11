@@ -1,19 +1,27 @@
 /**
- * Integration tests for the engine: every v1 scenario ported (extraction,
- * only-if-blank, compliance, repeating sections, unmatched and duplicate
- * keys, per-rule mode, handler DI) plus the v2 behaviours — Preview,
- * both-sides compliance canonicalization, grade and confidence gates, and
- * the bulk query budget.
+ * Integration tests for IdpMappingEngine.
+ *
+ * Validates every v1 scenario ported — extraction, only-if-blank,
+ * compliance, repeating sections, unmatched and duplicate keys, per-rule
+ * mode and handler DI — plus the v2 behaviours: Preview, both-sides
+ * compliance canonicalization, grade and confidence gates, and the bulk
+ * query budget.
  *
  * Config is injected by assembling Raw* DTOs through the real loader
  * validation and priming the loader cache.
  */
 @IsTest
 private class IdpMappingEngineTest {
+  /** Mapping set the tests install into the loader cache. */
   private static final String SET_NAME = 'Engine_Test_Set';
 
-  // ───────────────────────── config helpers ───────────────────────
-
+  /**
+   * Builds a Fixed section reached by the implicit walk.
+   *
+   * @param name Section name.
+   * @param targetObject API name of the object it writes to.
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection section(
     String name,
     String targetObject
@@ -32,10 +40,22 @@ private class IdpMappingEngineTest {
    * them flatly, which reads better when a case is about one rule.
    */
   private class Spec {
+    /** Section the rule belongs to. */
     private String sectionName;
+    /** The rule itself. */
     private IdpConfigLoader.RawRule rule;
   }
 
+  /**
+   * Builds an always-overwriting rule, tagged with its section.
+   *
+   * @param name Rule name.
+   * @param sectionName Section the rule belongs to.
+   * @param jsonPath Path the value is read from.
+   * @param targetObject API name of that section's object.
+   * @param targetField API name of the field it writes to.
+   * @return The rule and the section it goes into.
+   */
   private static Spec rule(
     String name,
     String sectionName,
@@ -55,6 +75,13 @@ private class IdpMappingEngineTest {
     return spec;
   }
 
+  /**
+   * Assembles the sections and rules and primes the loader cache.
+   *
+   * @param sections Sections making up the mapping set.
+   * @param rules Rules, each naming the section it joins.
+   * @param valueTypes Value types supplied instead of being queried.
+   */
   private static void install(
     List<IdpConfigLoader.RawSection> sections,
     List<Spec> rules,
@@ -83,6 +110,14 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Runs the installed set against one document.
+   *
+   * @param contentDocumentId Reviewed file the run is seeded from.
+   * @param jsonString The reviewed JSON payload.
+   * @param mode Mode the run executes under.
+   * @return That document's result.
+   */
   private static IdpResult.Result runOne(
     Id contentDocumentId,
     String jsonString,
@@ -99,6 +134,13 @@ private class IdpMappingEngineTest {
     )[0];
   }
 
+  /**
+   * Builds the estate intake document the extraction tests use.
+   *
+   * @param name Applicant name the document states.
+   * @param phone Applicant phone the document states.
+   * @return The reviewed JSON payload.
+   */
   private static String estateJson(String name, String phone) {
     return JSON.serialize(
       new Map<String, Object>{
@@ -113,6 +155,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Installs the two-section estate mapping set the extraction and
+   * compliance tests share.
+   */
   private static void installEstateConfig() {
     install(
       new List<IdpConfigLoader.RawSection>{
@@ -147,15 +193,25 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Builds the Account phone rule under a chosen overwrite policy.
+   *
+   * @param name Rule name.
+   * @param policy Overwrite policy the rule runs under.
+   * @return The rule and the section it goes into.
+   */
   private static Spec phoneRule(String name, String policy) {
     Spec raw = rule(name, 'Customer', 'applicant.phone', 'Account', 'Phone');
     raw.rule.overwritePolicy = policy;
     return raw;
   }
 
-  /** A single Fixed section whose anchor filter reads a document value
-   *  ({json:status}), so it resolves through IdpContextResolver's
-   *  per-document query paths instead of one grouped query. */
+  /**
+   * Installs a set whose anchor filter reads a document value.
+   *
+   * The {json:status} token forces resolution through the per-document
+   * query paths rather than one grouped query.
+   */
   private static void installDocBoundCaseFilterConfig() {
     IdpConfigLoader.RawSection details = section('Case_Details', 'Case');
     details.recordFilter = 'Status = {json:status}';
@@ -174,8 +230,10 @@ private class IdpMappingEngineTest {
     );
   }
 
-  // ───────────────────────── extraction ───────────────────────────
-
+  /**
+   * Verifies that extraction writes each rule onto the record its section
+   * reached.
+   */
   @IsTest
   static void appliesMappingsToReachableRecords() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -210,6 +268,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that "Only if blank" fills an empty field and leaves a
+   * populated one alone.
+   */
   @IsTest
   static void writesBlankFieldUnderOnlyIfBlank() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile('Holder', null);
@@ -233,6 +295,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that Preview reports old and new values per field while the
+   * records stay untouched.
+   */
   @IsTest
   static void previewPlansWithoutWriting() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -261,6 +327,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual('Exact', change.grade);
   }
 
+  /**
+   * Verifies that a section whose record nothing reaches is reported and
+   * skipped.
+   */
   @IsTest
   static void reportsUnreachableTargetPerSection() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -289,8 +359,9 @@ private class IdpMappingEngineTest {
     );
   }
 
-  // ────────────────────────── gates ───────────────────────────────
-
+  /**
+   * Verifies that a required path the document omits fails the document.
+   */
   @IsTest
   static void requiredPathMissingIsAnError() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -320,6 +391,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that a date two patterns read differently is reported rather
+   * than written.
+   */
   @IsTest
   static void ambiguousDateIsReportedNeverGuessed() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -355,6 +430,9 @@ private class IdpMappingEngineTest {
     Assert.areEqual(0, result.fieldsApplied, 'nothing was written');
   }
 
+  /**
+   * Verifies that a rule demanding an exact parse refuses an inferred one.
+   */
   @IsTest
   static void minGradeExactBlocksHeuristicParses() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -389,6 +467,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual(0, result.fieldsApplied);
   }
 
+  /**
+   * Verifies that a value below the rule's minimum confidence is reported
+   * and not used.
+   */
   @IsTest
   static void confidenceEnvelopeGatesLowConfidenceValues() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -429,8 +511,10 @@ private class IdpMappingEngineTest {
     );
   }
 
-  // ───────────────────────── compliance ───────────────────────────
-
+  /**
+   * Verifies that document and record values are compared in canonical form,
+   * so formatting alone is never a mismatch.
+   */
   @IsTest
   static void complianceCanonicalizesBothSides() {
     // Stored national format, document international — v1 reported a false
@@ -473,6 +557,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies the three-state verdict, and that a Near match does not clear
+   * compliance while a mismatch fails it.
+   */
   @IsTest
   static void complianceReportsMismatchAndNear() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -513,6 +601,9 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that a rule's own Mode overrides the run's, field by field.
+   */
   @IsTest
   static void perRuleModeMixesExtractionAndCompliance() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -550,6 +641,10 @@ private class IdpMappingEngineTest {
     Assert.isFalse(result.compliant, 'blank stored name is a mismatch');
   }
 
+  /**
+   * Verifies that the configured finding handler runs, and that a handler
+   * which cannot be used becomes a finding.
+   */
   @IsTest
   static void findingHandlerCreatesTaskAndFailuresAreReported() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -595,8 +690,9 @@ private class IdpMappingEngineTest {
     );
   }
 
-  // ─────────────────────── repeating sections ─────────────────────
-
+  /**
+   * Installs a repeating section mapping invoice lines onto Assets.
+   */
   private static void installInvoiceConfig() {
     IdpConfigLoader.RawSection lines = new IdpConfigLoader.RawSection();
     lines.name = 'Lines';
@@ -616,12 +712,22 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Builds an invoice document around the supplied lines.
+   *
+   * @param details Rows the document states.
+   * @return The reviewed JSON payload.
+   */
   private static String invoiceJson(List<Map<String, Object>> details) {
     return JSON.serialize(
       new Map<String, Object>{ 'Invoice' => 'A1', 'Details' => details }
     );
   }
 
+  /**
+   * Verifies that document rows are matched to existing records by key and
+   * updated.
+   */
   @IsTest
   static void repeatingSectionMatchesAndUpdatesRows() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -681,6 +787,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that two rows rendering the same key are reported rather than
+   * both written.
+   */
   @IsTest
   static void duplicateRowKeysAreSkippedAndReported() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -729,8 +839,9 @@ private class IdpMappingEngineTest {
     );
   }
 
-  // ──────────────────────── bulk behaviour ────────────────────────
-
+  /**
+   * Verifies that three documents resolve within one grouped set of queries.
+   */
   @IsTest
   static void threeDocumentsShareTheQueryBudget() {
     List<IdpTestData.CaseWithFile> data = new List<IdpTestData.CaseWithFile>{
@@ -786,6 +897,9 @@ private class IdpMappingEngineTest {
    *  3-document sample above: query count must stay flat as document
    *  count rises, or every scaling defect this class of test would catch
    *  is invisible below the threshold where it manifests. */
+  /**
+   * Verifies that the query count does not grow with document count.
+   */
   @IsTest
   static void queryCountStaysFlatAcross200Documents() {
     Integer bulkSize = 200;
@@ -838,6 +952,10 @@ private class IdpMappingEngineTest {
   /** D-1/D-2 regression: many documents whose anchor filter reads a
    *  document value ({json:status}) but resolve to identical bound values
    *  reuse one query instead of issuing one per document. */
+  /**
+   * Verifies that documents binding the same filter values share one query
+   * result.
+   */
   @IsTest
   static void documentBoundFilterReusesQueriesForSharedValues() {
     Case sharedCase = new Case(Subject = 'Estate intake', Status = 'New');
@@ -883,6 +1001,10 @@ private class IdpMappingEngineTest {
    *  must defer gracefully (rerunnable, reported) rather than exhaust the
    *  query limit mid-resolution — the headroom estimate now scales with
    *  document count instead of ignoring it. */
+  /**
+   * Verifies that a per-document filter at bulk scale defers documents
+   * rather than blowing the query limit.
+   */
   @IsTest
   static void documentBoundFilterDefersInsteadOfExceedingTheQueryLimitAt200Documents() {
     Case sharedCase = new Case(Subject = 'Estate intake', Status = 'New');
@@ -921,6 +1043,10 @@ private class IdpMappingEngineTest {
     }
   }
 
+  /**
+   * Verifies that a transaction short on headroom defers its documents as
+   * rerunnable instead of failing mid-write.
+   */
   @IsTest
   static void limitsGuardDefersInsteadOfThrowing() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -937,8 +1063,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual(1, result.findingsWith(IdpResult.CODE_DOC_DEFERRED).size());
   }
 
-  // ───────────────────────── input errors ─────────────────────────
-
+  /**
+   * Verifies that unreadable JSON and unusable ids are reported on the
+   * document that carried them.
+   */
   @IsTest
   static void badInputsAreReportedPerDocument() {
     installEstateConfig();
@@ -964,6 +1092,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that an unrecognised mode or mapping set name fails every
+   * document with an explanatory finding.
+   */
   @IsTest
   static void unknownModeAndUnknownSetAreErrors() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -987,8 +1119,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual(1, badSet.findingsWith(IdpResult.CODE_CONFIG_ISSUE).size());
   }
 
-  // ─────────────────────── invocable surface ──────────────────────
-
+  /**
+   * Verifies that Flow requests sharing a set, mode and handler collapse
+   * into a single engine run, results still in input order.
+   */
   @IsTest
   static void invocableGroupsRequestsIntoOneRun() {
     IdpTestData.CaseWithFile first = IdpTestData.caseWithFile('A', '1');
@@ -1025,8 +1159,10 @@ private class IdpMappingEngineTest {
     );
   }
 
-  // ─────────────────────── controller surface ─────────────────────
-
+  /**
+   * Verifies that the controller previews a document and then applies the
+   * same changes.
+   */
   @IsTest
   static void controllerPreviewAndApplyRoundTrip() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -1057,6 +1193,10 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that a field valid at load time but missing at run time is
+   * reported rather than silently dropped.
+   */
   @IsTest
   static void aFieldThatDisappearsAfterLoadIsStillReported() {
     // The loader screens field names, so config can no longer produce an
@@ -1099,6 +1239,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual(0, result.fieldsApplied);
   }
 
+  /**
+   * Verifies that each rule naming an unknown field is reported
+   * individually.
+   */
   @IsTest
   static void unknownFieldsAreReportedPerRule() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -1142,6 +1286,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual(1, result.fieldsApplied, 'the good rule still ran');
   }
 
+  /**
+   * Verifies that the currency guard stays out of the way when the record
+   * states no currency of its own.
+   */
   @IsTest
   static void currencyGuardIsInertWithoutARecordDenomination() {
     // In a single-currency org (and on records without CurrencyIsoCode)
@@ -1184,6 +1332,9 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that a failed write is reported on the document that staged it.
+   */
   @IsTest
   static void dmlFailuresAreAttributedToTheDocument() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -1229,6 +1380,9 @@ private class IdpMappingEngineTest {
     );
   }
 
+  /**
+   * Verifies that the admin value tester refuses a value type the org lacks.
+   */
   @IsTest
   static void previewValueRejectsUnknownTypeNames() {
     try {
@@ -1239,6 +1393,10 @@ private class IdpMappingEngineTest {
     }
   }
 
+  /**
+   * Verifies that the admin value tester reports the value, grade and
+   * rendered output of a shipped type.
+   */
   @IsTest
   static void previewValueParsesThroughAShippedType() {
     // "Money" ships with the package, so an admin can test it immediately.
@@ -1252,6 +1410,9 @@ private class IdpMappingEngineTest {
     Assert.areEqual('1234.56', preview.rendered);
   }
 
+  /**
+   * Verifies that the shipped sample mapping set loads from custom metadata.
+   */
   @IsTest
   static void loadsShippedSampleConfigFromCustomMetadata() {
     // The real query path, against the Estate_Intake records that ship in
@@ -1267,6 +1428,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual(0, config.issues.size(), JSON.serialize(config.issues));
   }
 
+  /**
+   * Verifies that the shipped invoice sample assembles without a single
+   * issue.
+   */
   @IsTest
   static void shippedInvoiceSampleLoadsWithoutIssues() {
     // Asset carries three lookups to Account, so this sample would report
@@ -1280,6 +1445,10 @@ private class IdpMappingEngineTest {
     Assert.areEqual('Asset', config.sections[0].targetObject);
   }
 
+  /**
+   * Verifies the run report roll-up and the limits guard helpers behave as
+   * the engine assumes.
+   */
   @IsTest
   static void reportAndGuardPlumbing() {
     IdpResult.Result result = new IdpResult.Result();

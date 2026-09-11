@@ -1,5 +1,19 @@
+/**
+ * Unit tests for FilePreviewController.
+ *
+ * Validates metadata lookup, inline byte loading and the errors raised for
+ * files that are missing or out of the running user's reach.
+ */
 @IsTest
 private class FilePreviewControllerTest {
+  /**
+   * Uploads a file and reads back its document link.
+   *
+   * @param name Title of the file.
+   * @param path Path on client, which decides the extension.
+   * @param body File content.
+   * @return The inserted ContentVersion with its ContentDocumentId.
+   */
   private static ContentVersion insertFile(
     String name,
     String path,
@@ -18,6 +32,10 @@ private class FilePreviewControllerTest {
     ];
   }
 
+  /**
+   * Verifies that an existing document reports its title, lowercased
+   * extension, size and latest version.
+   */
   @IsTest
   static void returnsFileInfoForExistingDocument() {
     ContentVersion cv = insertFile(
@@ -49,6 +67,10 @@ private class FilePreviewControllerTest {
     );
   }
 
+  /**
+   * Verifies that a ContentDocument the user cannot reach raises an
+   * explanatory AuraHandledException.
+   */
   @IsTest
   static void throwsForUnknownDocument() {
     Id missingId = Id.valueOf('069000000000000AAA');
@@ -63,6 +85,10 @@ private class FilePreviewControllerTest {
     }
   }
 
+  /**
+   * Verifies that a file under the inline ceiling comes back base64
+   * encoded, byte for byte.
+   */
   @IsTest
   static void returnsBase64ForSmallFile() {
     Blob body = Blob.valueOf('hello world');
@@ -79,6 +105,10 @@ private class FilePreviewControllerTest {
     );
   }
 
+  /**
+   * Verifies that a ContentVersion the user cannot reach raises an
+   * explanatory AuraHandledException.
+   */
   @IsTest
   static void throwsForUnknownVersion() {
     Id missingId = Id.valueOf('068000000000000AAA');

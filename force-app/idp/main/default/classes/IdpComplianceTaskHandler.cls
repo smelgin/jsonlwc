@@ -4,8 +4,16 @@
  * mismatched record, listing every mismatch (and near match, labelled) so
  * an agent can review the differences. Reference implementation for
  * org-specific handlers.
+ *
+ * @group IDP Extensibility
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpComplianceTaskHandler implements IIdpFindingHandler {
+  /**
+   * Raises one review Task per document that reported a value mismatch.
+   *
+   * @param report Run report whose results are scanned for mismatches.
+   */
   public void handle(IdpResult.RunReport report) {
     List<Task> tasks = new List<Task>();
     for (IdpResult.Result result : report.results) {
@@ -61,6 +69,13 @@ public inherited sharing class IdpComplianceTaskHandler implements IIdpFindingHa
     }
   }
 
+  /**
+   * Renders one finding as a Task description line.
+   *
+   * @param finding Mismatch or near match to describe.
+   * @param suffix Label appended after the compared values.
+   * @return Single line naming the field, both values and the JSON Path.
+   */
   private static String describe(IdpResult.Finding finding, String suffix) {
     String location = finding.rowKey == null
       ? ''

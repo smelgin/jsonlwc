@@ -1,17 +1,31 @@
 /**
- * Tests for bulk anchor resolution: several documents resolve in a fixed
- * number of queries, parent and child hops walk the one lookup joining
- * two objects, explicit hops keep one anchor per section, and a document
- * can be seeded from a record instead of a file.
+ * Unit tests for IdpContextResolver.
+ *
+ * Validates bulk anchor resolution: several documents resolve in a fixed
+ * number of queries, parent and child hops walk the one lookup joining two
+ * objects, explicit hops keep one anchor per section, and a document can be
+ * seeded from a record instead of a file.
  */
 @IsTest
 private class IdpContextResolverTest {
+  /**
+   * Builds a document seeded from a file.
+   *
+   * @param contentDocumentId Reviewed file the roots come from.
+   * @return An unresolved document context.
+   */
   private static IdpContextResolver.DocContext docFor(Id contentDocumentId) {
     IdpContextResolver.DocContext doc = new IdpContextResolver.DocContext();
     doc.contentDocumentId = contentDocumentId;
     return doc;
   }
 
+  /**
+   * Builds implicit anchor requests from a field list per object.
+   *
+   * @param fieldsByObject Fields wanted, keyed by object API name.
+   * @return Anchor specs keyed the same way.
+   */
   private static Map<String, IdpContextResolver.AnchorSpec> requests(
     Map<String, List<String>> fieldsByObject
   ) {
@@ -24,6 +38,10 @@ private class IdpContextResolverTest {
     return specs;
   }
 
+  /**
+   * Verifies that two documents anchor their own Case and Account within a
+   * fixed number of grouped queries.
+   */
   @IsTest
   static void resolvesSeveralDocumentsInConstantQueries() {
     IdpTestData.CaseWithFile first = IdpTestData.caseWithFile('One', '1');
@@ -65,6 +83,9 @@ private class IdpContextResolverTest {
     );
   }
 
+  /**
+   * Verifies that a child hop anchors the most recently created record.
+   */
   @IsTest
   static void resolvesChildHopToNewestChild() {
     Account account = new Account(Name = 'Holder');
@@ -96,6 +117,10 @@ private class IdpContextResolverTest {
     );
   }
 
+  /**
+   * Verifies that a document seeded from a record still hops to its
+   * parents, which is the batch entry path.
+   */
   @IsTest
   static void seedsFromARecordWithoutAFile() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -122,6 +147,10 @@ private class IdpContextResolverTest {
     );
   }
 
+  /**
+   * Verifies that a filter reading document values binds each document's own
+   * value, and that matching nothing anchors nothing.
+   */
   @IsTest
   static void appliesDocumentBoundFiltersPerDocument() {
     IdpTestData.CaseWithFile match = IdpTestData.caseWithFile('M', '111');
@@ -158,6 +187,10 @@ private class IdpContextResolverTest {
     );
   }
 
+  /**
+   * Verifies that two sections reach two Accounts of one Asset, while the
+   * implicit walk reports the ambiguity instead of choosing.
+   */
   @IsTest
   static void explicitHopsKeepTwoAnchorsOfOneObject() {
     Account owner = new Account(Name = 'Owner');
@@ -207,6 +240,10 @@ private class IdpContextResolverTest {
     Assert.areEqual(asset.Id, doc.anchorFor('Asset').Id, 'pool fallback');
   }
 
+  /**
+   * Verifies that a child hop starting at another section resolves in the
+   * same pass, without extra queries.
+   */
   @IsTest
   static void explicitChildHopChainsFromAnExplicitSection() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -244,6 +281,15 @@ private class IdpContextResolverTest {
     );
   }
 
+  /**
+   * Builds one explicit anchor request.
+   *
+   * @param objectName API name of the object being reached.
+   * @param sourceKey Anchor key the hop starts from.
+   * @param relationshipField Lookup the hop follows.
+   * @param childHop True when the target holds that lookup.
+   * @return The anchor spec for a section.
+   */
   private static IdpContextResolver.AnchorSpec explicitSpec(
     String objectName,
     String sourceKey,
@@ -258,6 +304,10 @@ private class IdpContextResolverTest {
     return spec;
   }
 
+  /**
+   * Verifies that the hub object's parents are anchored as stepping stones
+   * even when no section targets them.
+   */
   @IsTest
   static void hubObjectExpandsTheNamedRootsLookups() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -280,6 +330,9 @@ private class IdpContextResolverTest {
     );
   }
 
+  /**
+   * Verifies that library and user file links never become anchors.
+   */
   @IsTest
   static void ignoresSystemLinkTypes() {
     // A file in a library is linked to a ContentWorkspace; only the record

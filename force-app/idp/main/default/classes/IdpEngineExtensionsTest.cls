@@ -1,16 +1,24 @@
 /**
- * Tests for the ENG-1/2/3/4/9 engine extensions: per-rule Custom handlers,
- * opt-in creation of unmatched rows and missing anchors, the Queueable
- * async path, and the weighted document confidence score. Config is
- * injected the same way IdpMappingEngineTest does it — Raw* DTOs through
- * the real loader validation, priming the loader cache.
+ * Unit tests for the ENG-1/2/3/4/9 engine extensions.
+ *
+ * Validates per-rule Custom handlers, opt-in creation of unmatched rows
+ * and missing anchors, the Queueable async path, and the weighted document
+ * confidence score. Config is injected the same way IdpMappingEngineTest
+ * does it — Raw* DTOs through the real loader validation, priming the
+ * loader cache.
  */
 @IsTest
 private class IdpEngineExtensionsTest {
+  /** Mapping set the tests install into the loader cache. */
   private static final String SET_NAME = 'Engine_Extensions_Set';
 
   /** ENG-1: writes an audit trail onto the record it was handed. */
   public class StampingFieldHandler implements IIdpFieldHandler {
+    /**
+     * Writes the field it was handed onto the record's Description.
+     *
+     * @param context Field origin, parse outcome and the record.
+     */
     public void handle(IdpFieldContext context) {
       context.record.put(
         'Description',
@@ -29,6 +37,11 @@ private class IdpEngineExtensionsTest {
 
   /** ENG-1: a handler whose failure must become a finding, not a crash. */
   public class ThrowingFieldHandler implements IIdpFieldHandler {
+    /**
+     * Always fails, so the engine's recovery path is exercised.
+     *
+     * @param context Field origin, parse outcome and the record.
+     */
     public void handle(IdpFieldContext context) {
       throw new IllegalArgumentException('deliberate handler failure');
     }
@@ -38,8 +51,13 @@ private class IdpEngineExtensionsTest {
   public class NotAFieldHandler {
   }
 
-  // ───────────────────────── config helpers ───────────────────────
-
+  /**
+   * Builds a Fixed section reached by the implicit walk.
+   *
+   * @param name Section name.
+   * @param targetObject API name of the object it writes to.
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection section(
     String name,
     String targetObject
@@ -52,6 +70,14 @@ private class IdpEngineExtensionsTest {
     return raw;
   }
 
+  /**
+   * Builds an always-overwriting extraction rule.
+   *
+   * @param name Rule name.
+   * @param jsonPath Path the value is read from.
+   * @param targetField API name of the field it writes to.
+   * @return The raw rule.
+   */
   private static IdpConfigLoader.RawRule rule(
     String name,
     String jsonPath,
@@ -66,6 +92,12 @@ private class IdpEngineExtensionsTest {
     return raw;
   }
 
+  /**
+   * Assembles the sections through the real loader and primes the cache.
+   *
+   * @param sections Sections making up the mapping set.
+   * @return The assembled configuration, issues included.
+   */
   private static IdpConfigLoader.SetConfig install(
     List<IdpConfigLoader.RawSection> sections
   ) {
@@ -81,6 +113,14 @@ private class IdpEngineExtensionsTest {
     return config;
   }
 
+  /**
+   * Runs the installed set against one document.
+   *
+   * @param contentDocumentId Reviewed file the run is seeded from.
+   * @param jsonString The reviewed JSON payload.
+   * @param mode Mode the run executes under.
+   * @return That document's result.
+   */
   private static IdpResult.Result runOne(
     Id contentDocumentId,
     String jsonString,
@@ -97,12 +137,22 @@ private class IdpEngineExtensionsTest {
     )[0];
   }
 
+  /**
+   * Reports whether a result carries a finding of one code.
+   *
+   * @param result Result to inspect.
+   * @param code One of the CODE_* constants.
+   * @return True when at least one finding carries that code.
+   */
   private static Boolean hasFinding(IdpResult.Result result, String code) {
     return !result.findingsWith(code).isEmpty();
   }
 
-  // ─────────────────────────── ENG-1 ──────────────────────────────
-
+  /**
+   * Builds a Case section pairing an ordinary rule with a Custom one.
+   *
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection customRuleSection() {
     IdpConfigLoader.RawSection details = section('Case_Details', 'Case');
     IdpConfigLoader.RawRule normal = rule(
@@ -122,6 +172,10 @@ private class IdpEngineExtensionsTest {
     return details;
   }
 
+  /**
+   * Verifies that a Custom rule's in-memory mutations are diffed and written
+   * by the run's own update.
+   */
   @IsTest
   static void customRuleHandlerMutatesAndEngineFlushes() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -152,6 +206,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /**
+   * Verifies that Preview does not run custom Apex, and reports which rules
+   * it skipped for that reason.
+   */
   @IsTest
   static void customRuleIsSkippedInPreviewAndSaysSo() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -183,6 +241,10 @@ private class IdpEngineExtensionsTest {
     }
   }
 
+  /**
+   * Verifies that a handler that throws yields a finding while the rest of
+   * the run still applies.
+   */
   @IsTest
   static void failingHandlerBecomesAFindingAndTheRunContinues() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -224,6 +286,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /**
+   * Verifies that a missing, unknown or wrongly-typed handler class is
+   * reported when the config loads, not when a document runs.
+   */
   @IsTest
   static void customRuleConfigProblemsAreLoadTimeIssues() {
     IdpConfigLoader.RawSection missing = section('S1', 'Case');
@@ -262,16 +328,24 @@ private class IdpEngineExtensionsTest {
     );
   }
 
-  // ─────────────────────────── ENG-2 ──────────────────────────────
-
-  /** Anchors the Account (a parent hop from the Case root), so created
-   *  rows have a parent to hang off. */
+  /**
+   * Anchors the Account by a parent hop from the Case root, so created
+   * rows have a parent to hang off.
+   *
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection customerSection() {
     IdpConfigLoader.RawSection customer = section('Customer', 'Account');
     customer.rules.add(rule('C1_Invoice', 'Invoice', 'Description'));
     return customer;
   }
 
+  /**
+   * Builds the repeating Asset section the invoice rows map to.
+   *
+   * @param unmatchedRows "Create" to opt into creating missing rows.
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection invoiceLines(String unmatchedRows) {
     IdpConfigLoader.RawSection lines = new IdpConfigLoader.RawSection();
     lines.name = 'Lines';
@@ -291,6 +365,11 @@ private class IdpEngineExtensionsTest {
     return lines;
   }
 
+  /**
+   * Builds a two-line invoice document.
+   *
+   * @return The reviewed JSON payload.
+   */
   private static String invoiceJson() {
     return JSON.serialize(
       new Map<String, Object>{
@@ -309,6 +388,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /**
+   * Verifies that unmatchedRows "Create" inserts the row no record matched,
+   * linked to its parent.
+   */
   @IsTest
   static void unmatchedRowsCreateInsertsTheMissingRow() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -355,6 +438,10 @@ private class IdpEngineExtensionsTest {
     Assert.areEqual(5, created[0].Quantity.intValue());
   }
 
+  /**
+   * Verifies that Preview reports the records it would create without
+   * inserting any of them.
+   */
   @IsTest
   static void previewPlansCreationsWithoutInserting() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -389,6 +476,10 @@ private class IdpEngineExtensionsTest {
     Assert.isTrue(sawNewChange, JSON.serialize(result.plannedChanges));
   }
 
+  /**
+   * Verifies that Compliance creates nothing, whatever the section opted
+   * into.
+   */
   @IsTest
   static void complianceNeverCreates() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -415,6 +506,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /**
+   * Verifies that unmatchedRows on a Fixed section, or whenNoAnchor on a
+   * Repeating one, is reported and dropped.
+   */
   @IsTest
   static void creationPoliciesOnTheWrongSectionTypeAreIgnored() {
     IdpConfigLoader.RawSection fixedWithRows = section('S1', 'Case');
@@ -441,8 +536,10 @@ private class IdpEngineExtensionsTest {
     Assert.isNull(config.sections[1].unmatchedRowPolicy);
   }
 
-  // ─────────────────────────── ENG-3 ──────────────────────────────
-
+  /**
+   * Verifies that whenNoAnchor "Create" builds the record the section could
+   * not reach and links it to its source.
+   */
   @IsTest
   static void whenNoAnchorCreatesTheMissingAnchor() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -490,6 +587,10 @@ private class IdpEngineExtensionsTest {
    *  staging order (Asset, Contact, Asset, Contact, ...) — past ~6
    *  documents that used to exceed Apex's 10-chunk DML limit when the
    *  whole list was inserted as staged, un-grouped by type. */
+  /**
+   * Verifies that creating two object types across six documents stays
+   * inside Apex's DML chunking limit.
+   */
   @IsTest
   static void creatingTwoObjectTypesAcrossSixDocumentsDoesNotExceedTheDmlChunkLimit() {
     Integer bulkSize = 6;
@@ -567,6 +668,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /**
+   * Verifies that a section not opting into creation still reports an
+   * unreachable target.
+   */
   @IsTest
   static void withoutThePolicyAMissingAnchorStaysAnError() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -588,8 +693,10 @@ private class IdpEngineExtensionsTest {
     Assert.areEqual(0, [SELECT COUNT() FROM Asset]);
   }
 
-  // ─────────────────────────── ENG-4 ──────────────────────────────
-
+  /**
+   * Verifies that the Queueable path applies the same mapping set the
+   * synchronous path would.
+   */
   @IsTest
   static void asyncProcessorRunsTheEngineOnAFreshTransaction() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -619,8 +726,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
-  // ─────────────────────────── ENG-9 ──────────────────────────────
-
+  /**
+   * Verifies that the document score is the weighted average of the fields
+   * carrying a Confidence Weight.
+   */
   @IsTest
   static void documentConfidenceIsAWeightedAverage() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -673,6 +782,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /**
+   * Verifies that no weighted field yielding a confidence leaves the score
+   * null rather than zero.
+   */
   @IsTest
   static void documentConfidenceIsNullWithoutSamples() {
     IdpTestData.CaseWithFile data = IdpTestData.caseWithFile();
@@ -699,6 +812,10 @@ private class IdpEngineExtensionsTest {
     );
   }
 
+  /**
+   * Verifies that a negative Confidence Weight is reported at load time and
+   * excluded from the roll-up.
+   */
   @IsTest
   static void negativeConfidenceWeightIsIgnoredWithAWarning() {
     IdpConfigLoader.RawSection details = section('S1', 'Case');

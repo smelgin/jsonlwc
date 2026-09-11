@@ -32,37 +32,64 @@
  * queries per object (or per explicit section), one query per repeating
  * section group, and at most one insert plus one update DML — query count
  * does not scale with rule or row count.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpMappingEngine {
+  /** Writes extracted values into the anchored records. */
   public static final String MODE_EXTRACTION = 'Extraction';
+
+  /** Compares both sides and writes nothing. */
   public static final String MODE_COMPLIANCE = 'Compliance';
+
+  /** Runs Extraction with the final DML skipped. */
   public static final String MODE_PREVIEW = 'Preview';
+
   /** Per-rule only — never a run mode. */
   public static final String MODE_CUSTOM = 'Custom';
+
+  /** Section setting that lets a run create what it cannot find. */
   private static final String POLICY_CREATE = 'Create';
 
-  // Query-budget model, checked against the limits guard before a run starts.
-  // Flat cost of a run: the ContentDocumentLink query plus one spare.
+  /** Flat query cost of a run: the file link query plus one spare. */
   private static final Integer BASE_QUERIES = 2;
-  // Worst case for one anchored object across the resolver's passes: the
-  // root fetch, hub expansion, then a parent and a child hop on each of the
-  // three passes.
+
+  /** Worst-case queries for one anchored object across the resolver's
+   *  passes: the root fetch, hub expansion, then a parent and a child hop
+   *  on each of the three passes. */
   private static final Integer QUERIES_PER_ANCHOR = 7;
 
   /** One document in, one Result out. Seed either a file
    *  (contentDocumentId) or a record (seedRecordId — the batch path). */
   public class DocumentWork {
+    /** Reviewed file to seed the run from. */
     public Id contentDocumentId;
+    /** Record to seed the run from instead of a file. */
     public Id seedRecordId;
+    /** The reviewed JSON payload. */
     public String jsonString;
 
+    /** Deserialized payload, parsed once per document. */
     private Object root;
+    /** Anchors the resolver found for this document. */
     private IdpContextResolver.DocContext context;
+    /** Outcome handed back to the caller. */
     private IdpResult.Result result;
     /** Distinguishes this document's created anchors from another's. */
     private Integer docIndex;
   }
 
+  /**
+   * Applies a stored mapping set to every supplied document.
+   *
+   * @param works Documents to process, each seeded by file or record.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction, Compliance or Preview; blank takes the set's
+   *        default.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @return One Result per document, in the supplied order.
+   */
   public static List<IdpResult.Result> run(
     List<DocumentWork> works,
     String mappingSetName,
@@ -78,11 +105,18 @@ public inherited sharing class IdpMappingEngine {
   }
 
   /**
-   * The same run against a config that is already assembled, so a
-   * definition can be tried before it is saved. Everything after this
-   * point is identical either way — the config is the only thing a stored
-   * set contributes, so a draft that assembles to the same config runs
-   * the same.
+   * Applies an already-assembled config, so a draft can be tried unsaved.
+   *
+   * Everything after this point is identical either way: the config is the
+   * only thing a stored set contributes, so a draft that assembles to the
+   * same config runs the same.
+   *
+   * @param works Documents to process, each seeded by file or record.
+   * @param config Assembled mapping set configuration.
+   * @param mode Extraction, Compliance or Preview; blank takes the set's
+   *        default.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @return One Result per document, in the supplied order.
    */
   public static List<IdpResult.Result> run(
     List<DocumentWork> works,
@@ -252,8 +286,20 @@ public inherited sharing class IdpMappingEngine {
     return results;
   }
 
-  // ──────────────────────── fixed sections ────────────────────────
-
+  /**
+   * Runs one fixed section's rules against its anchored record.
+   *
+   * When nothing anchors the section, the record is created if the section
+   * opted into that and the run may write; otherwise the reason is
+   * reported as a finding.
+   *
+   * @param section Section being processed.
+   * @param config Assembled mapping set configuration.
+   * @param work Document being processed.
+   * @param runMode Mode the run executes under.
+   * @param previewing True when no DML may happen.
+   * @param executor Executor writes are staged through.
+   */
   private static void processFixedSection(
     IdpConfigLoader.SectionConfig section,
     IdpConfigLoader.SetConfig config,
@@ -298,10 +344,16 @@ public inherited sharing class IdpMappingEngine {
   }
 
   /**
-   * The reason a fixed section has no record, as a finding: an explicit
-   * path names the hop that came up empty; an implicit target that the
-   * walk declined to guess at is AMBIGUOUS_RELATIONSHIP with the
-   * candidates; anything else is plain UNREACHABLE_TARGET.
+   * Explains why a fixed section reached no record.
+   *
+   * An explicit path names the hop that came up empty; an implicit target
+   * the walk declined to guess at becomes AMBIGUOUS_RELATIONSHIP listing
+   * the candidates; anything else is plain UNREACHABLE_TARGET.
+   *
+   * @param section Section that stayed unanchored.
+   * @param source Source anchor of an explicit hop; null when implicit or
+   *        when the source itself was never reached.
+   * @param work Document being processed.
    */
   private static void reportUnreachable(
     IdpConfigLoader.SectionConfig section,
@@ -363,16 +415,24 @@ public inherited sharing class IdpMappingEngine {
   }
 
   /**
-   * whenNoAnchor: "Create" (ENG-3) — builds the missing anchor in memory,
-   * links it to its source, applies the section's Extraction rules onto
-   * it and stages it for the run's single insert. The link follows the
-   * section's relationship: a child hop writes the lookup on the new
-   * record; a parent hop stages a back-link that sets the source's
-   * lookup once the insert has an Id; an implicit section links to the
-   * first resolved record with a single lookup to it. Compliance rules
-   * are skipped: there is nothing to compare on a record that does not
-   * exist yet. A created anchor is not added to the document's anchor
-   * map, so rows cannot hang off it within the same run.
+   * Creates the anchor a section could not find (ENG-3).
+   *
+   * Builds the record in memory, links it to its source, applies the
+   * section's Extraction rules onto it and stages it for the run's single
+   * insert. The link follows the section's relationship: a child hop
+   * writes the lookup on the new record; a parent hop stages a back-link
+   * that sets the source's lookup once the insert has an Id; an implicit
+   * section links to the first resolved record with a single lookup to it.
+   * Compliance rules are skipped — there is nothing to compare on a record
+   * that does not exist yet — and the created anchor is not added to the
+   * document's anchor map, so rows cannot hang off it within the same run.
+   *
+   * @param section Section whose anchor is being created.
+   * @param source Record the new anchor is linked to; null when implicit.
+   * @param work Document being processed.
+   * @param runMode Mode the run executes under.
+   * @param previewing True when no DML may happen.
+   * @param executor Executor the insert and links are staged through.
    */
   private static void createAnchor(
     IdpConfigLoader.SectionConfig section,
@@ -465,25 +525,37 @@ public inherited sharing class IdpMappingEngine {
     }
   }
 
-  // ────────────────────── repeating sections ──────────────────────
-
   /** One document's rows and keys for one repeating section. */
   private class DocRows {
+    /** Document the rows were read from. */
     public DocumentWork work;
+    /** Raw rows read at the section's JSON Path. */
     public List<Object> rows;
+    /** Match key per row, aligned with rows by position. */
     public List<String> keys = new List<String>();
+    /** Row position per match key, for mapping records back to rows. */
     public Map<String, Integer> indexByKey = new Map<String, Integer>();
+    /** Parent record the rows hang off, when the section is constrained. */
     public Id parentId;
+    /** Lookup on the row object pointing at that parent. */
     public String lookupField;
   }
 
   /**
-   * Matches every document's rows against existing records with one query
-   * per (lookup-field) group — a 200-line statement costs the same as a
-   * 2-line invoice, and 10 statements cost the same as one. Rows are
-   * matched and updated; unmatched keys are data, not errors — unless the
-   * section opts in with unmatchedRows: "Create" (ENG-2), in which case
-   * they join the run's single insert.
+   * Matches and applies one repeating section across every document.
+   *
+   * Rows are matched against existing records with one query per lookup
+   * field group, so a 200-line statement costs the same as a 2-line
+   * invoice and ten statements cost the same as one. Unmatched keys are
+   * data, not errors — unless the section opts in with unmatchedRows
+   * "Create" (ENG-2), in which case they join the run's single insert.
+   *
+   * @param section Section being processed.
+   * @param config Assembled mapping set configuration.
+   * @param works Documents of the run.
+   * @param runMode Mode the run executes under.
+   * @param previewing True when no DML may happen.
+   * @param executor Executor writes are staged through.
    */
   private static void processRepeatingSection(
     IdpConfigLoader.SectionConfig section,
@@ -536,8 +608,17 @@ public inherited sharing class IdpMappingEngine {
     }
   }
 
-  /** Reads and keys one document's rows; null when the document has no
-   *  such region (not an error) or it is unusable (reported). */
+  /**
+   * Reads and keys one document's rows for a repeating section.
+   *
+   * @param section Section being processed.
+   * @param config Assembled mapping set configuration.
+   * @param work Document being read.
+   * @param matchField Describe of the field rows are matched on.
+   * @param label Section label used in findings.
+   * @return The document's rows and keys, or null when it has no such
+   *         region (not an error) or the region is unusable (reported).
+   */
   private static DocRows collectRows(
     IdpConfigLoader.SectionConfig section,
     IdpConfigLoader.SetConfig config,
@@ -685,6 +766,22 @@ public inherited sharing class IdpMappingEngine {
     return docRows;
   }
 
+  /**
+   * Matches and applies the rows of every document sharing one lookup.
+   *
+   * The group's existing records are read in one query, each row's rules
+   * run against its match, and rows that matched nothing are reported or
+   * staged for creation according to the section's setting.
+   *
+   * @param section Section being processed.
+   * @param docGroup Documents whose rows hang off the same lookup field.
+   * @param lookupField Lookup constraining the rows; null when unscoped.
+   * @param matchFieldName Field the row keys are matched against.
+   * @param runMode Mode the run executes under.
+   * @param previewing True when no DML may happen.
+   * @param executor Executor writes are staged through.
+   * @param label Section label used in findings.
+   */
   private static void matchAndApplyGroup(
     IdpConfigLoader.SectionConfig section,
     List<DocRows> docGroup,
@@ -848,11 +945,23 @@ public inherited sharing class IdpMappingEngine {
   }
 
   /**
-   * unmatchedRows: "Create" (ENG-2) — builds the missing row in memory
-   * with its match key and parent lookup, and stages it for the run's
-   * single insert. Deduplicated across documents by (object, parent, key),
-   * so two statements naming the same new row share one record, mirroring
-   * how updates merge. Null when the match key cannot be written (reported).
+   * Creates the row a section could not match (ENG-2).
+   *
+   * Builds the record in memory with its match key and parent lookup and
+   * stages it for the run's single insert. Records are deduplicated across
+   * documents by object, parent and key, so two statements naming the same
+   * new row share one record, mirroring how updates merge.
+   *
+   * @param section Section being processed.
+   * @param docRows The document's rows, supplying the parent and lookup.
+   * @param key Match key of the row being created.
+   * @param index Row position within the document.
+   * @param matchFieldName Field the match key is written to.
+   * @param previewing True when no DML may happen.
+   * @param executor Executor the insert is staged through.
+   * @param label Section label used in findings.
+   * @return The staged record, or null when the match key cannot be
+   *         written, which is reported as a finding.
    */
   private static SObject stageRowCreation(
     IdpConfigLoader.SectionConfig section,
@@ -925,8 +1034,25 @@ public inherited sharing class IdpMappingEngine {
     );
   }
 
-  /** Runs one row-matching query and buckets results by key (and parent
-   *  when constrained). Returns false when the query failed. */
+  /**
+   * Runs one row-matching query and buckets the records by key.
+   *
+   * The bucket key carries the parent Id as well when the section is
+   * constrained, so rows of different parents never collide.
+   *
+   * @param recordsByKey Bucket the matched records are added to.
+   * @param objectName API name of the row object.
+   * @param selected Fields the query must select.
+   * @param matchFieldName Field the row keys are matched against.
+   * @param keys Row keys being looked for.
+   * @param lookupField Lookup constraining the rows; null when unscoped.
+   * @param parentIds Parents the rows must hang off.
+   * @param filter Section filter appended to the WHERE clause.
+   * @param jsonRoot Reviewed document the filter tokens read from.
+   * @param reportTo Result a failed query is reported on.
+   * @param label Section label used in findings.
+   * @return False when the query failed, true otherwise.
+   */
   private static Boolean queryRowsInto(
     Map<String, SObject> recordsByKey,
     String objectName,
@@ -991,10 +1117,16 @@ public inherited sharing class IdpMappingEngine {
     }
   }
 
-  // ─────────────────────────── plumbing ───────────────────────────
-
-  /** The record a section addresses: its own explicit anchor when it
-   *  declares a path, else the implicit anchor of its target object. */
+  /**
+   * Resolves the record a section addresses.
+   *
+   * A section that declares a path uses its own explicit anchor; otherwise
+   * the implicit anchor of its target object.
+   *
+   * @param section Section asking for its record.
+   * @param context The document's resolved anchors.
+   * @return Anchored record, or null when nothing reached it.
+   */
   private static SObject anchorFor(
     IdpConfigLoader.SectionConfig section,
     IdpContextResolver.DocContext context
@@ -1005,9 +1137,14 @@ public inherited sharing class IdpMappingEngine {
   }
 
   /**
-   * The resolver key of the anchor a section is reached from: an explicit
-   * source section's name, an implicit source section's target object,
-   * or the root object named directly.
+   * Resolves the anchor key a section is reached from.
+   *
+   * Yields an explicit source section's name, an implicit source section's
+   * target object, or the object named directly.
+   *
+   * @param section Section declaring the path.
+   * @param config Assembled mapping set configuration.
+   * @return Key the source anchor is stored under.
    */
   private static String sourceKeyFor(
     IdpConfigLoader.SectionConfig section,
@@ -1026,6 +1163,13 @@ public inherited sharing class IdpMappingEngine {
     return source.reachFrom == null ? source.targetObject : source.name;
   }
 
+  /**
+   * Finds a section of the mapping set by name.
+   *
+   * @param config Assembled mapping set configuration.
+   * @param name Section name to look for.
+   * @return The section, or null when the set has none by that name.
+   */
   private static IdpConfigLoader.SectionConfig sectionNamed(
     IdpConfigLoader.SetConfig config,
     String name
@@ -1039,9 +1183,14 @@ public inherited sharing class IdpMappingEngine {
   }
 
   /**
-   * What the resolver must find: every fixed section as an implicit
-   * (per object) or explicit (per section) target, and every source a
-   * path starts from — resolved even when no rule writes to it.
+   * Assembles what the resolver must find for this mapping set.
+   *
+   * Covers every fixed section as an implicit target per object or an
+   * explicit target per section, plus every source a path starts from,
+   * which is resolved even when no rule writes to it.
+   *
+   * @param config Assembled mapping set configuration.
+   * @return Plan naming every target and the hub to expand.
    */
   private static IdpContextResolver.Plan buildPlan(
     IdpConfigLoader.SetConfig config
@@ -1084,10 +1233,17 @@ public inherited sharing class IdpMappingEngine {
     return plan;
   }
 
-  /** A path's source must be anchored: an implicit source section joins
-   *  the per-object requests (with its filter); a root object named
-   *  directly is requested so the walk reaches it when it is not a root;
-   *  an explicit source section registers itself. */
+  /**
+   * Makes sure the anchor a path starts from is itself resolved.
+   *
+   * An implicit source section joins the per-object requests, carrying its
+   * filter; an object named directly is requested so the walk reaches it
+   * when it is not a root; an explicit source section registers itself.
+   *
+   * @param plan Plan being assembled.
+   * @param config Assembled mapping set configuration.
+   * @param section Section declaring the path.
+   */
   private static void ensureSource(
     IdpContextResolver.Plan plan,
     IdpConfigLoader.SetConfig config,
@@ -1112,6 +1268,13 @@ public inherited sharing class IdpMappingEngine {
     }
   }
 
+  /**
+   * Claims the shared anchor request for one object, creating it once.
+   *
+   * @param requests Implicit requests keyed by object API name.
+   * @param objectName API name of the object being requested.
+   * @return The spec every section targeting that object contributes to.
+   */
   private static IdpContextResolver.AnchorSpec specFor(
     Map<String, IdpContextResolver.AnchorSpec> requests,
     String objectName
@@ -1125,6 +1288,12 @@ public inherited sharing class IdpMappingEngine {
     return spec;
   }
 
+  /**
+   * Takes the anchor filter from the first rule that declares one.
+   *
+   * @param section Section whose rules are scanned.
+   * @return WHERE fragment, or null when no rule declares one.
+   */
   private static String firstAnchorFilter(
     IdpConfigLoader.SectionConfig section
   ) {
@@ -1136,6 +1305,16 @@ public inherited sharing class IdpMappingEngine {
     return null;
   }
 
+  /**
+   * Decides the mode one rule runs under.
+   *
+   * A rule's own Mode wins; otherwise Preview follows the Extraction path,
+   * since Preview is Extraction with the DML skipped.
+   *
+   * @param rule Rule about to be evaluated.
+   * @param runMode Mode the run executes under.
+   * @return Mode the rule evaluator should apply.
+   */
   private static String effectiveMode(
     IdpConfigLoader.RuleConfig rule,
     String runMode
@@ -1146,6 +1325,19 @@ public inherited sharing class IdpMappingEngine {
     return runMode == MODE_PREVIEW ? MODE_EXTRACTION : runMode;
   }
 
+  /**
+   * Hands the run's report to the configured finding handler.
+   *
+   * Only invoked when at least one document reported a mismatch. A handler
+   * that cannot be resolved, or that throws, becomes a HANDLER_FAILED
+   * finding rather than failing the run.
+   *
+   * @param handlerOverride Handler named by the caller; blank falls back
+   *        to the mapping set's own.
+   * @param config Assembled mapping set configuration.
+   * @param runMode Mode the run executed under.
+   * @param results Every document's result, reported in full.
+   */
   private static void invokeFindingHandler(
     String handlerOverride,
     IdpConfigLoader.SetConfig config,
@@ -1213,6 +1405,13 @@ public inherited sharing class IdpMappingEngine {
     }
   }
 
+  /**
+   * Canonicalizes a requested mode, accepting the v1 spellings.
+   *
+   * @param mode Mode as the caller or configuration wrote it.
+   * @return Canonical mode, Extraction when blank, or null when the text
+   *         names no known mode.
+   */
   private static String normalizeMode(String mode) {
     String trimmed = mode == null ? '' : mode.trim();
     if (String.isBlank(trimmed)) {
@@ -1239,6 +1438,12 @@ public inherited sharing class IdpMappingEngine {
     return null;
   }
 
+  /**
+   * Renders an Id for the serialized Result, keeping null as null.
+   *
+   * @param value Id to render.
+   * @return Text form, or null.
+   */
   private static String asString(Id value) {
     return value == null ? null : String.valueOf(value);
   }

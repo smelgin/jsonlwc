@@ -19,7 +19,15 @@
  * Same DI convention as IIdpFindingHandler: resolved by name with
  * Type.forName at config load time, so a typo is a config finding, not a
  * runtime surprise.
+ *
+ * @group IDP Extensibility
+ * @author Ernesto S Melgin
  */
 public interface IIdpFieldHandler {
+  /**
+   * Applies custom handling for one parsed field on one record.
+   *
+   * @param context Field origin, parse outcome and the record to mutate.
+   */
   void handle(IdpFieldContext context);
 }

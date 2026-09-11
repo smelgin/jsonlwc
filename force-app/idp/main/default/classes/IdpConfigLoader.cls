@@ -23,26 +23,37 @@
  * Structure: querySet() and parseDefinition() produce Raw* DTOs (thin,
  * mechanical), assemble() turns Raw* into validated SetConfig. The Raw*
  * shapes are the JSON contract — their field names are the JSON keys.
+ *
+ * @group IDP Configuration
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpConfigLoader {
   /** Per-transaction cache; tests prime it with assembled configs. */
   @TestVisible
   private static Map<String, SetConfig> cache = new Map<String, SetConfig>();
 
-  // ────────────────────────── public DTOs ─────────────────────────
-
+  /** One mapping set, validated and ready for the engine. */
   public class SetConfig {
+    /** False when no active mapping set answers to the name. */
     public Boolean found = false;
+    /** DeveloperName of the mapping set. */
     public String name;
+    /** Admin-facing label of the mapping set. */
     public String label;
+    /** Mode applied when the caller names none. */
     public String defaultMode;
+    /** Object.Field holding stored JSON, for batch reprocessing. */
     public String jsonSourceField;
+    /** Datetime field the batch stamps to keep reruns idempotent. */
     public String processedMarkerField;
+    /** IIdpFindingHandler invoked when a run finds mismatches. */
     public String findingHandler;
     /** Hub_Object__c: the object whose lookups are all followed when it is
      *  a root; null means the resolver's default (Document__c). */
     public String hubObject;
+    /** Sections in configuration order, synthesised hops included. */
     public List<SectionConfig> sections = new List<SectionConfig>();
+    /** Configuration problems found while assembling; never thrown. */
     public List<IdpResult.Finding> issues = new List<IdpResult.Finding>();
     /** Where assembly currently is. issue() stamps these onto the finding
      *  it raises, so a configuration problem names the section and rule
@@ -50,17 +61,27 @@ public inherited sharing class IdpConfigLoader {
      *  are null wherever assembly cannot say, because a finding pinned to
      *  the wrong row is worse than one pinned to none. */
     public String atSection;
+    /** Rule assembly is currently working on; see atSection. */
     public String atRule;
   }
 
+  /** One section of a mapping set: a target record and the rules on it. */
   public class SectionConfig {
-    public String name; // DeveloperName — the section's identity
+    /** DeveloperName — the section's identity. */
+    public String name;
+    /** Admin-facing label of the section. */
     public String label;
+    /** True when the section maps a repeating region of the document. */
     public Boolean repeating = false;
+    /** API name of the object the section writes to. */
     public String targetObject;
+    /** JSON Path of the repeating region's rows. */
     public String rowPath;
+    /** Field a repeating section's rows are matched on. */
     public String matchField;
+    /** Template rendering each row's match key. */
     public String matchValue;
+    /** WHERE fragment narrowing which record the section addresses. */
     public String recordFilter;
     /**
      * Explicit navigation. reachFrom names the anchor this section's
@@ -99,20 +120,33 @@ public inherited sharing class IdpConfigLoader {
     public String unmatchedRowPolicy;
     /** "Create" opts a fixed section into creating its missing anchor. */
     public String noAnchorPolicy;
+    /** Rules this section applies, in configuration order. */
     public List<RuleConfig> rules = new List<RuleConfig>();
   }
 
+  /** One rule: a JSON Path, a target field and the gates between them. */
   public class RuleConfig {
+    /** DeveloperName — the rule's identity. */
     public String name;
+    /** Admin-facing label, quoted in findings. */
     public String label;
+    /** Path the value is read from, relative to the rule's scope. */
     public String jsonPath;
+    /** API name of the object the rule writes to. */
     public String targetObject;
+    /** API name of the field the rule writes to. */
     public String targetField;
-    public String mode; // blank inherits the run's
+    /** Mode override for this field; blank inherits the run's. */
+    public String mode;
+    /** "Only if blank" leaves a populated field alone. */
     public String overwritePolicy;
+    /** Worst parse grade this rule still accepts. */
     public IdpResult.Grade minGrade = IdpResult.Grade.INFERRED;
+    /** OCR confidence below which the value is not used. */
     public Decimal minConfidence;
+    /** True when an absent path is an error rather than a no-op. */
     public Boolean required = false;
+    /** WHERE fragment narrowing the section's anchor, legacy placement. */
     public String anchorFilter;
     /** ENG-9: relative weight of this field in the document confidence
      *  score; null/0 means "not interesting" — excluded from the roll-up. */
@@ -121,82 +155,136 @@ public inherited sharing class IdpConfigLoader {
     public IIdpFieldHandler fieldHandler;
     /** Explicit value type; null means auto-derive from the target field. */
     public IdpValueTypes.Config typeConfig;
+    /** Implementation behind typeConfig; null alongside it. */
     public IValueType type;
   }
 
-  // ─────────────────────────── raw DTOs ───────────────────────────
-  // These double as the JSON contract: every public field below is a key
-  // an admin may write in Definition__c or Value_Map_Entries__c.
+  // The Raw* DTOs double as the JSON contract: every public field below is
+  // a key an admin may write in Definition__c or Value_Map_Entries__c.
 
+  /** One IDP_Mapping_Set__mdt record, straight off the query. */
   public class RawSet {
+    /** DeveloperName of the mapping set. */
     public String name;
+    /** Admin-facing label. */
     public String label;
+    /** Mode applied when the caller names none. */
     public String defaultMode;
+    /** Object.Field holding stored JSON, for batch reprocessing. */
     public String jsonSourceField;
+    /** Datetime field the batch stamps after processing. */
     public String processedMarkerField;
+    /** IIdpFindingHandler invoked when a run finds mismatches. */
     public String findingHandler;
+    /** Object whose lookups are all followed when it is a root. */
     public String hubObject;
+    /** Definition__c, the sections and rules as JSON. */
     public String definitionJson;
+    /** False for a set that is deployed but switched off. */
     public Boolean active = true;
   }
 
   /** Root of Definition__c. */
   public class RawDefinition {
+    /** Sections as the admin wrote them. */
     public List<RawSection> sections = new List<RawSection>();
   }
 
+  /** One section as written in Definition__c. */
   public class RawSection {
+    /** DeveloperName — the section's identity. */
     public String name;
+    /** Admin-facing label. */
     public String label;
+    /** "Fixed" or "Repeating". */
     public String sectionType;
+    /** API name of the object the section writes to. */
     public String targetObject;
+    /** JSON Path of the repeating region's rows. */
     public String rowPath;
+    /** Field a repeating section's rows are matched on. */
     public String matchField;
+    /** Template rendering each row's match key. */
     public String matchValue;
+    /** WHERE fragment narrowing which record the section addresses. */
     public String recordFilter;
     /** Older name for reachFrom; either key is accepted. */
     public String parentSection;
+    /** Anchor this section's record is reached from. */
     public String reachFrom;
+    /** Lookup the hop follows, optionally a multi-segment path. */
     public String via;
+    /** "Parent" or "Child": which side holds the lookup. */
     public String hop;
+    /** "None" matches rows by key alone, without a parent. */
     public String rowScope;
+    /** "Create" opts a repeating section into creating unmatched rows. */
     public String unmatchedRows;
+    /** "Create" opts a fixed section into creating its missing anchor. */
     public String whenNoAnchor;
+    /** False for a section that is written but switched off. */
     public Boolean active = true;
+    /** Rules this section applies. */
     public List<RawRule> rules = new List<RawRule>();
   }
 
+  /** One rule as written in Definition__c. */
   public class RawRule {
+    /** DeveloperName — the rule's identity. */
     public String name;
+    /** Admin-facing label, quoted in findings. */
     public String label;
+    /** Path the value is read from, relative to the rule's scope. */
     public String jsonPath;
+    /** API name of the field the rule writes to. */
     public String targetField;
+    /** DeveloperName of the IDP_Value_Type__mdt to parse with. */
     public String valueTypeName;
+    /** Mode override for this field; blank inherits the run's. */
     public String mode;
+    /** IIdpFieldHandler implementing a Mode = Custom rule. */
     public String handlerClass;
+    /** "Only if blank" leaves a populated field alone. */
     public String overwritePolicy;
+    /** Worst parse grade this rule still accepts. */
     public String minGrade;
+    /** OCR confidence below which the value is not used. */
     public Decimal minConfidence;
+    /** Weight of this field in the document confidence score. */
     public Decimal confidenceWeight;
+    /** True when an absent path is an error rather than a no-op. */
     public Boolean required = false;
+    /** WHERE fragment narrowing the section's anchor, legacy placement. */
     public String anchorFilter;
+    /** False for a rule that is written but switched off. */
     public Boolean active = true;
   }
 
   /** Root of Value_Map_Entries__c. */
   public class RawValueMap {
+    /** Translations as the admin wrote them. */
     public List<RawMapEntry> entries = new List<RawMapEntry>();
   }
 
+  /** One value map translation as written in Value_Map_Entries__c. */
   public class RawMapEntry {
+    /** Text as the document writes it. */
     public String fromText;
+    /** Value written to the record instead. */
     public String toValue;
+    /** Exact, Normalized or Regex. */
     public String matchStyle;
+    /** False for an entry that is written but switched off. */
     public Boolean active = true;
   }
 
-  // ───────────────────────────── load ─────────────────────────────
-
+  /**
+   * Loads and assembles one mapping set, once per transaction.
+   *
+   * @param mappingSetName DeveloperName of the mapping set.
+   * @return Assembled configuration; found is false when no active set
+   *         answers to the name.
+   */
   public static SetConfig load(String mappingSetName) {
     String key = mappingSetName == null ? '' : mappingSetName;
     SetConfig cached = cache.get(key); // assemble never returns null
@@ -213,13 +301,7 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /**
-   * Validates a Definition without caching it or touching the set record,
-   * so the configurator's Check button runs exactly the code that a real
-   * run would. Returns the issues it would raise; an empty list means the
-   * definition loads cleanly.
-   */
-  /**
-   * A config assembled from a definition that has not been saved.
+   * Assembles a config from a definition that has not been saved.
    *
    * The set record is still read, because everything about a run other
    * than the sections lives there — the hub object the walk starts from,
@@ -230,6 +312,10 @@ public inherited sharing class IdpConfigLoader {
    *
    * A name that matches no set still works, so a document type can be
    * drafted before it exists.
+   *
+   * @param mappingSetName DeveloperName the draft is previewed under.
+   * @param definitionJson Unsaved Definition__c text.
+   * @return Assembled configuration, never cached.
    */
   public static SetConfig loadDraft(
     String mappingSetName,
@@ -249,6 +335,17 @@ public inherited sharing class IdpConfigLoader {
     );
   }
 
+  /**
+   * Validates a definition without caching it or reading the set record.
+   *
+   * The configurator's Check button runs exactly the code a real run
+   * would, so what it reports is what a run would report.
+   *
+   * @param mappingSetName DeveloperName the draft is validated under.
+   * @param definitionJson Unsaved Definition__c text.
+   * @return Issues the definition would raise; empty means it loads
+   *         cleanly.
+   */
   public static List<IdpResult.Finding> validateDefinition(
     String mappingSetName,
     String definitionJson
@@ -265,9 +362,13 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /**
-   * Assembles and validates. definitionJson is the raw Definition__c text;
-   * valueTypes may be pre-supplied (tests), and any name it lacks is
-   * loaded from the org.
+   * Assembles and validates one mapping set from its raw parts.
+   *
+   * @param rawSet The mapping set record, or null when none was found.
+   * @param definitionJson Raw Definition__c text.
+   * @param valueTypes Value types already resolved; any name missing from
+   *        the map is loaded from the org.
+   * @return Assembled configuration, issues included.
    */
   @TestVisible
   private static SetConfig assemble(
@@ -300,8 +401,18 @@ public inherited sharing class IdpConfigLoader {
     );
   }
 
-  /** The Raw* half of assemble(), so tests can drive it with hand-built
-   *  sections instead of serializing to JSON first. */
+  /**
+   * Turns raw sections into validated ones, then resolves their paths.
+   *
+   * Split out of assemble() so tests can drive it with hand-built sections
+   * instead of serializing to JSON first.
+   *
+   * @param rawSections Sections as parsed from the definition.
+   * @param valueTypes Value types already resolved; missing names are
+   *        loaded from the org.
+   * @param config Configuration being assembled, updated in place.
+   * @return The same configuration, sections and issues filled in.
+   */
   @TestVisible
   private static SetConfig assembleSections(
     List<RawSection> rawSections,
@@ -345,9 +456,17 @@ public inherited sharing class IdpConfigLoader {
     return config;
   }
 
-  /** Definition__c text into Raw sections. A malformed document disables
-   *  the whole set rather than half of it, which is the honest outcome —
-   *  there is no way to tell which rules a broken parse swallowed. */
+  /**
+   * Parses Definition__c text into raw sections.
+   *
+   * A malformed document disables the whole set rather than half of it,
+   * which is the honest outcome — there is no way to tell which rules a
+   * broken parse swallowed.
+   *
+   * @param definitionJson Raw Definition__c text.
+   * @param config Configuration the problems are reported on.
+   * @return Raw sections, empty when the definition could not be read.
+   */
   @TestVisible
   private static List<RawSection> parseDefinition(
     String definitionJson,
@@ -396,6 +515,7 @@ public inherited sharing class IdpConfigLoader {
     }
   }
 
+  /** Every key an admin may write on a section in Definition__c. */
   private static final Set<String> SECTION_KEYS = new Set<String>{
     'name',
     'label',
@@ -416,11 +536,19 @@ public inherited sharing class IdpConfigLoader {
     'rules'
   };
 
+  /** The source record holds the lookup to the target. */
   public static final String HOP_PARENT = 'Parent';
+
+  /** The target record holds the lookup back to the source. */
   public static final String HOP_CHILD = 'Child';
+
+  /** Rows are scoped to the section's parent record. */
   public static final String ROW_SCOPE_PARENT = 'Parent';
+
+  /** Rows are matched by key alone, with no parent constraint. */
   public static final String ROW_SCOPE_NONE = 'None';
 
+  /** Every key an admin may write on a rule in Definition__c. */
   private static final Set<String> RULE_KEYS = new Set<String>{
     'name',
     'label',
@@ -439,11 +567,16 @@ public inherited sharing class IdpConfigLoader {
   };
 
   /**
-   * JSON.deserialize quietly ignores a key it does not recognize, which
-   * would turn a misspelled "jsonPaths" into a rule that silently maps
-   * nothing. For hand-edited configuration that is the worst possible
-   * failure mode, so unknown keys are found and reported before the typed
-   * parse runs. Returns false when the definition should not be loaded.
+   * Rejects a definition containing keys the loader does not recognize.
+   *
+   * JSON.deserialize quietly ignores an unknown key, which would turn a
+   * misspelled "jsonPaths" into a rule that silently maps nothing. For
+   * hand-edited configuration that is the worst possible failure mode, so
+   * unknown keys are found and reported before the typed parse runs.
+   *
+   * @param definitionJson Raw Definition__c text.
+   * @param config Configuration the problems are reported on.
+   * @return False when the definition should not be loaded.
    */
   @TestVisible
   private static Boolean keysAreKnown(String definitionJson, SetConfig config) {
@@ -508,6 +641,16 @@ public inherited sharing class IdpConfigLoader {
     return false;
   }
 
+  /**
+   * Validates one raw section against the real schema.
+   *
+   * A section missing what it needs is skipped with a finding rather than
+   * failing the set, so the rest of the mapping still runs.
+   *
+   * @param raw Section as written in the definition.
+   * @param config Configuration the problems are reported on.
+   * @return The validated section, or null when it was skipped.
+   */
   private static SectionConfig assembleSection(
     RawSection raw,
     SetConfig config
@@ -624,9 +767,19 @@ public inherited sharing class IdpConfigLoader {
     return section;
   }
 
-  /** Validates unmatchedRows / whenNoAnchor: "Create" on the right section
-   *  type, or nothing. Anything else is reported and dropped, never half-
-   *  obeyed. */
+  /**
+   * Validates an unmatchedRows or whenNoAnchor setting.
+   *
+   * Only "Create", on the section type it applies to, is honoured.
+   * Anything else is reported and dropped, never half-obeyed.
+   *
+   * @param value Setting as written in the definition.
+   * @param keyName Which key is being validated, for the message.
+   * @param rightSectionType True when the key applies to this section.
+   * @param sectionName Section being validated, for the message.
+   * @param config Configuration the problems are reported on.
+   * @return "Create", or null when the setting does not apply.
+   */
   private static String creationPolicy(
     String value,
     String keyName,
@@ -667,20 +820,23 @@ public inherited sharing class IdpConfigLoader {
     return value;
   }
 
-  // ───────────────────────── navigation ───────────────────────────
-
   /**
-   * Settles every section's reachFrom / via / hop against the real schema
-   * while both ends are known, so the run never has to guess: the source
-   * is a surviving Fixed section or an object, and the lookup is the one
-   * named by `via` — or the single one Describe finds. A Fixed section
-   * whose path cannot be honoured is skipped rather than quietly reached
-   * some other way; a Repeating section keeps the older behaviour of
-   * dropping an unresolvable parent constraint with a warning, except
-   * that an ambiguous one (several lookups, no via) also skips, because
-   * scoping rows to the wrong parent is worse than not running them.
-   * Sections reached from a skipped section, and reachFrom cycles, are
-   * skipped in turn.
+   * Settles every section's reachFrom, via and hop against the schema.
+   *
+   * Both ends are known at load time, so the run never has to guess: the
+   * source is a surviving Fixed section or an object, and the lookup is
+   * the one named by `via` — or the single one Describe finds. A Fixed
+   * section whose path cannot be honoured is skipped rather than quietly
+   * reached some other way; a Repeating section drops an unresolvable
+   * parent constraint with a warning, except that an ambiguous one —
+   * several lookups and no via — also skips, because scoping rows to the
+   * wrong parent is worse than not running them. Sections reached from a
+   * skipped section, and reachFrom cycles, are skipped in turn.
+   *
+   * @param config Configuration being assembled, updated in place.
+   * @param sectionsByName Surviving sections, keyed by name.
+   * @param kept Raw sections still in play, pruned as sections are
+   *        skipped.
    */
   private static void resolveNavigation(
     SetConfig config,
@@ -784,10 +940,18 @@ public inherited sharing class IdpConfigLoader {
     }
   }
 
-  /** Resolves one section's source and lookup. Returns null when the path
-   *  is usable (the section's navigation fields are filled in) or when a
-   *  Repeating section's constraint was dropped with a warning; otherwise
-   *  the reason the section must be skipped. */
+  /**
+   * Resolves one section's source anchor and the lookup to it.
+   *
+   * @param section Section being resolved, its navigation fields filled in
+   *        when the path is usable.
+   * @param raw The same section as written, supplying via and hop.
+   * @param sectionsByName Surviving sections, keyed by name.
+   * @param config Configuration the problems are reported on.
+   * @return Null when the path is usable, or when a Repeating section's
+   *         constraint was dropped with a warning; otherwise the reason
+   *         the section must be skipped.
+   */
   private static String resolvePath(
     SectionConfig section,
     RawSection raw,
@@ -979,8 +1143,23 @@ public inherited sharing class IdpConfigLoader {
     return null;
   }
 
-  /** No `via`: the one lookup Describe finds decides; several is an
-   *  ambiguity the admin settles with via, never a guess. */
+  /**
+   * Derives the lookup a section did not name.
+   *
+   * The one lookup Describe finds decides; several is an ambiguity the
+   * admin settles with via, never a guess.
+   *
+   * @param section Section being resolved, its lookup filled in on
+   *        success.
+   * @param sourceObject API name of the object navigated from.
+   * @param target API name of the object being reached.
+   * @param wantParent True when hop restricted the search to parent hops.
+   * @param wantChild True when hop restricted the search to child hops.
+   * @param config Configuration the problems are reported on.
+   * @return Null when a single lookup was found, or the constraint was
+   *         dropped for a Repeating section; otherwise the reason the
+   *         section must be skipped.
+   */
   private static String discoverPath(
     SectionConfig section,
     String sourceObject,
@@ -1044,6 +1223,13 @@ public inherited sharing class IdpConfigLoader {
       '); set via to choose one';
   }
 
+  /**
+   * Restores a field name to its exact schema spelling.
+   *
+   * @param objectName API name of the object holding the field.
+   * @param fieldName Field name as the admin wrote it.
+   * @return The schema's own spelling, or the input when unknown.
+   */
   private static String canonicalFieldName(
     String objectName,
     String fieldName
@@ -1056,12 +1242,20 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /**
-   * Turns every segment of a path but the last into a synthesised Fixed
-   * section — a parent hop through the named lookup — chained from the
-   * section's source, and moves the section's own source to the end of
-   * that chain. The last segment is then resolved like a plain `via`.
-   * Intermediate lookups must point at exactly one object: a polymorphic
-   * one (OwnerId) would leave the next hop's object unknown.
+   * Expands a multi-segment `via` into a chain of synthesised hops.
+   *
+   * Every segment but the last becomes a rule-less Fixed section — a
+   * parent hop through the named lookup — chained from the section's
+   * source, and the section's own source moves to the end of that chain.
+   * The last segment is then resolved like a plain `via`. Intermediate
+   * lookups must point at exactly one object: a polymorphic one such as
+   * OwnerId would leave the next hop's object unknown.
+   *
+   * @param section Section being resolved, its hops filled in on success.
+   * @param via The path as written, for the message.
+   * @param segments The path split into its field names.
+   * @return Null on success, otherwise the reason the section must be
+   *         skipped.
    */
   private static String expandPath(
     SectionConfig section,
@@ -1120,8 +1314,14 @@ public inherited sharing class IdpConfigLoader {
     return null;
   }
 
-  /** Hub_Object__c, checked against the schema; blank or unknown falls
-   *  back to the resolver's default hub. */
+  /**
+   * Validates Hub_Object__c against the schema.
+   *
+   * @param hubObject Hub object as configured on the mapping set.
+   * @param config Configuration the problem is reported on.
+   * @return The object's own spelling, or null to fall back to the
+   *         resolver's default hub.
+   */
   private static String hubObjectFor(String hubObject, SetConfig config) {
     if (String.isBlank(hubObject)) {
       return null;
@@ -1144,9 +1344,19 @@ public inherited sharing class IdpConfigLoader {
     return described.getName();
   }
 
-  /** rowScope: "Parent" (default) scopes rows to a parent record; "None"
-   *  matches rows by key alone and makes reachFrom / via meaningless on
-   *  that section. Repeating sections only. */
+  /**
+   * Validates a section's rowScope setting.
+   *
+   * "Parent", the default, scopes rows to a parent record; "None" matches
+   * rows by key alone and makes reachFrom and via meaningless on that
+   * section. Repeating sections only.
+   *
+   * @param value Setting as written in the definition.
+   * @param section Section being validated; its reachFrom is cleared when
+   *        the setting makes it meaningless.
+   * @param config Configuration the problems are reported on.
+   * @return True when rows run unscoped.
+   */
   private static Boolean rowScopePolicy(
     String value,
     SectionConfig section,
@@ -1198,8 +1408,14 @@ public inherited sharing class IdpConfigLoader {
     return true;
   }
 
-  /** The chain of reachFrom section names starting at this section when
-   *  it loops back; null otherwise. */
+  /**
+   * Detects a reachFrom chain that loops back on itself.
+   *
+   * @param start Section the chain is followed from.
+   * @param sectionsByName Surviving sections, keyed by name.
+   * @return The chain of section names forming the cycle, or null when
+   *         the path terminates.
+   */
   private static List<String> reachCycle(
     SectionConfig start,
     Map<String, SectionConfig> sectionsByName
@@ -1223,6 +1439,18 @@ public inherited sharing class IdpConfigLoader {
     return null;
   }
 
+  /**
+   * Validates one raw rule and attaches it to its section.
+   *
+   * Checks the field against the schema, resolves the value type or the
+   * custom handler, and applies the gates. A rule that cannot be honoured
+   * is skipped with a finding rather than failing the section.
+   *
+   * @param raw Rule as written in the definition.
+   * @param section Section the rule belongs to.
+   * @param valueTypes Value types already resolved, keyed by name.
+   * @param config Configuration the problems are reported on.
+   */
   private static void assembleRule(
     RawRule raw,
     SectionConfig section,
@@ -1353,10 +1581,16 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /**
-   * Resolves a Mode = Custom rule's handler at load time — same DI
-   * convention as finding handlers — so a typo is a config finding here,
-   * not a runtime surprise. Null (with the issue recorded) when it cannot
-   * be used.
+   * Resolves a Mode = Custom rule's handler at load time.
+   *
+   * Same DI convention as finding handlers, so a typo is a configuration
+   * finding here rather than a runtime surprise.
+   *
+   * @param className Apex class named on the rule.
+   * @param ruleName Rule being assembled, for the message.
+   * @param config Configuration the problem is reported on.
+   * @return The handler, or null with the issue recorded when the class is
+   *         missing, uninstantiable or of the wrong type.
    */
   private static IIdpFieldHandler resolveFieldHandler(
     String className,
@@ -1401,9 +1635,14 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /**
-   * Admins reasonably write either "SuppliedEmail" or "Case.SuppliedEmail",
-   * because the old FieldDefinition picker showed the qualified form. Every
-   * consumer downstream wants the bare name, so accept both here.
+   * Accepts a field written bare or qualified.
+   *
+   * Admins reasonably write either "SuppliedEmail" or
+   * "Case.SuppliedEmail", because the old FieldDefinition picker showed
+   * the qualified form, and every consumer downstream wants the bare name.
+   *
+   * @param fieldRef Field as the admin wrote it.
+   * @return The bare field name.
    */
   @TestVisible
   private static String bareField(String fieldRef) {
@@ -1414,9 +1653,15 @@ public inherited sharing class IdpConfigLoader {
     return String.isBlank(bare) ? fieldRef : bare;
   }
 
-  /** Load-time checks that make config typos visible before a document
-   *  ever runs: regex patterns must compile, currencies, regions, locales
-   *  and timezones must be known. */
+  /**
+   * Checks a value type's settings before any document runs.
+   *
+   * Regex patterns must compile, and currencies, regions, locales and
+   * timezones must be known, so a typo is visible at load time.
+   *
+   * @param typeConfig Value type configuration to check.
+   * @param config Configuration the problems are reported on.
+   */
   private static void validateTypeConfig(
     IdpValueTypes.Config typeConfig,
     SetConfig config
@@ -1502,12 +1747,16 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /**
-   * A Locale is only worth configuring if the org has seeded the country
-   * or language it names, so an unseeded one is reported at load time
-   * rather than discovered as a silently-degraded parse. A Date type
-   * reading month names is checked harder: a language with no month names
-   * is the difference between a working Swahili mapping set and one that
-   * fails every long-form date.
+   * Checks that the org has seeded the locale a value type names.
+   *
+   * A locale is only worth configuring if its country or language exists,
+   * so an unseeded one is reported at load time rather than discovered as
+   * a silently-degraded parse. A Date type reading month names is checked
+   * harder: a language with no month names is the difference between a
+   * working Swahili mapping set and one that fails every long-form date.
+   *
+   * @param typeConfig Value type configuration to check.
+   * @param config Configuration the problems are reported on.
    */
   private static void validateLocale(
     IdpValueTypes.Config typeConfig,
@@ -1545,7 +1794,12 @@ public inherited sharing class IdpConfigLoader {
     }
   }
 
-  /** True when any of the type's date patterns contains MMM or MMMM. */
+  /**
+   * Reports whether a value type reads month names rather than numbers.
+   *
+   * @param typeConfig Value type configuration to inspect.
+   * @return True when any date pattern contains MMM or MMMM.
+   */
   private static Boolean readsMonthNames(IdpValueTypes.Config typeConfig) {
     for (String format : typeConfig.formats) {
       if (format.contains('MMM')) {
@@ -1555,6 +1809,13 @@ public inherited sharing class IdpConfigLoader {
     return false;
   }
 
+  /**
+   * Records a configuration problem, stamped with where assembly is.
+   *
+   * @param config Configuration being assembled.
+   * @param severity Info, Warning or Error.
+   * @param message Explanation for whoever maintains the mapping set.
+   */
   private static void issue(SetConfig config, String severity, String message) {
     IdpResult.Finding finding = new IdpResult.Finding();
     finding.code = IdpResult.CODE_CONFIG_ISSUE;
@@ -1565,8 +1826,12 @@ public inherited sharing class IdpConfigLoader {
     config.issues.add(finding);
   }
 
-  // ──────────────────────────── queries ───────────────────────────
-
+  /**
+   * Reads one IDP_Mapping_Set__mdt record.
+   *
+   * @param mappingSetName DeveloperName of the mapping set.
+   * @return The record as a raw DTO, or null when none exists.
+   */
   private static RawSet querySet(String mappingSetName) {
     List<IDP_Mapping_Set__mdt> records = [
       SELECT
@@ -1599,8 +1864,14 @@ public inherited sharing class IdpConfigLoader {
     return raw;
   }
 
-  /** One value type with its map entries, for IdpMappingController's
-   *  previewValue admin tester. Null when the name is unknown. */
+  /**
+   * Loads one value type with its map entries.
+   *
+   * Serves IdpMappingController's previewValue admin tester.
+   *
+   * @param developerName DeveloperName of the IDP_Value_Type__mdt.
+   * @return Its configuration, or null when the name is unknown.
+   */
   public static IdpValueTypes.Config loadValueType(String developerName) {
     Map<String, IdpValueTypes.Config> loaded = new Map<String, IdpValueTypes.Config>();
     if (String.isNotBlank(developerName)) {
@@ -1609,8 +1880,13 @@ public inherited sharing class IdpConfigLoader {
     return loaded.get(developerName);
   }
 
-  /** Loads the value types the rules reference (minus any pre-supplied by
-   *  a test) together with their map entries. */
+  /**
+   * Loads every value type the rules name, in one query.
+   *
+   * @param rawSections Sections whose rules are scanned for references.
+   * @param valueTypes Already-resolved types; names present here are not
+   *        queried again, and the loaded ones are added to it.
+   */
   private static void loadReferencedValueTypes(
     List<RawSection> rawSections,
     Map<String, IdpValueTypes.Config> valueTypes
@@ -1635,6 +1911,12 @@ public inherited sharing class IdpConfigLoader {
     }
   }
 
+  /**
+   * Reads the named IDP_Value_Type__mdt records.
+   *
+   * @param needed DeveloperNames to fetch.
+   * @param valueTypes Map the assembled configurations are added to.
+   */
   private static void queryValueTypes(
     Set<String> needed,
     Map<String, IdpValueTypes.Config> valueTypes
@@ -1662,6 +1944,12 @@ public inherited sharing class IdpConfigLoader {
     }
   }
 
+  /**
+   * Turns one IDP_Value_Type__mdt record into a value type configuration.
+   *
+   * @param record The custom metadata record.
+   * @return Its configuration, map entries parsed.
+   */
   @TestVisible
   private static IdpValueTypes.Config toConfig(IDP_Value_Type__mdt record) {
     IdpValueTypes.Config cfg = new IdpValueTypes.Config();
@@ -1692,9 +1980,14 @@ public inherited sharing class IdpConfigLoader {
   }
 
   /**
-   * Value_Map_Entries__c into MapEntry objects. A broken dictionary yields
-   * no entries, which the ValueMap type then reports once per unmapped
-   * value — louder than silently mapping nothing.
+   * Parses Value_Map_Entries__c into translations.
+   *
+   * A broken dictionary yields no entries, which the ValueMap type then
+   * reports once per unmapped value — louder than silently mapping
+   * nothing.
+   *
+   * @param entriesJson Raw Value_Map_Entries__c text.
+   * @return Active translations, empty when the JSON is unusable.
    */
   @TestVisible
   private static List<IdpValueTypes.MapEntry> parseMapEntries(

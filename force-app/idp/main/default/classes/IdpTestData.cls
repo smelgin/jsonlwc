@@ -4,17 +4,29 @@
  */
 @IsTest
 public class IdpTestData {
+  /** Account, Case and the ContentDocument linked to that Case. */
   public class CaseWithFile {
     public Account account;
     public Case caseRecord;
     public Id contentDocumentId;
   }
 
-  /** Account + Case + a file linked to the Case. */
+  /**
+   * Builds the default Account, Case and linked file.
+   *
+   * @return Inserted records a run can start from.
+   */
   public static CaseWithFile caseWithFile() {
     return caseWithFile('Estate Holder', '0821234567');
   }
 
+  /**
+   * Builds an Account, a Case under it and a file linked to that Case.
+   *
+   * @param accountName Name given to the Account.
+   * @param phone Phone stored on the Account, for compliance comparisons.
+   * @return Inserted records a run can start from.
+   */
   public static CaseWithFile caseWithFile(String accountName, String phone) {
     CaseWithFile data = new CaseWithFile();
     data.account = new Account(Name = accountName, Phone = phone);
@@ -28,7 +40,13 @@ public class IdpTestData {
     return data;
   }
 
-  /** Uploads a file and links it to the record; returns the ContentDocumentId. */
+  /**
+   * Uploads a ContentVersion and shares it with the supplied record.
+   *
+   * @param recordId Record the ContentDocument is linked to.
+   * @param title Title of the uploaded file.
+   * @return ContentDocumentId of the uploaded file.
+   */
   public static Id linkFile(Id recordId, String title) {
     ContentVersion version = new ContentVersion(
       Title = title,

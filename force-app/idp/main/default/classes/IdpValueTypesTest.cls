@@ -1,12 +1,21 @@
 /**
- * Unit tests for the built-in value types — no DML, and no queries beyond
- * the limit-free custom metadata IdpLocaleData reads for dial codes,
- * decimal separators and month names. The Number matrix includes the
- * exact inputs v1's regex stripper silently corrupted ("ZAR 100,00" →
- * 10000).
+ * Unit tests for the built-in value types.
+ *
+ * Validates parsing, canonicalization, comparison and rendering for every
+ * kind, plus field coercion and custom handler resolution. No DML, and no
+ * queries beyond the limit-free custom metadata IdpLocaleData reads for
+ * dial codes, decimal separators and month names. The Number matrix
+ * includes the exact inputs v1's regex stripper silently corrupted
+ * ("ZAR 100,00" into 10000).
  */
 @IsTest
 private class IdpValueTypesTest {
+  /**
+   * Builds a bare configuration for one kind.
+   *
+   * @param kind Built-in kind key.
+   * @return Configuration the tests then adjust.
+   */
   private static IdpValueTypes.Config cfg(String kind) {
     IdpValueTypes.Config config = new IdpValueTypes.Config();
     config.kind = kind;
@@ -14,6 +23,14 @@ private class IdpValueTypesTest {
     return config;
   }
 
+  /**
+   * Parses through the built-in implementation of one kind.
+   *
+   * @param kind Built-in kind key.
+   * @param raw Value as a document would state it.
+   * @param config Configuration driving the parse.
+   * @return The parse outcome.
+   */
   private static IdpValueTypes.ParseResult parse(
     String kind,
     Object raw,
@@ -22,8 +39,10 @@ private class IdpValueTypesTest {
     return IdpTypeRegistry.builtIn(kind).parse(raw, config);
   }
 
-  // ─────────────────────────── Number ─────────────────────────────
-
+  /**
+   * Verifies that an amount carrying both "," and "." reads deterministically,
+   * whichever convention it follows.
+   */
   @IsTest
   static void parsesBothSeparatorConventionsDeterministically() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_NUMBER);
@@ -60,6 +79,10 @@ private class IdpValueTypesTest {
     Assert.areEqual(1234.56, spaced.value);
   }
 
+  /**
+   * Verifies parenthesised, trailing-minus and DR/CR negatives, and the
+   * grade each spelling earns.
+   */
   @IsTest
   static void gradesNegativesAndSuffixes() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_NUMBER);
@@ -93,6 +116,10 @@ private class IdpValueTypesTest {
     Assert.areEqual(IdpResult.Grade.INFERRED, credit.grade);
   }
 
+  /**
+   * Verifies that a single separator is deterministic under a configured
+   * locale and graded by trailing digits without one.
+   */
   @IsTest
   static void gradesSingleSeparatorByLocale() {
     IdpValueTypes.Config noLocale = cfg(IdpValueTypes.KIND_NUMBER);
@@ -129,6 +156,10 @@ private class IdpValueTypesTest {
     Assert.areEqual(IdpResult.Grade.EXACT, decimalComma.grade);
   }
 
+  /**
+   * Verifies the awkward numeric inputs: blanks, stray separators and
+   * non-breaking spaces.
+   */
   @IsTest
   static void numberEdges() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_NUMBER);
@@ -165,6 +196,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that amounts within the configured tolerance compare as NEAR
+   * rather than a mismatch.
+   */
   @IsTest
   static void comparesNumbersWithTolerance() {
     IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_NUMBER);
@@ -191,6 +226,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that a stated currency is read, and that one disagreeing with
+   * the configured currency fails the parse.
+   */
   @IsTest
   static void detectsStatedCurrenciesAndRefusesConflicts() {
     IdpValueTypes.Config open = cfg(IdpValueTypes.KIND_NUMBER);
@@ -259,8 +298,10 @@ private class IdpValueTypesTest {
     );
   }
 
-  // ──────────────────────────── Date ──────────────────────────────
-
+  /**
+   * Verifies that each configured pattern is tried and a single reading is
+   * graded EXACT.
+   */
   @IsTest
   static void parsesDatesThroughOrderedPatterns() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_DATE);
@@ -295,6 +336,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that patterns disagreeing yield AMBIGUOUS and an out-of-range
+   * day fails cleanly.
+   */
   @IsTest
   static void reportsAmbiguousAndImpossibleDates() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_DATE);
@@ -324,6 +369,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies the pivot year for two-digit years and the rendering of a date
+   * back out.
+   */
   @IsTest
   static void handlesTwoDigitYearsAndRendering() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_DATE);
@@ -346,6 +395,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that month names are read in the value type's locale, case and
+   * accent blind.
+   */
   @IsTest
   static void readsMonthNamesInTheDocumentsLanguage() {
     IdpValueTypes.Config af = cfg(IdpValueTypes.KIND_DATE);
@@ -384,6 +437,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that a month abbreviation two months share is refused rather
+   * than guessed.
+   */
   @IsTest
   static void failsRatherThanGuessAMonthTheLanguageCannotDecide() {
     IdpValueTypes.Config fr = cfg(IdpValueTypes.KIND_DATE);
@@ -409,6 +466,9 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that rendering stays English even when reading was localised.
+   */
   @IsTest
   static void rendersMonthNamesInEnglishWhateverTheLocale() {
     IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_DATE);
@@ -428,6 +488,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that a malformed literal in a date pattern is refused rather
+   * than silently reinterpreted.
+   */
   @IsTest
   static void rejectsAnUnterminatedQuoteInsteadOfMisreadingIt() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_DATE);
@@ -438,6 +502,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that dates within the configured number of days compare as
+   * NEAR.
+   */
   @IsTest
   static void comparesDatesWithDayTolerance() {
     IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_DATE);
@@ -458,8 +526,10 @@ private class IdpValueTypesTest {
     );
   }
 
-  // ────────────────────────── Datetime ────────────────────────────
-
+  /**
+   * Verifies that a timestamp without an offset is read in the configured
+   * timezone, and graded INFERRED when none is set.
+   */
   @IsTest
   static void readsNaiveTimestampsInConfiguredTimezone() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_DATETIME);
@@ -499,8 +569,10 @@ private class IdpValueTypesTest {
     );
   }
 
-  // ─────────────────────────── Phone ──────────────────────────────
-
+  /**
+   * Verifies that international, 00-prefixed and national numbers all reach
+   * the same E.164 form.
+   */
   @IsTest
   static void canonicalizesPhonesToE164() {
     IdpValueTypes.Config za = cfg(IdpValueTypes.KIND_PHONE);
@@ -530,6 +602,9 @@ private class IdpValueTypesTest {
     Assert.areEqual(IdpResult.Grade.INFERRED, noRegion.grade);
   }
 
+  /**
+   * Verifies that every seeded country resolves its own national numbers.
+   */
   @IsTest
   static void canonicalizesPhonesForAnyRegionInMetadata() {
     IdpValueTypes.Config ke = cfg(IdpValueTypes.KIND_PHONE);
@@ -555,6 +630,9 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that every seeded locale decides its own decimal separator.
+   */
   @IsTest
   static void readsDecimalSeparatorsForAnyLocaleInMetadata() {
     IdpValueTypes.Config za = cfg(IdpValueTypes.KIND_NUMBER);
@@ -586,6 +664,10 @@ private class IdpValueTypesTest {
     Assert.areEqual(IdpResult.Grade.EXACT, kenyan.grade);
   }
 
+  /**
+   * Verifies that the same number written two ways matches, and that a
+   * differing country code is NEAR rather than equal.
+   */
   @IsTest
   static void comparesPhonesAcrossFormats() {
     IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_PHONE);
@@ -609,6 +691,9 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies E.164, bare digits and national output formats.
+   */
   @IsTest
   static void rendersPhoneFormats() {
     IValueType type = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_PHONE);
@@ -621,8 +706,10 @@ private class IdpValueTypesTest {
     Assert.areEqual('27821234567', type.render('+27821234567', za));
   }
 
-  // ────────────────────────── ValueMap ────────────────────────────
-
+  /**
+   * Verifies exact, normalized and regex translations, and that unmapped
+   * text fails rather than reaching the field.
+   */
   @IsTest
   static void mapsDocumentTextToStoredValues() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_VALUE_MAP);
@@ -664,6 +751,14 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Builds one value map translation.
+   *
+   * @param fromText Text as the document writes it.
+   * @param toValue Value written to the record instead.
+   * @param style Exact, Normalized or Regex.
+   * @return The map entry.
+   */
   private static IdpValueTypes.MapEntry entry(
     String fromText,
     String toValue,
@@ -676,8 +771,10 @@ private class IdpValueTypesTest {
     return mapEntry;
   }
 
-  // ─────────────────────────── Regex ──────────────────────────────
-
+  /**
+   * Verifies that the first capturing group is pulled out of surrounding
+   * text, and that no match fails.
+   */
   @IsTest
   static void extractsWithRegex() {
     IdpValueTypes.Config config = cfg(IdpValueTypes.KIND_REGEX);
@@ -692,8 +789,10 @@ private class IdpValueTypesTest {
     );
   }
 
-  // ──────────────────── Boolean, Text, coercion ───────────────────
-
+  /**
+   * Verifies the accepted spellings of true and false, and that text is
+   * compared case and whitespace insensitively.
+   */
   @IsTest
   static void parsesBooleansAndText() {
     Assert.areEqual(
@@ -724,6 +823,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that canonical values fit their target field types, and that a
+   * genuine mismatch is refused with a clear message.
+   */
   @IsTest
   static void coercesCanonicalValuesIntoFields() {
     IValueType numberType = IdpTypeRegistry.builtIn(IdpValueTypes.KIND_NUMBER);
@@ -767,6 +870,10 @@ private class IdpValueTypesTest {
     }
   }
 
+  /**
+   * Verifies that a rule naming no value type gets a strict one derived from
+   * the target field.
+   */
   @IsTest
   static void autoConfigMatchesFieldTypes() {
     Assert.areEqual(
@@ -787,6 +894,10 @@ private class IdpValueTypesTest {
     );
   }
 
+  /**
+   * Verifies that a Custom kind resolves its class, and that a missing or
+   * wrongly-typed one fails with an explanatory message.
+   */
   @IsTest
   static void resolvesCustomHandlersWithClearErrors() {
     IdpValueTypes.Config custom = cfg(IdpValueTypes.KIND_CUSTOM);

@@ -3,10 +3,19 @@
  */
 @IsTest
 private class IdpJsonReaderTest {
+  /**
+   * Deserializes a sample document the way the engine does.
+   *
+   * @param jsonText Document text.
+   * @return Untyped structure the reader walks.
+   */
   private static Object parse(String jsonText) {
     return JSON.deserializeUntyped(jsonText);
   }
 
+  /**
+   * Verifies dot paths and array indexes, and that an absent path is null.
+   */
   @IsTest
   static void readsDotPathsAndIndexes() {
     Object root = parse('{"a": {"b": [{"c": "x"}, {"c": "y"}]}, "n": 5}');
@@ -18,6 +27,9 @@ private class IdpJsonReaderTest {
     Assert.isNull(IdpJsonReader.read(null, 'a'));
   }
 
+  /**
+   * Verifies that an enveloped leaf yields its value and its confidence.
+   */
   @IsTest
   static void unwrapsConfidenceEnvelopes() {
     Object root = parse(
@@ -31,6 +43,10 @@ private class IdpJsonReaderTest {
     Assert.areEqual(0.93, read.confidence);
   }
 
+  /**
+   * Verifies that a path walks through an envelope wrapping a whole
+   * object, keeping the confidence met on the way.
+   */
   @IsTest
   static void unwrapsEnvelopesMidPath() {
     // The whole applicant object is enveloped; the path walks through it.
@@ -49,6 +65,9 @@ private class IdpJsonReaderTest {
     );
   }
 
+  /**
+   * Verifies that nested envelopes report the innermost confidence.
+   */
   @IsTest
   static void innermostConfidenceWins() {
     Object root = parse(
@@ -60,6 +79,10 @@ private class IdpJsonReaderTest {
     );
   }
 
+  /**
+   * Verifies that an object merely containing a "value" key is read as
+   * business data rather than unwrapped as an envelope.
+   */
   @IsTest
   static void businessFieldsNamedValueAreNotSwallowed() {
     // Three keys — not the exact {value, confidence} shape, so no unwrap.

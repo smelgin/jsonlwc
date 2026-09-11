@@ -1,14 +1,21 @@
 /**
- * Unit tests for config assembly and validation. Two levels are covered:
- * the Raw* DTO level, where misconfiguration must degrade to issues while
- * the rest of the set still runs, and the JSON level, where a hand-edited
- * Definition must parse — or fail loudly enough that an admin can fix it.
+ * Unit tests for IdpConfigLoader.
+ *
+ * Validates config assembly and validation at two levels: the Raw* DTO
+ * level, where misconfiguration must degrade to issues while the rest of
+ * the set still runs, and the JSON level, where a hand-edited Definition
+ * must parse — or fail loudly enough that an admin can fix it.
  *
  * Custom metadata cannot be inserted in tests, so the set record itself is
- * hand-built; the query→raw mapping is mechanical.
+ * hand-built; the query to raw mapping is mechanical.
  */
 @IsTest
 private class IdpConfigLoaderTest {
+  /**
+   * Builds the mapping set record the tests assemble against.
+   *
+   * @return The raw set.
+   */
   private static IdpConfigLoader.RawSet rawSet() {
     IdpConfigLoader.RawSet raw = new IdpConfigLoader.RawSet();
     raw.name = 'Test_Set';
@@ -17,6 +24,14 @@ private class IdpConfigLoaderTest {
     return raw;
   }
 
+  /**
+   * Builds a section of the given type.
+   *
+   * @param name Section name.
+   * @param sectionType "Fixed" or "Repeating".
+   * @param targetObject API name of the object it writes to.
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection rawSection(
     String name,
     String sectionType,
@@ -30,6 +45,14 @@ private class IdpConfigLoaderTest {
     return raw;
   }
 
+  /**
+   * Builds an extraction rule.
+   *
+   * @param name Rule name.
+   * @param jsonPath Path the value is read from.
+   * @param targetField API name of the field it writes to.
+   * @return The raw rule.
+   */
   private static IdpConfigLoader.RawRule rawRule(
     String name,
     String jsonPath,
@@ -44,6 +67,14 @@ private class IdpConfigLoaderTest {
   }
 
   /** Assembles from Raw sections, skipping the JSON round trip. */
+  /**
+   * Assembles a config through the loader, without touching the cache.
+   *
+   * @param mappingSet The mapping set record.
+   * @param sections Sections making up the definition.
+   * @param valueTypes Value types supplied instead of being queried.
+   * @return The assembled configuration, issues included.
+   */
   private static IdpConfigLoader.SetConfig assemble(
     IdpConfigLoader.RawSet mappingSet,
     List<IdpConfigLoader.RawSection> sections,
@@ -56,6 +87,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a name no active mapping set answers to yields an error
+   * issue rather than an exception.
+   */
   @IsTest
   static void missingSetIsAnError() {
     IdpConfigLoader.SetConfig config = assemble(
@@ -68,6 +103,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(IdpResult.SEV_ERROR, config.issues[0].severity);
   }
 
+  /**
+   * Verifies that a well-formed set assembles with its sections and rules
+   * intact and no issues.
+   */
   @IsTest
   static void assemblesValidConfig() {
     IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
@@ -91,6 +130,10 @@ private class IdpConfigLoaderTest {
     Assert.isNull(rule.type, 'no explicit value type — auto at evaluation');
   }
 
+  /**
+   * Verifies that a section naming an object the schema lacks is skipped
+   * while the rest of the set survives.
+   */
   @IsTest
   static void unknownObjectSkipsTheSection() {
     IdpConfigLoader.RawSection bad = rawSection('Ghost', 'Fixed', 'No_Such__c');
@@ -112,6 +155,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a rule naming a field the object lacks is skipped while
+   * its section survives.
+   */
   @IsTest
   static void unknownFieldSkipsTheRule() {
     IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
@@ -129,6 +176,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(config.issues[0].message.contains('Not_A_Field__c'));
   }
 
+  /**
+   * Verifies that a field written as Object.Field is accepted and reduced to
+   * its bare name.
+   */
   @IsTest
   static void acceptsObjectQualifiedFieldNames() {
     IdpConfigLoader.RawSection header = rawSection('Header', 'Fixed', 'Case');
@@ -147,6 +198,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a Repeating section missing what it needs takes its rules
+   * with it.
+   */
   @IsTest
   static void incompleteRepeatingSectionIsSkippedWithItsRules() {
     IdpConfigLoader.RawSection lines = rawSection(
@@ -165,6 +220,9 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(1, config.issues.size(), 'the rules go with the section');
   }
 
+  /**
+   * Verifies that rows cannot be matched on a field the object lacks.
+   */
   @IsTest
   static void repeatingSectionWithUnknownMatchFieldIsSkipped() {
     IdpConfigLoader.RawSection lines = rawSection(
@@ -185,6 +243,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(config.issues[0].message.contains('Not_A_Field__c'));
   }
 
+  /**
+   * Verifies that deactivated sections and rules are left out without being
+   * reported as problems.
+   */
   @IsTest
   static void inactiveSectionsAndRulesAreSkipped() {
     IdpConfigLoader.RawSection off = rawSection('Off', 'Fixed', 'Case');
@@ -212,6 +274,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a parent section no other section defines is dropped with
+   * a warning.
+   */
   @IsTest
   static void unknownParentSectionIsDropped() {
     IdpConfigLoader.RawSection lines = rawSection(
@@ -233,8 +299,15 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(1, config.issues.size());
   }
 
-  // ───────────────────────── navigation ───────────────────────────
-
+  /**
+   * Builds a Fixed section reached through a declared path.
+   *
+   * @param name Section name.
+   * @param targetObject API name of the object it writes to.
+   * @param reachFrom Anchor the section is reached from.
+   * @param via Lookup the hop follows.
+   * @return The raw section, carrying one rule.
+   */
   private static IdpConfigLoader.RawSection reaching(
     String name,
     String targetObject,
@@ -248,6 +321,15 @@ private class IdpConfigLoaderTest {
     return raw;
   }
 
+  /**
+   * Builds a Repeating section reached through a declared path.
+   *
+   * @param name Section name.
+   * @param targetObject API name of the row object.
+   * @param reachFrom Anchor the rows are scoped to.
+   * @param via Lookup the hop follows.
+   * @return The raw section.
+   */
   private static IdpConfigLoader.RawSection rows(
     String name,
     String targetObject,
@@ -267,6 +349,12 @@ private class IdpConfigLoaderTest {
     return raw;
   }
 
+  /**
+   * Assembles the sections against the default set record.
+   *
+   * @param sections Sections making up the definition.
+   * @return The assembled configuration, issues included.
+   */
   private static IdpConfigLoader.SetConfig assembleAll(
     List<IdpConfigLoader.RawSection> sections
   ) {
@@ -277,10 +365,20 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Renders a config's issues as text, for substring assertions.
+   *
+   * @param config Configuration to inspect.
+   * @return Its issues serialized to JSON.
+   */
   private static String issues(IdpConfigLoader.SetConfig config) {
     return JSON.serialize(config.issues);
   }
 
+  /**
+   * Verifies that a named lookup settles the hop direction from the schema
+   * without the admin stating it.
+   */
   @IsTest
   static void viaResolvesDirectionFromDescribe() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -305,6 +403,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(holding.childHop, 'Asset holds the lookup: a child hop');
   }
 
+  /**
+   * Verifies that a qualified or mis-cased via is accepted and restored to
+   * the schema spelling.
+   */
   @IsTest
   static void viaAcceptsQualifiedNamesAndCanonicalisesCase() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -321,6 +423,9 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a single lookup between two objects is found without via.
+   */
   @IsTest
   static void withoutViaTheOnlyLookupIsDiscovered() {
     // Case.ContactId is the one lookup between Case and Contact.
@@ -334,6 +439,10 @@ private class IdpConfigLoaderTest {
     Assert.isFalse(config.sections[0].childHop);
   }
 
+  /**
+   * Verifies that competing lookups skip the section and the issue lists the
+   * candidates, so nothing is guessed.
+   */
   @IsTest
   static void severalLookupsWithoutViaSkipTheSectionNamingThem() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -350,6 +459,9 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(text.contains('set via'), text);
   }
 
+  /**
+   * Verifies that a named lookup joining neither object skips the section.
+   */
   @IsTest
   static void viaThatJoinsNothingSkipsTheSection() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -364,6 +476,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a lookup from an object to itself is only usable when the
+   * direction is stated.
+   */
   @IsTest
   static void selfRelationshipsNeedHop() {
     IdpConfigLoader.RawSection noHop = reaching(
@@ -420,6 +536,9 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(text.contains('self-relationship'), text);
   }
 
+  /**
+   * Verifies that a stated direction the schema cannot support is refused.
+   */
   @IsTest
   static void hopThatContradictsTheSchemaIsRejected() {
     IdpConfigLoader.RawSection wrong = reaching(
@@ -436,6 +555,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(issues(config).contains('has hop'), issues(config));
   }
 
+  /**
+   * Verifies that a path may start only at a Fixed section or at an object
+   * the walk anchors on its own.
+   */
   @IsTest
   static void reachFromMustNameAFixedSectionOrAnObject() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -454,6 +577,9 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(text.contains('from itself'), text);
   }
 
+  /**
+   * Verifies that a section reached from a skipped one is skipped in turn.
+   */
   @IsTest
   static void dependentsOfSkippedSectionsAreSkipped() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -466,6 +592,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(issues(config).contains('which was skipped'), issues(config));
   }
 
+  /**
+   * Verifies that sections reaching each other in a loop are all skipped,
+   * though each path is valid alone.
+   */
   @IsTest
   static void cycleIsDetectedWhenEachPathIsValidOnItsOwn() {
     IdpConfigLoader.RawSection a = reaching('A', 'Account', 'B', 'ParentId');
@@ -479,6 +609,9 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(issues(config).contains('reachFrom cycle'), issues(config));
   }
 
+  /**
+   * Verifies that the older parentSection key is read exactly as reachFrom.
+   */
   @IsTest
   static void parentSectionIsAnAliasOfReachFrom() {
     IdpConfigLoader.RawSection lines = rows(
@@ -512,6 +645,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(issues(config).contains('mean the same thing'));
   }
 
+  /**
+   * Verifies that rows whose parent lookup is ambiguous are skipped, since
+   * scoping to the wrong parent is worse than not running.
+   */
   @IsTest
   static void repeatingSectionWithAmbiguousParentIsSkipped() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -524,6 +661,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(issues(config).contains('several lookups'), issues(config));
   }
 
+  /**
+   * Verifies that a repeating section's via must name a lookup the row
+   * object itself holds.
+   */
   @IsTest
   static void repeatingSectionViaMustBeOnTheRowObject() {
     // Contact.ReportsToId is a lookup on the source, not on the rows —
@@ -539,6 +680,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual('ContactId', config.sections[0].relationshipField);
   }
 
+  /**
+   * Verifies that rows with nothing joining them to their parent run
+   * unscoped, with a warning.
+   */
   @IsTest
   static void repeatingSectionWithNoJoinDropsTheConstraintWithAWarning() {
     // Nothing joins Case and Opportunity.
@@ -553,6 +698,9 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(issues(config).contains('dropped'), issues(config));
   }
 
+  /**
+   * Verifies that every navigation key survives the unknown-key screen.
+   */
   @IsTest
   static void navigationKeysAreKnownToTheKeyScreen() {
     IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
@@ -565,6 +713,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual('AccountId', config.sections[0].relationshipField);
   }
 
+  /**
+   * Verifies that a multi-segment via becomes a chain of synthesised
+   * rule-less sections.
+   */
   @IsTest
   static void multiSegmentViaExpandsIntoHiddenHops() {
     // Case.ContactId → Contact, then Contact.AccountId → Account.
@@ -591,6 +743,10 @@ private class IdpConfigLoaderTest {
     Assert.isFalse(holder.childHop);
   }
 
+  /**
+   * Verifies that an intermediate segment that is not a single-target lookup
+   * skips the section.
+   */
   @IsTest
   static void multiSegmentViaRejectsBadIntermediates() {
     IdpConfigLoader.SetConfig config = assembleAll(
@@ -608,6 +764,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that rowScope "None" unscopes repeating rows and is ignored,
+   * with a warning, on a Fixed section.
+   */
   @IsTest
   static void rowScopeNoneDropsParentScopingOnRepeatingSectionsOnly() {
     IdpConfigLoader.RawSection unscoped = rows(
@@ -645,6 +805,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(text.contains('unknown rowScope value'), text);
   }
 
+  /**
+   * Verifies that an unknown Hub Object falls back to the default hub with a
+   * warning.
+   */
   @IsTest
   static void hubObjectIsCheckedAgainstTheSchema() {
     IdpConfigLoader.RawSet withHub = rawSet();
@@ -667,6 +831,9 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(issues(config).contains('Hub Object'), issues(config));
   }
 
+  /**
+   * Verifies that a rule naming a value type the org lacks is skipped.
+   */
   @IsTest
   static void unknownValueTypeSkipsTheRule() {
     IdpConfigLoader.RawRule rule = rawRule('Typed_Rule', 'x', 'Description');
@@ -683,6 +850,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(config.issues[0].message.contains('No_Such_Type'));
   }
 
+  /**
+   * Verifies that a Custom rule whose class cannot be resolved is skipped at
+   * load time.
+   */
   @IsTest
   static void unresolvableCustomHandlerSkipsTheRule() {
     IdpValueTypes.Config custom = new IdpValueTypes.Config();
@@ -704,6 +875,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(config.issues[0].message.contains('DoesNotExistAnywhere'));
   }
 
+  /**
+   * Verifies that unusable regex patterns, currencies, regions and timezones
+   * are reported before any document runs.
+   */
   @IsTest
   static void validatesTypeConfigDetails() {
     IdpValueTypes.Config regex = new IdpValueTypes.Config();
@@ -745,6 +920,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(2, config.issues.size());
   }
 
+  /**
+   * Verifies that a locale with no country or language record is reported
+   * rather than silently degraded.
+   */
   @IsTest
   static void reportsLocalesTheOrgHasNotSeeded() {
     IdpValueTypes.Config unseeded = new IdpValueTypes.Config();
@@ -774,6 +953,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a Date type reading month names in a language declaring
+   * none is warned about.
+   */
   @IsTest
   static void reportsMonthNamesALanguageCannotRead() {
     // ZA is seeded so the locale is known, but no "zz" language declares
@@ -809,6 +992,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(0, swahili.issues.size());
   }
 
+  /**
+   * Verifies that grades, modes and overwrite policies are read onto the
+   * rule, with unknown values reported.
+   */
   @IsTest
   static void parsesGradeModeAndPolicyFields() {
     IdpConfigLoader.RawRule strict = rawRule('Strict_Rule', 'x', 'Description');
@@ -838,8 +1025,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(config.issues[0].message.contains('Sideways'));
   }
 
-  // ───────────────────────── JSON definition ──────────────────────
-
+  /**
+   * Verifies that a definition written by hand assembles the same as one
+   * built from DTOs.
+   */
   @IsTest
   static void parsesAHandWrittenDefinition() {
     String definition =
@@ -859,6 +1048,10 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(rule.required);
   }
 
+  /**
+   * Verifies that malformed definition JSON disables the whole set with an
+   * error issue rather than throwing.
+   */
   @IsTest
   static void unreadableDefinitionIsReportedNotThrown() {
     IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
@@ -879,6 +1072,10 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that a misspelled rule key stops the load, since ignoring it
+   * would map nothing without saying so.
+   */
   @IsTest
   static void misspelledKeyIsReportedNotSilentlyIgnored() {
     // "jsonPaths" is not a key. JSON.deserialize would ignore it and leave
@@ -904,6 +1101,9 @@ private class IdpConfigLoaderTest {
     );
   }
 
+  /**
+   * Verifies that the unknown-key screen covers section keys too.
+   */
   @IsTest
   static void unknownSectionKeyIsAlsoReported() {
     IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
@@ -915,6 +1115,9 @@ private class IdpConfigLoaderTest {
     Assert.isTrue(config.issues[0].message.contains('targetObjekt'));
   }
 
+  /**
+   * Verifies that a set with no definition warns that it maps nothing.
+   */
   @IsTest
   static void emptyDefinitionIsAWarning() {
     IdpConfigLoader.SetConfig config = IdpConfigLoader.assemble(
@@ -928,8 +1131,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(IdpResult.SEV_WARNING, config.issues[0].severity);
   }
 
-  // ─────────────────────────── value types ────────────────────────
-
+  /**
+   * Verifies that every IDP_Value_Type__mdt field reaches the configuration
+   * it drives.
+   */
   @IsTest
   static void mapsValueTypeRecordToConfig() {
     IDP_Value_Type__mdt record = new IDP_Value_Type__mdt(
@@ -950,6 +1155,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(0, cfg.mapEntries.size());
   }
 
+  /**
+   * Verifies that value map JSON becomes translations, inactive entries
+   * left out.
+   */
   @IsTest
   static void parsesValueMapEntries() {
     List<IdpValueTypes.MapEntry> entries = IdpConfigLoader.parseMapEntries(
@@ -967,6 +1176,10 @@ private class IdpConfigLoaderTest {
     Assert.areEqual('Regex', entries[1].matchStyle);
   }
 
+  /**
+   * Verifies that an unusable value map compiles to nothing, so the type
+   * reports each unmapped value.
+   */
   @IsTest
   static void brokenValueMapYieldsNoEntries() {
     Assert.areEqual(
@@ -977,11 +1190,14 @@ private class IdpConfigLoaderTest {
     Assert.areEqual(0, IdpConfigLoader.parseMapEntries(null).size());
   }
 
-  // ───────────────── IDP Configuration Builder contract ─────────────────
-
   /** Stands in for a real custom handler — validateDefinition only checks
    *  that a handlerClass resolves and instantiates, it never calls handle(). */
   public class ContractHandler implements IIdpFieldHandler {
+    /**
+     * Does nothing; only its resolvability is under test.
+     *
+     * @param context Field origin, parse outcome and the record.
+     */
     public void handle(IdpFieldContext context) {
     }
   }
@@ -1006,6 +1222,10 @@ private class IdpConfigLoaderTest {
    *          └─via Asset.AccountId, hop Child──> Lines (Asset, Repeating)  unmatchedRows: Create
    *   Warranties (Asset, Repeating, rowScope None — matched by key alone,
    *     so no reachFrom/via: the engine warns when the two are combined)
+   */
+  /**
+   * Verifies the builder's reference definition still loads without a single
+   * issue, which is its contract with the engine.
    */
   @IsTest
   static void builderContractDefinitionLoadsClean() {

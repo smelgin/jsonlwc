@@ -9,7 +9,15 @@
  * Handlers run inside the engine's transaction. A handler that throws is
  * reported as a HANDLER_FAILED finding without rolling back extraction
  * updates from the same run.
+ *
+ * @group IDP Extensibility
+ * @author Ernesto S Melgin
  */
 public interface IIdpFindingHandler {
+  /**
+   * Reacts to everything a completed run observed.
+   *
+   * @param report Run report carrying each processed document's Result.
+   */
   void handle(IdpResult.RunReport report);
 }

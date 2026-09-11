@@ -14,23 +14,47 @@
  * IdpBatchProcessor's retry pass. Preview makes no sense asynchronously —
  * its whole output is the returned plan — so the engine's ordinary mode
  * validation applies and callers should not enqueue previews.
+ *
+ * @group IDP Processing
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpAsyncProcessor implements Queueable {
+  /** Chained retry passes granted to documents the limits guard defers. */
   private static final Integer MAX_RETRIES = 2;
 
   /** One document, in the serializable shape Queueable state requires. */
   public class DocumentInput {
+    /** Reviewed file, when the run is seeded from a ContentDocument. */
     public Id contentDocumentId;
+    /** Seed record to resolve context from, instead of a file. */
     public Id seedRecordId;
+    /** The reviewed JSON payload. */
     public String jsonString;
   }
 
+  /** Documents this job carries. */
   private final List<DocumentInput> documents;
+
+  /** DeveloperName of the mapping set to apply. */
   private final String mappingSetName;
+
+  /** Run mode passed through to the engine. */
   private final String mode;
+
+  /** Finding handler override, null to use the mapping set's default. */
   private final String findingHandler;
+
+  /** Retry passes still available to deferred documents. */
   private final Integer retriesRemaining;
 
+  /**
+   * Creates a job with the full retry allowance.
+   *
+   * @param documents Documents to process.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction or Compliance; Preview is not valid here.
+   * @param findingHandler Optional handler overriding the set's default.
+   */
   public IdpAsyncProcessor(
     List<DocumentInput> documents,
     String mappingSetName,
@@ -40,6 +64,15 @@ public inherited sharing class IdpAsyncProcessor implements Queueable {
     this(documents, mappingSetName, mode, findingHandler, MAX_RETRIES);
   }
 
+  /**
+   * Creates a chained job that carries the remaining retry allowance.
+   *
+   * @param documents Documents deferred by the previous pass.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction or Compliance; Preview is not valid here.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @param retriesRemaining Retry passes left before deferrals are dropped.
+   */
   private IdpAsyncProcessor(
     List<DocumentInput> documents,
     String mappingSetName,
@@ -54,7 +87,15 @@ public inherited sharing class IdpAsyncProcessor implements Queueable {
     this.retriesRemaining = retriesRemaining;
   }
 
-  /** Convenience: build, enqueue, return the job Id. */
+  /**
+   * Queues the work so it runs against a fresh set of governor limits.
+   *
+   * @param documents Documents to process.
+   * @param mappingSetName DeveloperName of the mapping set to apply.
+   * @param mode Extraction or Compliance; Preview is not valid here.
+   * @param findingHandler Optional handler overriding the set's default.
+   * @return Id of the enqueued job.
+   */
   public static Id enqueue(
     List<DocumentInput> documents,
     String mappingSetName,
@@ -66,6 +107,15 @@ public inherited sharing class IdpAsyncProcessor implements Queueable {
     );
   }
 
+  /**
+   * Runs the engine over this job's documents and chains a retry pass.
+   *
+   * Outcomes reach the org through the configured finding handler; the
+   * aggregate is written to the debug log, and documents the limits guard
+   * defers again are re-enqueued while retries remain.
+   *
+   * @param context Queueable context supplied by the platform.
+   */
   public void execute(QueueableContext context) {
     List<IdpMappingEngine.DocumentWork> works = new List<IdpMappingEngine.DocumentWork>();
     for (DocumentInput document : documents) {

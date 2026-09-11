@@ -8,8 +8,13 @@
  * INFERRED with a note saying which heuristic, an undecidable one is
  * AMBIGUOUS, and nothing is ever guessed silently — the v1 behaviour of
  * regex-stripping "ZAR 100,00" into 10000 has no successor here.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpValueTypes {
+  /** Raised when a value cannot be fitted to its target field, or when a
+   *  value type's own configuration is unusable. */
   public class TypeException extends Exception {
   }
 
@@ -26,72 +31,135 @@ public inherited sharing class IdpValueTypes {
 
   // Compiled once per transaction rather than per parsed value: a batch over
   // thousands of rows would otherwise pay Pattern.compile thousands of times.
+
+  /** Currency code written after the amount, as in "100,00 ZAR". */
   private static final Pattern TRAILING_LETTERS = Pattern.compile(
     '([A-Za-z]+)\\s*$'
   );
+
+  /** A standalone three-letter token anywhere in the amount. */
   private static final Pattern ISO_CODE_TOKEN = Pattern.compile(
     '(?<![A-Za-z])([A-Za-z]{3})(?![A-Za-z])'
   );
+
+  /** Timestamp that already carries a UTC offset or Z. */
   private static final Pattern OFFSET_SUFFIX = Pattern.compile(
     '.*([+-]\\d{2}:?\\d{2}|Z)$'
   );
+
+  /** Timestamp with no zone at all, read in the configured timezone. */
   private static final Pattern NAIVE_TIMESTAMP = Pattern.compile(
     '^(\\d{4})-(\\d{2})-(\\d{2})[T ](\\d{2}):(\\d{2})(?::(\\d{2}))?$'
   );
 
   /** One IDP_Value_Type__mdt record in plain Apex. */
   public class Config {
-    public String name; // DeveloperName, for messages
+    /** DeveloperName of the record, quoted in messages. */
+    public String name;
+    /** Which built-in kind, or Custom, implements this type. */
     public String kind = KIND_TEXT;
+    /** Apex class implementing a Custom kind. */
     public String handlerClass;
+    /** Locale whose conventions the documents are written in. */
     public String locale;
     /** Number kind: ISO 4217 code the documents are denominated in. A
      *  stated currency that disagrees fails the parse; an unstated one is
      *  assumed to be this. Blank accepts whatever the document states. */
     public String currencyCode;
-    public List<String> formats = new List<String>(); // Formats__c split on |
-    public String formatsRaw; // unsplit, for Regex kind
+    /** Accepted input formats, Formats__c split on "|". */
+    public List<String> formats = new List<String>();
+    /** Formats__c unsplit, which the Regex kind uses as its pattern. */
+    public String formatsRaw;
+    /** Format canonical values are rendered back out in. */
     public String outputFormat;
+    /** ISO country whose conventions apply, such as a phone dial code. */
     public String region;
+    /** Multiplier applied to a parsed number, for documents in thousands. */
     public Decimal scaleFactor;
+    /** Difference still counted as a NEAR match rather than a mismatch. */
     public Decimal compareTolerance;
+    /** Century boundary for two-digit years. */
     public Integer pivotYear;
+    /** Timezone a timestamp without an offset is read in. */
     public String timezone;
+    /** Free-form options passed through to a Custom implementation. */
     public String customOptions;
+    /** Value translations, for the ValueMap kind. */
     public List<MapEntry> mapEntries = new List<MapEntry>();
   }
 
+  /** One translation from document text to a stored value. */
   public class MapEntry {
+    /** Text as the document writes it. */
     public String fromText;
+    /** Value written to the record instead. */
     public String toValue;
+    /** How fromText is matched: Exact or Normalized. */
     public String matchStyle = 'Normalized';
   }
 
+  /** What a value type made of one document value. */
   public class ParseResult {
+    /** Canonical typed value; null when the parse produced nothing. */
     public Object value;
+    /** How sure the type is of the reading. */
     public IdpResult.Grade grade;
+    /** Which heuristic was applied, or why the parse failed. */
     public String note;
     /** Number kind: ISO 4217 code the document stated (or the value type
      *  implied). Null when neither says — a plain quantity. */
     public String currencyCode;
   }
 
+  /**
+   * Reports a deterministic parse.
+   *
+   * @param value Canonical value read from the document.
+   * @return Parse result graded EXACT.
+   */
   public static ParseResult exact(Object value) {
     return result(value, IdpResult.Grade.EXACT, null);
   }
 
+  /**
+   * Reports a heuristic parse, naming the heuristic.
+   *
+   * @param value Canonical value read from the document.
+   * @param note Which heuristic settled the reading.
+   * @return Parse result graded INFERRED.
+   */
   public static ParseResult inferred(Object value, String note) {
     return result(value, IdpResult.Grade.INFERRED, note);
   }
 
+  /**
+   * Reports a reading with several equally defensible answers.
+   *
+   * @param note What made the value undecidable.
+   * @return Parse result graded AMBIGUOUS, carrying no value.
+   */
   public static ParseResult ambiguous(String note) {
     return result(null, IdpResult.Grade.AMBIGUOUS, note);
   }
 
+  /**
+   * Reports that the text yielded no reading at all.
+   *
+   * @param note Why the parse failed.
+   * @return Parse result graded FAILED, carrying no value.
+   */
   public static ParseResult failed(String note) {
     return result(null, IdpResult.Grade.FAILED, note);
   }
 
+  /**
+   * Assembles a parse result.
+   *
+   * @param value Canonical value, or null.
+   * @param grade Grade earned by the parse.
+   * @param note Explanation carried alongside the grade.
+   * @return The assembled result.
+   */
   private static ParseResult result(
     Object value,
     IdpResult.Grade grade,
@@ -104,7 +172,12 @@ public inherited sharing class IdpValueTypes {
     return parsed;
   }
 
-  /** Trim, collapse whitespace, lowercase — the text comparison form. */
+  /**
+   * Reduces text to its comparison form: trimmed, collapsed, lowercased.
+   *
+   * @param value Text to normalize.
+   * @return Comparison form, empty string when nothing was supplied.
+   */
   public static String normalize(String value) {
     return value == null
       ? ''
@@ -112,10 +185,17 @@ public inherited sharing class IdpValueTypes {
   }
 
   /**
-   * The two-state compare the types without a tolerance all share: a blank
-   * stored field cannot confirm the document, and otherwise both sides go
-   * through the type's own canonical form. Number, Date, Datetime and Phone
-   * keep their own tolerance-aware compares.
+   * Compares both sides through the type's own canonical form.
+   *
+   * The two-state compare shared by the types that have no tolerance: a
+   * blank stored field cannot confirm the document. Number, Date, Datetime
+   * and Phone keep their own tolerance-aware compares.
+   *
+   * @param type Value type supplying the canonical form.
+   * @param extracted Value read from the document.
+   * @param stored Value read from the target field.
+   * @param cfg Value type configuration.
+   * @return MATCH or MISMATCH; this compare never reports NEAR.
    */
   private static IdpResult.CompareOutcome compareCanonical(
     IValueType type,
@@ -133,9 +213,18 @@ public inherited sharing class IdpValueTypes {
 
   /**
    * Fits a canonical value into the Apex type the target field expects.
-   * Types return proper Apex values (Decimal, Date, ...), so this is a
-   * narrow adapter, not a parser; a genuine mismatch (a Text value type on
-   * a Currency field fed non-numeric text) throws with a clear message.
+   *
+   * Types already return proper Apex values (Decimal, Date, ...), so this
+   * is a narrow adapter rather than a parser. Text-family fields take the
+   * type's rendered output instead.
+   *
+   * @param field Describe of the field being written.
+   * @param value Canonical value produced by the type.
+   * @param type Value type that produced it.
+   * @param cfg Value type configuration, supplying the output format.
+   * @return Value in the Apex type the field accepts, or null.
+   * @throws TypeException When the value cannot be the kind of value that
+   *         field holds, such as non-numeric text on a Currency field.
    */
   public static Object coerceForField(
     Schema.DescribeFieldResult field,
@@ -184,6 +273,14 @@ public inherited sharing class IdpValueTypes {
     }
   }
 
+  /**
+   * Converts a value to Decimal or refuses the write.
+   *
+   * @param value Canonical value produced by the type.
+   * @param field Describe of the numeric field being written.
+   * @return The numeric value.
+   * @throws TypeException When the value is not numeric.
+   */
   private static Decimal strictDecimal(
     Object value,
     Schema.DescribeFieldResult field
@@ -195,7 +292,12 @@ public inherited sharing class IdpValueTypes {
     throw new TypeException(typeMismatch(value, field, 'a number'));
   }
 
-  /** Decimal from any typed value; null when it is not numeric. */
+  /**
+   * Converts any typed value to Decimal where that is possible.
+   *
+   * @param value Value of any Apex type.
+   * @return Decimal form, or null when the value is not numeric.
+   */
   private static Decimal looseDecimal(Object value) {
     if (value instanceof Decimal) {
       return (Decimal) value;
@@ -219,6 +321,14 @@ public inherited sharing class IdpValueTypes {
     return null;
   }
 
+  /**
+   * Phrases why a value cannot be written to a field.
+   *
+   * @param value Value that was refused.
+   * @param field Describe of the field being written.
+   * @param expected What that field does accept, in plain words.
+   * @return Message for the TypeException.
+   */
   private static String typeMismatch(
     Object value,
     Schema.DescribeFieldResult field,
@@ -233,17 +343,40 @@ public inherited sharing class IdpValueTypes {
       ' expects.';
   }
 
-  // ───────────────────────────── Text ─────────────────────────────
-
+  /**
+   * Free text, compared case- and whitespace-insensitively.
+   */
   public class TextType implements IValueType {
+    /**
+     * Takes the document text as written, trimmed.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration.
+     * @return Trimmed text, always graded EXACT.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       return exact(String.valueOf(raw).trim());
     }
 
+    /**
+     * Reduces text to its comparison form.
+     *
+     * @param value Extracted or stored text.
+     * @param cfg Value type configuration.
+     * @return Normalized text, or null.
+     */
     public Object canonical(Object value, Config cfg) {
       return value == null ? null : normalize(String.valueOf(value));
     }
 
+    /**
+     * Compares both sides once normalized.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration.
+     * @return MATCH or MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -252,14 +385,29 @@ public inherited sharing class IdpValueTypes {
       return compareCanonical(this, extracted, stored, cfg);
     }
 
+    /**
+     * Writes the text back out unchanged.
+     *
+     * @param canonicalValue Normalized text.
+     * @param cfg Value type configuration.
+     * @return The text, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       return canonicalValue == null ? null : String.valueOf(canonicalValue);
     }
   }
 
-  // ─────────────────────────── Boolean ────────────────────────────
-
+  /**
+   * True and false as documents spell them: yes/no, y/n, 1/0.
+   */
   public class BooleanType implements IValueType {
+    /**
+     * Reads one of the accepted spellings of true or false.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration.
+     * @return EXACT true or false, or FAILED for anything else.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       if (raw instanceof Boolean) {
         return exact(raw);
@@ -274,6 +422,13 @@ public inherited sharing class IdpValueTypes {
       return failed('"' + raw + '" is not a boolean value.');
     }
 
+    /**
+     * Reduces either side to a true Boolean.
+     *
+     * @param value Extracted or stored value.
+     * @param cfg Value type configuration.
+     * @return Boolean form, or null when the value reads as neither.
+     */
     public Object canonical(Object value, Config cfg) {
       if (value instanceof Boolean) {
         return value;
@@ -282,6 +437,14 @@ public inherited sharing class IdpValueTypes {
       return parsed.value;
     }
 
+    /**
+     * Compares both sides as Booleans.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration.
+     * @return MATCH or MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -290,12 +453,17 @@ public inherited sharing class IdpValueTypes {
       return compareCanonical(this, extracted, stored, cfg);
     }
 
+    /**
+     * Writes the Boolean as "true" or "false".
+     *
+     * @param canonicalValue Boolean value.
+     * @param cfg Value type configuration.
+     * @return Text form, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       return canonicalValue == null ? null : String.valueOf(canonicalValue);
     }
   }
-
-  // ─────────────────────────── Number ─────────────────────────────
 
   /**
    * Money and plain numbers. Handles currency symbols and ISO codes,
@@ -311,6 +479,15 @@ public inherited sharing class IdpValueTypes {
    * ambiguous across conventions).
    */
   public class NumberType implements IValueType {
+    /**
+     * Reads an amount, resolving its sign, separators and currency.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration supplying locale, currency and
+     *        scale factor.
+     * @return The amount and its currency, graded by how much had to be
+     *         inferred; AMBIGUOUS when the separators do not settle.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       Decimal direct = looseDecimalOf(raw);
       if (direct != null && !(raw instanceof String)) {
@@ -421,6 +598,13 @@ public inherited sharing class IdpValueTypes {
       return outcome;
     }
 
+    /**
+     * Reduces either side to a Decimal amount.
+     *
+     * @param value Extracted or stored value.
+     * @param cfg Value type configuration.
+     * @return Decimal amount, or null when the value does not read as one.
+     */
     public Object canonical(Object value, Config cfg) {
       Decimal direct = looseDecimalOf(value);
       if (direct != null) {
@@ -433,6 +617,14 @@ public inherited sharing class IdpValueTypes {
       return null;
     }
 
+    /**
+     * Compares two amounts, allowing the configured tolerance.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration supplying the tolerance.
+     * @return MATCH when equal, NEAR when within tolerance, else MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -455,26 +647,64 @@ public inherited sharing class IdpValueTypes {
       return IdpResult.CompareOutcome.MISMATCH;
     }
 
+    /**
+     * Writes the amount in plain digits, with no grouping.
+     *
+     * @param canonicalValue Decimal amount.
+     * @param cfg Value type configuration.
+     * @return Text form, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       return canonicalValue == null ? null : String.valueOf(canonicalValue);
     }
 
+    /**
+     * Applies the Scale Factor, for documents printed in thousands.
+     *
+     * @param value Amount as the document stated it.
+     * @param cfg Value type configuration supplying the factor.
+     * @return Scaled amount, unchanged when no factor is configured.
+     */
     private Decimal scaled(Decimal value, Config cfg) {
       return cfg.scaleFactor == null ? value : value * cfg.scaleFactor;
     }
 
+    /**
+     * Converts an already-typed number, leaving text to the full parse.
+     *
+     * @param value Value read from the document or the record.
+     * @return Decimal form, or null for text and non-numeric values.
+     */
     private Decimal looseDecimalOf(Object value) {
       return value instanceof String ? null : looseDecimal(value);
     }
   }
 
+  /** How one amount's separators were read, and at what confidence. */
   private class SeparatorReading {
+    /** Digits with a single "." decimal separator and no grouping. */
     public String normalized;
+    /** True when a convention had to be assumed rather than derived. */
     public Boolean inferred = false;
+    /** Which assumption was made. */
     public String note;
+    /** Why the separators could not be read at all. */
     public String error;
   }
 
+  /**
+   * Decides which separator in an amount is the decimal point.
+   *
+   * With both "," and "." present the last one decides, deterministically.
+   * A single separator is deterministic when a locale is configured;
+   * without one, one or two trailing digits read as decimals — a thousands
+   * group needs three — and exactly three trailing digits read as
+   * thousands, inferred, because "1,234" is genuinely ambiguous.
+   *
+   * @param digits Amount with sign and currency already stripped.
+   * @param cfg Value type configuration supplying the locale.
+   * @return The normalized digits, or the reason they were undecidable.
+   */
   private static SeparatorReading readSeparators(String digits, Config cfg) {
     SeparatorReading reading = new SeparatorReading();
     Boolean hasComma = digits.contains(',');
@@ -545,10 +775,14 @@ public inherited sharing class IdpValueTypes {
   }
 
   /**
-   * ISO code or unambiguous symbol stated next to the amount; null when the
-   * document says nothing decidable. Ambiguous symbols ($, ¥, kr) are
-   * deliberately not decided here — declare the currency on the value type
-   * instead of letting the engine guess between dollars.
+   * Reads the currency stated next to an amount.
+   *
+   * Ambiguous symbols ($, ¥, kr) are deliberately left undecided — declare
+   * the currency on the value type rather than letting the engine guess
+   * between dollars.
+   *
+   * @param text Amount as the document wrote it.
+   * @return ISO 4217 code, or null when nothing decidable was stated.
    */
   @TestVisible
   private static String detectCurrency(String text) {
@@ -576,6 +810,11 @@ public inherited sharing class IdpValueTypes {
    *  rand. Built once; a symbol absent from the map is matched literally. */
   private static Map<String, Pattern> symbolPatternCache;
 
+  /**
+   * Compiles the boundary patterns for alphabetic currency symbols, once.
+   *
+   * @return Pattern per symbol that needs one; others match literally.
+   */
   private static Map<String, Pattern> symbolPatterns() {
     if (symbolPatternCache == null) {
       symbolPatternCache = new Map<String, Pattern>();
@@ -593,6 +832,12 @@ public inherited sharing class IdpValueTypes {
     return symbolPatternCache;
   }
 
+  /**
+   * Escapes a currency symbol for use inside a pattern.
+   *
+   * @param literal Symbol to quote.
+   * @return The symbol with regex metacharacters escaped.
+   */
   private static String escapeRegex(String literal) {
     List<String> escaped = new List<String>();
     for (Integer i = 0; i < literal.length(); i++) {
@@ -602,6 +847,7 @@ public inherited sharing class IdpValueTypes {
     return String.join(escaped, '');
   }
 
+  /** ISO 4217 codes recognised when a document states one. */
   private static final Set<String> ISO_CURRENCIES = new Set<String>{
     'USD',
     'EUR',
@@ -683,6 +929,8 @@ public inherited sharing class IdpValueTypes {
     '₺',
     'R'
   };
+
+  /** The currency each unambiguous symbol stands for. */
   private static final Map<String, String> SYMBOL_CURRENCIES = new Map<String, String>{
     'R$' => 'BRL',
     '€' => 'EUR',
@@ -698,13 +946,17 @@ public inherited sharing class IdpValueTypes {
     'R' => 'ZAR'
   };
 
-  /** True when the code is a known ISO 4217 currency — load-time config
-   *  validation uses this. */
+  /**
+   * Reports whether a code names a currency the engine recognises.
+   *
+   * Load-time configuration validation uses this to surface typos.
+   *
+   * @param code Candidate ISO 4217 code.
+   * @return True when the code is one of the known currencies.
+   */
   public static Boolean isKnownCurrency(String code) {
     return code != null && ISO_CURRENCIES.contains(code.trim().toUpperCase());
   }
-
-  // ──────────────────────────── Date ──────────────────────────────
 
   /**
    * Ordered pattern list from Formats__c (default strict ISO). Every
@@ -718,6 +970,15 @@ public inherited sharing class IdpValueTypes {
    * "d 'de' MMMM 'de' yyyy" reads a Spanish or Portuguese long date.
    */
   public class DateType implements IValueType {
+    /**
+     * Reads a date against every configured pattern.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration supplying the patterns, locale
+     *        and pivot year.
+     * @return EXACT for one distinct reading, AMBIGUOUS when patterns
+     *         disagree, FAILED when none matches.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       String text = String.valueOf(raw).trim();
       if (String.isBlank(text)) {
@@ -764,6 +1025,13 @@ public inherited sharing class IdpValueTypes {
       return exact(new List<Date>(readings.keySet())[0]);
     }
 
+    /**
+     * Reduces either side to a Date, falling back to ISO text.
+     *
+     * @param value Extracted or stored value.
+     * @param cfg Value type configuration.
+     * @return Date, or null when the value does not read as one.
+     */
     public Object canonical(Object value, Config cfg) {
       if (value instanceof Date) {
         return value;
@@ -785,6 +1053,14 @@ public inherited sharing class IdpValueTypes {
       return null;
     }
 
+    /**
+     * Compares two dates, allowing a tolerance measured in days.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration supplying the tolerance.
+     * @return MATCH when equal, NEAR when within tolerance, else MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -807,6 +1083,13 @@ public inherited sharing class IdpValueTypes {
       return IdpResult.CompareOutcome.MISMATCH;
     }
 
+    /**
+     * Writes the date in the configured output format, ISO by default.
+     *
+     * @param canonicalValue Date to render.
+     * @param cfg Value type configuration supplying the output format.
+     * @return Formatted date, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       if (!(canonicalValue instanceof Date)) {
         return canonicalValue == null ? null : String.valueOf(canonicalValue);
@@ -851,12 +1134,26 @@ public inherited sharing class IdpValueTypes {
 
   /** Pattern tokens in reading order plus the regex they compile to. */
   private class DatePattern {
+    /** Tokens such as dd or MMMM, aligned with the regex groups. */
     public List<String> tokens = new List<String>();
+    /** Regex the whole pattern compiled to. */
     public Pattern regex;
   }
 
+  /** Compiled date patterns, reused for the rest of the transaction. */
   private static Map<String, DatePattern> compiledDatePatterns = new Map<String, DatePattern>();
 
+  /**
+   * Reads a date against one pattern, range-checking the components.
+   *
+   * A day that does not exist in that month fails cleanly rather than
+   * rolling over, so 31/02/2024 is never read as 2 March.
+   *
+   * @param text Date as the document wrote it.
+   * @param pattern Format to try, such as dd/MM/yyyy.
+   * @param cfg Value type configuration supplying locale and pivot year.
+   * @return The date, or null when the text does not fit the pattern.
+   */
   private static Date tryPattern(String text, String pattern, Config cfg) {
     DatePattern compiled = compileDatePattern(pattern);
     if (compiled == null) {
@@ -899,15 +1196,33 @@ public inherited sharing class IdpValueTypes {
     return Date.newInstance(year, month, day);
   }
 
-  /** The century is chosen so the year lands inside [pivot, pivot+99]. */
+  /**
+   * Expands a two-digit year into a full one.
+   *
+   * The century is chosen so the year lands inside [pivot, pivot+99].
+   *
+   * @param twoDigits Year as the document wrote it.
+   * @param cfg Value type configuration supplying the pivot year.
+   * @return Four-digit year.
+   */
   private static Integer pivotYear(Integer twoDigits, Config cfg) {
     Integer pivot = cfg.pivotYear == null ? 1950 : cfg.pivotYear;
     Integer candidate = (pivot / 100) * 100 + twoDigits;
     return candidate < pivot ? candidate + 100 : candidate;
   }
 
-  // NB: no local here may be named "pattern" — Apex identifier resolution
-  // would shadow the System.Pattern class.
+  /**
+   * Compiles a date format into a regex and its token order, once.
+   *
+   * Text between single quotes is literal, so "d 'de' MMMM 'de' yyyy"
+   * reads a Spanish or Portuguese long date.
+   *
+   * No local here may be named "pattern": Apex identifier resolution would
+   * shadow the System.Pattern class.
+   *
+   * @param patternText Format as configured on the value type.
+   * @return Compiled pattern, or null when the format is unusable.
+   */
   private static DatePattern compileDatePattern(String patternText) {
     if (compiledDatePatterns.containsKey(patternText)) {
       return compiledDatePatterns.get(patternText);
@@ -978,7 +1293,15 @@ public inherited sharing class IdpValueTypes {
     return compiled;
   }
 
-  /** Renders a Date through the same token set the parser reads. */
+  /**
+   * Renders a Date through the same token set the parser reads.
+   *
+   * Month names are written in English whatever the reading locale was.
+   *
+   * @param value Date to render.
+   * @param pattern Output format, using the parser's tokens.
+   * @return Formatted date.
+   */
   public static String formatDate(Date value, String pattern) {
     List<String> output = new List<String>();
     Integer i = 0;
@@ -1029,11 +1352,15 @@ public inherited sharing class IdpValueTypes {
     return String.join(output, '');
   }
 
+  /**
+   * Left-pads a day or month to two digits.
+   *
+   * @param value Number to pad.
+   * @return Two-character text.
+   */
   private static String pad2(Integer value) {
     return String.valueOf(value).leftPad(2, '0');
   }
-
-  // ────────────────────────── Datetime ────────────────────────────
 
   /**
    * ISO 8601. A timestamp with an explicit offset is EXACT. A naive one
@@ -1043,6 +1370,14 @@ public inherited sharing class IdpValueTypes {
    * avoid).
    */
   public class DatetimeType implements IValueType {
+    /**
+     * Reads an ISO 8601 timestamp, resolving its zone.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration supplying the timezone.
+     * @return EXACT when the zone is known, INFERRED when GMT had to be
+     *         assumed, FAILED when the text is not a timestamp.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       String text = String.valueOf(raw).trim();
       if (String.isBlank(text)) {
@@ -1076,6 +1411,13 @@ public inherited sharing class IdpValueTypes {
       );
     }
 
+    /**
+     * Reduces either side to a Datetime.
+     *
+     * @param value Extracted or stored value.
+     * @param cfg Value type configuration.
+     * @return Datetime, or null when the value does not read as one.
+     */
     public Object canonical(Object value, Config cfg) {
       if (value instanceof Datetime) {
         return value;
@@ -1087,6 +1429,14 @@ public inherited sharing class IdpValueTypes {
       return null;
     }
 
+    /**
+     * Compares two timestamps, allowing a tolerance measured in minutes.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration supplying the tolerance.
+     * @return MATCH when equal, NEAR when within tolerance, else MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -1110,6 +1460,13 @@ public inherited sharing class IdpValueTypes {
       return IdpResult.CompareOutcome.MISMATCH;
     }
 
+    /**
+     * Writes the timestamp as ISO 8601 in GMT.
+     *
+     * @param canonicalValue Datetime to render.
+     * @param cfg Value type configuration.
+     * @return Formatted timestamp, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       if (!(canonicalValue instanceof Datetime)) {
         return canonicalValue == null ? null : String.valueOf(canonicalValue);
@@ -1119,6 +1476,12 @@ public inherited sharing class IdpValueTypes {
     }
   }
 
+  /**
+   * Reads an offset-bearing ISO 8601 timestamp.
+   *
+   * @param text Timestamp as the document wrote it.
+   * @return The instant, or null when the text is not valid ISO 8601.
+   */
   private static Datetime deserializeIso(String text) {
     try {
       return (Datetime) JSON.deserialize('"' + text + '"', Datetime.class);
@@ -1126,8 +1489,6 @@ public inherited sharing class IdpValueTypes {
       return null;
     }
   }
-
-  // ─────────────────────────── Phone ──────────────────────────────
 
   /**
    * Canonical form is E.164. "+27 82 123 4567", "0027821234567" and — with
@@ -1137,6 +1498,15 @@ public inherited sharing class IdpValueTypes {
    * digit strings and parse as INFERRED.
    */
   public class PhoneType implements IValueType {
+    /**
+     * Reads a phone number towards E.164.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration supplying the region.
+     * @return EXACT when the country code is explicit or derivable from a
+     *         national prefix, INFERRED when one had to be assumed,
+     *         FAILED when the digits are not a plausible number.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       String text = String.valueOf(raw).trim();
       if (String.isBlank(text)) {
@@ -1178,6 +1548,13 @@ public inherited sharing class IdpValueTypes {
       );
     }
 
+    /**
+     * Reduces either side to its E.164 form.
+     *
+     * @param value Extracted or stored value.
+     * @param cfg Value type configuration supplying the region.
+     * @return E.164 number, or null when the value does not read as one.
+     */
     public Object canonical(Object value, Config cfg) {
       if (value == null) {
         return null;
@@ -1186,6 +1563,17 @@ public inherited sharing class IdpValueTypes {
       return parsed.value;
     }
 
+    /**
+     * Compares two numbers once both are in E.164.
+     *
+     * Numbers agreeing on their last nine digits are NEAR rather than a
+     * mismatch, which is how a differing country code surfaces for review.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration supplying the region.
+     * @return MATCH, NEAR or MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -1211,6 +1599,14 @@ public inherited sharing class IdpValueTypes {
       return IdpResult.CompareOutcome.MISMATCH;
     }
 
+    /**
+     * Writes the number as E.164, bare digits, or national form.
+     *
+     * @param canonicalValue E.164 number to render.
+     * @param cfg Value type configuration supplying the output format and
+     *        the region a national form is relative to.
+     * @return Formatted number, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       if (canonicalValue == null) {
         return null;
@@ -1233,11 +1629,15 @@ public inherited sharing class IdpValueTypes {
     }
   }
 
+  /**
+   * Resolves a region's dial code from the org's reference data.
+   *
+   * @param region ISO country code.
+   * @return E.164 dial code, or null when the country is not seeded.
+   */
   public static String dialCodeFor(String region) {
     return IdpLocaleData.dialCodeFor(region);
   }
-
-  // ────────────────────────── ValueMap ────────────────────────────
 
   /**
    * Admin-editable dictionary: the value type's Value_Map_Entries__c JSON translates
@@ -1246,6 +1646,14 @@ public inherited sharing class IdpValueTypes {
    * writing free text into a controlled field.
    */
   public class ValueMapType implements IValueType {
+    /**
+     * Translates document text through the configured dictionary.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration supplying the map entries.
+     * @return EXACT with the mapped value, or FAILED when the text is not
+     *         mapped — free text never reaches a controlled field.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       String text = String.valueOf(raw).trim();
       String mapped = applyMap(text, cfg);
@@ -1263,6 +1671,14 @@ public inherited sharing class IdpValueTypes {
       );
     }
 
+    /**
+     * Translates either side, so a stored value compares on equal terms.
+     *
+     * @param value Extracted or stored value.
+     * @param cfg Value type configuration supplying the map entries.
+     * @return Normalized mapped value, or the normalized original when the
+     *         dictionary does not cover it.
+     */
     public Object canonical(Object value, Config cfg) {
       if (value == null) {
         return null;
@@ -1272,6 +1688,14 @@ public inherited sharing class IdpValueTypes {
       return normalize(mapped == null ? text : mapped);
     }
 
+    /**
+     * Compares both sides once translated.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration.
+     * @return MATCH or MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -1280,10 +1704,26 @@ public inherited sharing class IdpValueTypes {
       return compareCanonical(this, extracted, stored, cfg);
     }
 
+    /**
+     * Writes the mapped value as stored.
+     *
+     * @param canonicalValue Mapped value.
+     * @param cfg Value type configuration.
+     * @return The value as text, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       return canonicalValue == null ? null : String.valueOf(canonicalValue);
     }
 
+    /**
+     * Finds the first dictionary entry the text answers to.
+     *
+     * Entries match exactly, by regex, or normalized, per their own style.
+     *
+     * @param text Document text to translate.
+     * @param cfg Value type configuration supplying the map entries.
+     * @return Mapped value, or null when no entry covers the text.
+     */
     private String applyMap(String text, Config cfg) {
       for (MapEntry entry : cfg.mapEntries) {
         if (entry.matchStyle == 'Exact') {
@@ -1306,8 +1746,6 @@ public inherited sharing class IdpValueTypes {
     }
   }
 
-  // ─────────────────────────── Regex ──────────────────────────────
-
   /**
    * Extracts the first capturing group (or the whole match) of the pattern
    * in Formats__c — for reference numbers buried in surrounding text, e.g.
@@ -1315,6 +1753,14 @@ public inherited sharing class IdpValueTypes {
    * alternations with | work.
    */
   public class RegexType implements IValueType {
+    /**
+     * Pulls the wanted substring out of the surrounding text.
+     *
+     * @param raw Value read from the document.
+     * @param cfg Value type configuration supplying the unsplit pattern.
+     * @return EXACT with the captured text, or FAILED when the pattern is
+     *         missing, invalid, or does not match.
+     */
     public ParseResult parse(Object raw, Config cfg) {
       String text = String.valueOf(raw).trim();
       if (String.isBlank(cfg.formatsRaw)) {
@@ -1343,10 +1789,25 @@ public inherited sharing class IdpValueTypes {
       return exact(extracted.trim());
     }
 
+    /**
+     * Reduces the captured text to its comparison form.
+     *
+     * @param value Extracted or stored value.
+     * @param cfg Value type configuration.
+     * @return Normalized text, or null.
+     */
     public Object canonical(Object value, Config cfg) {
       return value == null ? null : normalize(String.valueOf(value));
     }
 
+    /**
+     * Compares both sides once normalized.
+     *
+     * @param extracted Value read from the document.
+     * @param stored Value read from the target field.
+     * @param cfg Value type configuration.
+     * @return MATCH or MISMATCH.
+     */
     public IdpResult.CompareOutcome compare(
       Object extracted,
       Object stored,
@@ -1355,6 +1816,13 @@ public inherited sharing class IdpValueTypes {
       return compareCanonical(this, extracted, stored, cfg);
     }
 
+    /**
+     * Writes the captured text back out unchanged.
+     *
+     * @param canonicalValue Normalized text.
+     * @param cfg Value type configuration.
+     * @return The text, or null.
+     */
     public String render(Object canonicalValue, Config cfg) {
       return canonicalValue == null ? null : String.valueOf(canonicalValue);
     }

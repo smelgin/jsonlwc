@@ -5,11 +5,15 @@
  */
 @IsTest
 private class IdpFilterBinderTest {
+  /** Sample document the tokens are resolved against. */
   private static final Map<String, Object> ROOT = new Map<String, Object>{
     'policy' => new Map<String, Object>{ 'number' => 'POL-9' },
     'Invoice' => 'A1'
   };
 
+  /**
+   * Verifies that a document value reaches the query as a bind variable.
+   */
   @IsTest
   static void bindsDocumentValuesInsteadOfConcatenating() {
     Map<String, Object> binds = new Map<String, Object>();
@@ -27,6 +31,9 @@ private class IdpFilterBinderTest {
     Assert.areEqual('POL-9', binds.get('boundValue0'));
   }
 
+  /**
+   * Verifies that a token appearing twice takes a single bind variable.
+   */
   @IsTest
   static void repeatedTokensBindOnce() {
     Map<String, Object> binds = new Map<String, Object>{ 'seed' => 1 };
@@ -40,6 +47,10 @@ private class IdpFilterBinderTest {
     Assert.areEqual('A__c = :boundValue1 OR B__c = :boundValue1', bound);
   }
 
+  /**
+   * Verifies row key rendering: whole numbers stay whole and an
+   * unresolvable token yields no key at all.
+   */
   @IsTest
   static void rendersRowTemplates() {
     Map<String, Object> row = new Map<String, Object>{ 'Qty' => 2.0 };
@@ -63,6 +74,9 @@ private class IdpFilterBinderTest {
     );
   }
 
+  /**
+   * Verifies that only filters carrying tokens count as document-bound.
+   */
   @IsTest
   static void detectsDocumentReferences() {
     Assert.isTrue(IdpFilterBinder.referencesDocument('X = {json:a.b}'));

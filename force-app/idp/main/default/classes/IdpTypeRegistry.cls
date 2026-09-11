@@ -7,11 +7,25 @@
  * Rules that name no value type get one auto-derived from the target
  * field's describe — strict by design: numbers must parse deterministically,
  * dates are ISO. Anything looser is an explicit admin choice.
+ *
+ * @group IDP Engine
+ * @author Ernesto S Melgin
  */
 public inherited sharing class IdpTypeRegistry {
+  /** Built-in singletons, created on first use. */
   private static Map<String, IValueType> builtIns;
+
+  /** Custom implementations already resolved in this transaction. */
   private static Map<String, IValueType> customInstances = new Map<String, IValueType>();
 
+  /**
+   * Resolves a value type configuration to the implementation behind it.
+   *
+   * @param cfg Value type configuration naming a built-in kind or a class.
+   * @return Stateless implementation shared by every rule using that type.
+   * @throws IdpValueTypes.TypeException When the kind is unknown, or the
+   *         custom class is missing, uninstantiable or not an IValueType.
+   */
   public static IValueType resolve(IdpValueTypes.Config cfg) {
     if (cfg.kind == IdpValueTypes.KIND_CUSTOM) {
       return custom(cfg.handlerClass);
@@ -25,6 +39,12 @@ public inherited sharing class IdpTypeRegistry {
     return type;
   }
 
+  /**
+   * Hands back the singleton implementing a built-in kind.
+   *
+   * @param kind Built-in kind key, as stored on IDP_Value_Type__mdt.
+   * @return Shared implementation, or null when the kind is not built in.
+   */
   public static IValueType builtIn(String kind) {
     if (builtIns == null) {
       builtIns = new Map<String, IValueType>{
@@ -41,7 +61,16 @@ public inherited sharing class IdpTypeRegistry {
     return builtIns.get(kind);
   }
 
-  /** Strict default config for a rule without an explicit value type. */
+  /**
+   * Derives a strict default configuration from the target field's describe.
+   *
+   * Applies to rules that name no value type: numbers must parse
+   * deterministically and dates are ISO, so looser parsing stays an
+   * explicit admin choice.
+   *
+   * @param field Describe of the field the rule writes to.
+   * @return Configuration whose kind matches the field's data type.
+   */
   public static IdpValueTypes.Config autoConfig(
     Schema.DescribeFieldResult field
   ) {
@@ -70,6 +99,14 @@ public inherited sharing class IdpTypeRegistry {
     return cfg;
   }
 
+  /**
+   * Instantiates an org-specific value type by class name, once per class.
+   *
+   * @param className Apex class named on the value type configuration.
+   * @return Cached instance implementing IValueType.
+   * @throws IdpValueTypes.TypeException When the name is blank, unknown,
+   *         uninstantiable, or the class does not implement IValueType.
+   */
   private static IValueType custom(String className) {
     if (String.isBlank(className)) {
       throw new IdpValueTypes.TypeException(
